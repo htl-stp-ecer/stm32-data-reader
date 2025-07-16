@@ -17,17 +17,14 @@
 using namespace platform::wombat::core;
 using clk = std::chrono::steady_clock;
 
-/* ---------- globals for “commanded” state ---------- */
 static std::array<std::atomic<int32_t>, 4> motorPowerCmd{};
 static std::array<std::atomic<uint16_t>, 4> servoPosCmd{};
 
-/* ---------- helper to build topic names ---------- */
-static inline std::string adcChan(uint8_t idx) { return "sensors_analog_" + std::to_string(idx); }
-static inline std::string dioChan(uint8_t bit) { return "sensors_digital_" + std::to_string(bit); }
-static inline std::string motChan(const char* what) { return std::string("motors_0_") + what; }
-static inline std::string srvChan(const char* what) { return std::string("servos_0_") + what; }
+static std::string adcChan(uint8_t idx) { return "sensors_analog_" + std::to_string(idx); }
+static std::string dioChan(uint8_t bit) { return "sensors_digital_" + std::to_string(bit); }
+static std::string motChan(const char* what) { return std::string("motors_0_") + what; }
+static std::string srvChan(const char* what) { return std::string("servos_0_") + what; }
 
-/* ---------- helper to initialize publisher arrays ---------- */
 template <size_t N>
 static std::array<PubIfChanged<exlcm::scalar_i32_t>, N> make_digital_pubs(lcm::LCM& lcm)
 {
@@ -39,15 +36,12 @@ static std::array<PubIfChanged<exlcm::scalar_i32_t>, N> make_digital_pubs(lcm::L
     return pubs;
 }
 
-/* ---------- main ---------- */
 int main()
 {
-    /* logging ------------------------------------------------------------ */
     spdlog::set_pattern("[%H:%M:%S.%e] [%l] %v");
     spdlog::set_level(spdlog::level::info);
     spdlog::info("Starting Wombat‑Pi LCM interface (flat topics)…");
 
-    /* LCM & SPI ---------------------------------------------------------- */
     lcm::LCM lc;
     if (!lc.good())
     {
@@ -57,7 +51,6 @@ int main()
     Spi& spi = Spi::instance();
     spi.init();
 
-    /* ---------- subscribe to per‑signal commands ---------- */
     lc.subscribe<exlcm::scalar_i32_t>(motChan("power_cmd"),
                                       [&](const lcm::ReceiveBuffer*, const std::string&,
                                           const exlcm::scalar_i32_t* cmd)
@@ -78,7 +71,6 @@ int main()
                                           spi.forceUpdate();
                                       });
 
-    /* ---------- publishers (cached) ------------------------------------- */
     PubIfChanged<exlcm::vector3f_t> pubGyro(lc, "sensors_imu_gyro");
     PubIfChanged<exlcm::vector3f_t> pubAccel(lc, "sensors_imu_accel");
     PubIfChanged<exlcm::vector3f_t> pubMag(lc, "sensors_imu_magneto");
@@ -90,26 +82,24 @@ int main()
             {lc, adcChan(3)}, {lc, adcChan(4)}, {lc, adcChan(5)}
         }
     };
-    auto pubDigital = make_digital_pubs<16>(lc);
+    auto pubDigital = make_digital_pubs<11>(lc);
 
     PubIfChanged<exlcm::scalar_i32_t> pubMotorPower(lc, motChan("power"));
     PubIfChanged<exlcm::scalar_i32_t> pubMotorBemf(lc, motChan("bemf"));
     PubIfChanged<exlcm::scalar_i32_t> pubServoPos(lc, srvChan("position"));
 
-    /* ---------- main loop ----------------------------------------------- */
     uint32_t lastTs = 0;
 
     while (true)
     {
-        spi.update(); // fetch fresh SPI frame
-        lc.handleTimeout(0); // pump inbound cmds
+        spi.update(); 
+        lc.handleTimeout(0);
 
         const uint32_t ts = lastUpdateUs();
-        if (ts == lastTs) // STM32 hasn’t updated
+        if (ts == lastTs) 
             continue;
         lastTs = ts;
 
-        /* IMU ------------------------------------------------------------ */
         exlcm::vector3f_t v3{};
         v3.timestamp = ts;
 
@@ -131,7 +121,6 @@ int main()
         std::memcpy(&fmsg.value, &spi.rx()[RX_IMU_TEMPERATUR], sizeof(float));
         pubTemp(fmsg);
 
-        /* Analog (6) ----------------------------------------------------- */
         for (uint8_t i = 0; i < 6; ++i)
         {
             exlcm::scalar_i32_t msg{};
@@ -140,9 +129,8 @@ int main()
             pubAnalog[i](msg);
         }
 
-        /* Digital (16) ---------------------------------------------------- */
         const uint16_t dmask = digitalRaw();
-        for (uint8_t bit = 0; bit < 16; ++bit)
+        for (uint8_t bit = 0; bit < 11; ++bit)
         {
             exlcm::scalar_i32_t msg{};
             msg.timestamp = ts;
@@ -150,7 +138,6 @@ int main()
             pubDigital[bit](msg);
         }
 
-        /* Motor feedback & commanded power ------------------------------ */
         exlcm::scalar_i32_t mmsg{};
         mmsg.timestamp = ts;
 
@@ -160,7 +147,6 @@ int main()
         mmsg.value = bemf(0);
         pubMotorBemf(mmsg);
 
-        /* Servo position ------------------------------------------------- */
         exlcm::scalar_i32_t smsg{};
         smsg.timestamp = ts;
         smsg.value = getServoPos(0);
