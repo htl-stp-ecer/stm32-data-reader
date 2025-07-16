@@ -1,0 +1,3 @@
+[submodule "lcm-messages"]
+	path = lcm-messages
+	url = git@gitlab.com:da253/lcm-messages.git
