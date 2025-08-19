@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.31)
+cmake_minimum_required(VERSION 3.16)
 project(stm32_data_reader)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -20,9 +20,14 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(spdlog)
 
 # Add LCM
-find_package(lcm REQUIRED)
+FetchContent_Declare(
+        lcm
+        GIT_REPOSITORY https://github.com/lcm-proj/lcm.git
+        GIT_TAG v1.5.0
+)
+FetchContent_MakeAvailable(lcm)
 
-# Add LCM message types
+# # Add LCM message types
 add_subdirectory(lcm-messages)
 
 target_link_libraries(stm32_data_reader
@@ -30,4 +35,5 @@ target_link_libraries(stm32_data_reader
         spdlog::spdlog
         messages-cpp
         ${LCM_NAMESPACE}lcm
+        -static
 )

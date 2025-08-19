@@ -1,0 +1,5 @@
+services:
+  build-stm32-data-reader:
+    build: .
+    volumes:
+      - .:/app:rw
