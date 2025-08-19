@@ -52,6 +52,10 @@
 #define RX_MAG_Y                 65
 #define RX_MAG_Z                 69
 
+#define RX_EULER_ROLL            70
+#define RX_EULER_PITCH           71
+#define RX_EULER_YAW             72
+
 // Temperature (1 x float)
 #define RX_IMU_TEMPERATUR              73
 

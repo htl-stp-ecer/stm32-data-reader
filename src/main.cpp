@@ -28,7 +28,7 @@ static std::string srvChan(const char* what) { return std::string("servos_0_") +
 template <size_t N>
 static std::array<PubIfChanged<exlcm::scalar_i32_t>, N> make_digital_pubs(lcm::LCM& lcm)
 {
-    std::array<PubIfChanged<exlcm::scalar_i32_t>, N> pubs;
+    std::array<PubIfChanged<exlcm::scalar_i32_t>, N> pubs{};
     for (size_t i = 0; i < N; ++i)
     {
         pubs[i] = PubIfChanged<exlcm::scalar_i32_t>(lcm, dioChan(i));
