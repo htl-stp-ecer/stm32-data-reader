@@ -20,6 +20,8 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(spdlog)
 
 # Add LCM
+set(LCM_ENABLE_JAVA OFF CACHE BOOL "" FORCE)
+set(LCM_ENABLE_PYTHON OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
         lcm
         GIT_REPOSITORY https://github.com/lcm-proj/lcm.git
