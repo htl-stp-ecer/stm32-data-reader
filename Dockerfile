@@ -12,13 +12,15 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ >/etc/timezone
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential cmake ninja-build git pkg-config \
       libglib2.0-dev libpcre2-dev zlib1g-dev \
+      libfmt-dev libspdlog-dev \
+      liblcm-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 COPY . .
 
 # Usual CMake build (no cross toolchain needed)
-RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+RUN rm -rf build && cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
  && cmake --build build -j"$(nproc)"
 
 ############################################

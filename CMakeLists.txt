@@ -11,7 +11,6 @@ add_executable(stm32_data_reader
         src/Spi.cpp
 )
 
-# Add spdlog
 FetchContent_Declare(
         spdlog
         GIT_REPOSITORY https://github.com/gabime/spdlog.git
@@ -19,9 +18,9 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
-# Add LCM
 set(LCM_ENABLE_JAVA OFF CACHE BOOL "" FORCE)
 set(LCM_ENABLE_PYTHON OFF CACHE BOOL "" FORCE)
+set(LCM_ENABLE_DOCS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
         lcm
         GIT_REPOSITORY https://github.com/lcm-proj/lcm.git
@@ -29,7 +28,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(lcm)
 
-# # Add LCM message types
 add_subdirectory(lcm-messages)
 
 target_link_libraries(stm32_data_reader
@@ -37,5 +35,4 @@ target_link_libraries(stm32_data_reader
         spdlog::spdlog
         messages-cpp
         ${LCM_NAMESPACE}lcm
-        -static
 )

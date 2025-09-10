@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-# Deploy script for Raspberry Pi 3B (arm/v7)
 set -euo pipefail
 
 PROJECT_NAME="${PROJECT_NAME:-stm32_data_reader}"
@@ -8,7 +7,7 @@ BUILD_DIR="${BUILD_DIR:-build}"
 BINARY_PATH="${BUILD_DIR}/${PROJECT_NAME}"
 
 REMOTE_USER="${RPI_USER:-pi}"
-REMOTE_HOST="${RPI_HOST:-10.117.224.14}"
+REMOTE_HOST="${RPI_HOST:-10.101.156.14}"
 REMOTE_DIR="${RPI_DIR:-/home/pi/stm32_data_reader}"
 
 # Colors for output
