@@ -1,0 +1,6 @@
+package exlcm;
+
+struct scalar_i32_t
+{
+    int32_t value;
+}
