@@ -1,0 +1,6 @@
+package exlcm;
+
+struct scalar_f_t
+{
+    float   value;
+}

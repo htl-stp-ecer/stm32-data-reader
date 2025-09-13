@@ -1,15 +1,32 @@
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+
 cmake_minimum_required(VERSION 3.16)
 project(stm32_data_reader)
 
 set(CMAKE_CXX_STANDARD 20)
 
 include(FetchContent)
+
+option(USE_SPI_MOCK "Use mock SPI implementation" OFF)
+set(SPI_SOURCE src/spi/Spi.cpp)
+if(USE_SPI_MOCK)
+    message(STATUS "Using SPI Mock implementation")
+    include_directories(${CMAKE_SOURCE_DIR}/include/mock)
+    set(SPI_SOURCE src/spi/mock/Spi.cpp)
+endif()
+
 include_directories(include)
 
 add_executable(stm32_data_reader
         src/main.cpp
-        src/Spi.cpp
+        ${SPI_SOURCE}
+        src/lcm/LcmDataWriter.cpp
 )
+
+
+if(USE_SPI_MOCK)
+    target_compile_definitions(stm32_data_reader PRIVATE USE_SPI_MOCK)
+endif()
 
 FetchContent_Declare(
         spdlog

@@ -1,0 +1,8 @@
+package exlcm;
+
+struct vector3f_t
+{
+    float   x;
+    float   y;
+    float   z;
+}

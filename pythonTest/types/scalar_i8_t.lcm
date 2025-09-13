@@ -1,0 +1,6 @@
+package exlcm;
+
+struct scalar_i8_t
+{
+    int8_t dir;
+}
