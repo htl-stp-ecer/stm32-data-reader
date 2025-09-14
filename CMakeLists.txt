@@ -1,40 +1,29 @@
-set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
-
 cmake_minimum_required(VERSION 3.16)
-project(stm32_data_reader)
+project(stm32_data_reader VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-include(FetchContent)
-
-option(USE_SPI_MOCK "Use mock SPI implementation" OFF)
-set(SPI_SOURCE src/spi/Spi.cpp)
-if(USE_SPI_MOCK)
-    message(STATUS "Using SPI Mock implementation")
-    include_directories(${CMAKE_SOURCE_DIR}/include/mock)
-    set(SPI_SOURCE src/spi/mock/Spi.cpp)
-endif()
+option(USE_SPI_MOCK "Use mock SPI implementation for testing" OFF)
 
 include_directories(include)
+include(FetchContent)
 
-add_executable(stm32_data_reader
-        src/main.cpp
-        ${SPI_SOURCE}
-        src/lcm/LcmDataWriter.cpp
-)
+# ---------- spdlog ----------
+set(SPDLOG_GIT_TAG v1.15.3)
 
 
-if(USE_SPI_MOCK)
-    target_compile_definitions(stm32_data_reader PRIVATE USE_SPI_MOCK)
-endif()
-
+set(SPDLOG_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(SPDLOG_FMT_EXTERNAL OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
         spdlog
         GIT_REPOSITORY https://github.com/gabime/spdlog.git
-        GIT_TAG v1.15.3
+        GIT_TAG ${SPDLOG_GIT_TAG}
 )
 FetchContent_MakeAvailable(spdlog)
 
+# ---------- LCM ----------
 set(LCM_ENABLE_JAVA OFF CACHE BOOL "" FORCE)
 set(LCM_ENABLE_PYTHON OFF CACHE BOOL "" FORCE)
 set(LCM_ENABLE_DOCS OFF CACHE BOOL "" FORCE)
@@ -47,9 +36,43 @@ FetchContent_MakeAvailable(lcm)
 
 add_subdirectory(lcm-messages)
 
-target_link_libraries(stm32_data_reader
-        PRIVATE
-        spdlog::spdlog
-        messages-cpp
-        ${LCM_NAMESPACE}lcm
+set(CORE_SOURCES
+        src/wombat/core/Logger.cpp
+        src/wombat/core/Result.cpp
+        src/wombat/messaging/LcmBroker.cpp
+        src/wombat/services/DeviceController.cpp
+        src/wombat/services/DataPublisher.cpp
+        src/wombat/services/CommandSubscriber.cpp
+        src/wombat/Application.cpp
 )
+
+if (USE_SPI_MOCK)
+    message(STATUS "Using mock SPI implementation")
+    set(SPI_SOURCE src/wombat/hardware/SpiMock.cpp)
+else ()
+    message(STATUS "Using real SPI implementation")
+    set(SPI_SOURCE src/wombat/hardware/Spi.cpp)
+endif ()
+
+add_executable(${PROJECT_NAME}
+        src/main.cpp
+        ${CORE_SOURCES}
+        ${SPI_SOURCE}
+)
+
+
+target_link_libraries(${PROJECT_NAME} PRIVATE spdlog::spdlog_header_only)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE messages-cpp ${LCM_NAMESPACE}lcm)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)
+endif ()
+
+# Precompiled headers tame spdlog/fmt template cost
+target_precompile_headers(${PROJECT_NAME} PRIVATE
+        <string> <vector> <memory>
+        <spdlog/spdlog.h>
+        <spdlog/sinks/stdout_color_sinks.h>
+)
+install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
