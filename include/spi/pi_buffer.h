@@ -5,7 +5,7 @@
 #ifndef PI_BUFFER_H
 #define PI_BUFFER_H
 
-#define TRANSFER_VERSION 1
+#define TRANSFER_VERSION 0
 
 #define RX_BUFFER_LENGTH 77 //bytes
 #define TX_BUFFER_LENGTH 32 //bytes
@@ -51,10 +51,6 @@
 #define RX_MAG_X                 61
 #define RX_MAG_Y                 65
 #define RX_MAG_Z                 69
-
-#define RX_EULER_ROLL            70
-#define RX_EULER_PITCH           71
-#define RX_EULER_YAW             72
 
 // Temperature (1 x float)
 #define RX_IMU_TEMPERATUR              73
