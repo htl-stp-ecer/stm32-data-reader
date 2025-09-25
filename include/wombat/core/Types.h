@@ -70,6 +70,7 @@ namespace wombat
         Vector3f accelerometer{};
         Vector3f magnetometer{};
         float temperature{0.0f};
+        float batteryVoltage{0.0f};
         std::array<AnalogValue, MAX_ANALOG_PORTS> analogValues{};
         DigitalValue digitalBits{0};
         Timestamp lastUpdate{0};
@@ -105,6 +106,7 @@ namespace wombat
         constexpr auto ACCELEROMETER = "libstp/accel/value";
         constexpr auto MAGNETOMETER = "libstp/mag/value";
         constexpr auto TEMPERATURE = "libstp/temp/value";
+        constexpr auto BATTERY_VOLTAGE = "libstp/battery/voltage";
 
         inline std::string motorDirection(const PortId port)
         {

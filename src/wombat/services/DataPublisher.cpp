@@ -28,6 +28,12 @@ Result<void> DataPublisher::publishSensorData(const SensorData& data) {
         logger_->warn("Failed to publish temperature data: " + tempResult.error());
     }
 
+    // Publish battery voltage
+    auto batteryResult = broker_->publishScalarF(Channels::BATTERY_VOLTAGE, convertScalarF(data.batteryVoltage));
+    if (batteryResult.isFailure()) {
+        logger_->warn("Failed to publish battery voltage data: " + batteryResult.error());
+    }
+
     // Publish analog and digital values
     auto analogResult = publishAnalogValues(data.analogValues);
     if (analogResult.isFailure()) {
