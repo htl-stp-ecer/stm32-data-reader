@@ -1,0 +1,21 @@
+[Unit]
+Description=STM32 Data Reader
+After=network.target
+
+[Service]
+User=pi
+Group=pi
+
+WorkingDirectory=/home/pi/stm32_data_reader
+ExecStart=/home/pi/stm32_data_reader/stm32_data_reader
+
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
