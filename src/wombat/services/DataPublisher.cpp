@@ -53,18 +53,9 @@ Result<void> DataPublisher::publishMotorState(PortId port, const MotorState& sta
         return Result<void>::failure("Invalid motor port: " + std::to_string(port));
     }
 
-    // Publish motor direction
-    auto directionResult = broker_->publishScalarI8(
-        Channels::motorDirection(port),
-        convertScalarI8(static_cast<uint8_t>(state.direction))
-    );
-    if (directionResult.isFailure()) {
-        logger_->warn("Failed to publish motor direction: " + directionResult.error());
-    }
-
     // Publish motor value (speed)
     auto valueResult = broker_->publishScalarI32(
-        Channels::motorValue(port),
+        Channels::motorPower(port),
         convertScalarI32(static_cast<int32_t>(state.speed))
     );
     if (valueResult.isFailure()) {

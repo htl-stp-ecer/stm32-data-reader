@@ -36,6 +36,9 @@ if ! ssh -o ConnectTimeout=5 "${REMOTE_USER}@${REMOTE_HOST}" "echo 'SSH OK'"; th
   exit 1
 fi
 
+echo -e "${GREEN}Stopping existing service (if any)...${NC}"
+ssh "${REMOTE_USER}@${REMOTE_HOST}" "sudo systemctl stop stm32_data_reader" || true
+
 echo -e "${GREEN}Creating remote directory...${NC}"
 ssh "${REMOTE_USER}@${REMOTE_HOST}" "mkdir -p '${REMOTE_DIR}'"
 

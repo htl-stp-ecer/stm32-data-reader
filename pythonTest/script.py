@@ -31,6 +31,11 @@ def temp_handler(channel, msg):
     data = scalar_f_t.decode(msg)
     print(f"[Temp] Channel: {channel}, value={data.value}")
 
+def battery_handler(channel, msg):
+    data = scalar_f_t.decode(msg)
+    print(f"[Battery] Channel: {channel}, value={data.value}")
+
+
 def analog_handler(channel, msg):
     data = scalar_i32_t.decode(msg)
     print(f"[Analog] Channel: {channel}, value={data.value}")
@@ -47,20 +52,21 @@ def bemf_handler(channel, msg):
 lc = lcm.LCM()
 
 # Subscribe to all relevant channels
-lc.subscribe("motors_0_power_cmd", motor_handler)
-lc.subscribe("servos_0_position_cmd", servo_handler)
-lc.subscribe("libstp/gyro/value", gyro_handler)
-lc.subscribe("libstp/accel/value", accel_handler)
-lc.subscribe("libstp/mag/value", mag_handler)
-lc.subscribe("libstp/temp/value", temp_handler)
-
-for i in range(6):
-    lc.subscribe(f"libstp/analog/{i}/value", analog_handler)
-
+# lc.subscribe("libstp/battery/voltage", battery_handler)
+# lc.subscribe("motors_0_power_cmd", motor_handler)
+# lc.subscribe("servos_0_position_cmd", servo_handler)
+# lc.subscribe("libstp/gyro/value", gyro_handler)
+# lc.subscribe("libstp/accel/value", accel_handler)
+# lc.subscribe("libstp/mag/value", mag_handler)
+# lc.subscribe("libstp/temp/value", temp_handler)
+#
+# for i in range(6):
+#     lc.subscribe(f"libstp/analog/{i}/value", analog_handler)
+#
 for i in range(11):
     lc.subscribe(f"libstp/digital/{i}/value", digital_handler)
-
-lc.subscribe("libstp/bemf/0/value", bemf_handler)
+#
+# lc.subscribe("libstp/bemf/0/value", bemf_handler)
 
 print("Listening for LCM messages...")
 try:

@@ -48,6 +48,7 @@ Result<void> CommandSubscriber::shutdown() {
 }
 
 void CommandSubscriber::onMotorPowerCommand(const exlcm::scalar_i32_t& command) {
+    logger_->debug("onMotorPowerCommand called with value: " + std::to_string(command.value));
     if (!isInitialized_) {
         logger_->warn("Received motor command while not initialized");
         return;

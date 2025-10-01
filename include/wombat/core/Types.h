@@ -108,12 +108,7 @@ namespace wombat
         constexpr auto TEMPERATURE = "libstp/temp/value";
         constexpr auto BATTERY_VOLTAGE = "libstp/battery/voltage";
 
-        inline std::string motorDirection(const PortId port)
-        {
-            return "libstp/motor/" + std::to_string(port) + "/direction";
-        }
-
-        inline std::string motorValue(const PortId port)
+        inline std::string motorPower(const PortId port)
         {
             return "libstp/motor/" + std::to_string(port) + "/value";
         }
