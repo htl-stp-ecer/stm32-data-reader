@@ -140,12 +140,12 @@ namespace wombat
 
         inline std::string motorPowerCommand(const PortId port)
         {
-            return "motors_" + std::to_string(port) + "_power_cmd";
+            return "libstp/motor/" + std::to_string(port) + "/power_cmd";
         }
 
         inline std::string servoPositionCommand(const PortId port)
         {
-            return "servos_" + std::to_string(port) + "_position_cmd";
+            return "libstp/servo/" + std::to_string(port) + "/position_cmd";
         }
 
         constexpr auto ERROR_MESSAGES = "libstp/errors";
