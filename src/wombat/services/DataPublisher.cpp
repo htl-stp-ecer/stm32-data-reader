@@ -1,156 +1,184 @@
 #include "wombat/services/DataPublisher.h"
 
-namespace wombat {
-
-DataPublisher::DataPublisher(std::shared_ptr<LcmBroker> broker, std::shared_ptr<Logger> logger)
-    : broker_{std::move(broker)}, logger_{std::move(logger)} {}
-
-Result<void> DataPublisher::publishSensorData(const SensorData& data) {
-    // Publish IMU data
-    auto gyroResult = broker_->publishVector3f(Channels::GYRO, convertVector3f(data.gyro));
-    if (gyroResult.isFailure()) {
-        logger_->warn("Failed to publish gyro data: " + gyroResult.error());
+namespace wombat
+{
+    DataPublisher::DataPublisher(std::shared_ptr<LcmBroker> broker, std::shared_ptr<Logger> logger)
+        : broker_{std::move(broker)}, logger_{std::move(logger)}
+    {
     }
 
-    auto accelResult = broker_->publishVector3f(Channels::ACCELEROMETER, convertVector3f(data.accelerometer));
-    if (accelResult.isFailure()) {
-        logger_->warn("Failed to publish accelerometer data: " + accelResult.error());
-    }
-
-    auto magResult = broker_->publishVector3f(Channels::MAGNETOMETER, convertVector3f(data.magnetometer));
-    if (magResult.isFailure()) {
-        logger_->warn("Failed to publish magnetometer data: " + magResult.error());
-    }
-
-    // Publish temperature
-    auto tempResult = broker_->publishScalarF(Channels::TEMPERATURE, convertScalarF(data.temperature));
-    if (tempResult.isFailure()) {
-        logger_->warn("Failed to publish temperature data: " + tempResult.error());
-    }
-
-    // Publish battery voltage
-    auto batteryResult = broker_->publishScalarF(Channels::BATTERY_VOLTAGE, convertScalarF(data.batteryVoltage));
-    if (batteryResult.isFailure()) {
-        logger_->warn("Failed to publish battery voltage data: " + batteryResult.error());
-    }
-
-    // Publish analog and digital values
-    auto analogResult = publishAnalogValues(data.analogValues);
-    if (analogResult.isFailure()) {
-        logger_->warn("Failed to publish analog values: " + analogResult.error());
-    }
-
-    auto digitalResult = publishDigitalBits(data.digitalBits);
-    if (digitalResult.isFailure()) {
-        logger_->warn("Failed to publish digital bits: " + digitalResult.error());
-    }
-
-    return Result<void>::success();
-}
-
-Result<void> DataPublisher::publishMotorState(PortId port, const MotorState& state) {
-    if (port >= MAX_MOTOR_PORTS) {
-        return Result<void>::failure("Invalid motor port: " + std::to_string(port));
-    }
-
-    // Publish motor value (speed)
-    auto valueResult = broker_->publishScalarI32(
-        Channels::motorPower(port),
-        convertScalarI32(static_cast<int32_t>(state.speed))
-    );
-    if (valueResult.isFailure()) {
-        logger_->warn("Failed to publish motor value: " + valueResult.error());
-    }
-
-    // Publish back EMF
-    auto bemfResult = broker_->publishScalarI32(
-        Channels::backEmf(port),
-        convertScalarI32(state.backEmf)
-    );
-    if (bemfResult.isFailure()) {
-        logger_->warn("Failed to publish back EMF: " + bemfResult.error());
-    }
-
-    return Result<void>::success();
-}
-
-Result<void> DataPublisher::publishServoState(PortId port, const ServoState& state) {
-    if (port >= MAX_SERVO_PORTS) {
-        return Result<void>::failure("Invalid servo port: " + std::to_string(port));
-    }
-
-    // Publish servo mode
-    auto modeResult = broker_->publishScalarI8(
-        Channels::servoMode(port),
-        convertScalarI8(static_cast<uint8_t>(state.mode))
-    );
-    if (modeResult.isFailure()) {
-        logger_->warn("Failed to publish servo mode: " + modeResult.error());
-    }
-
-    // Publish servo position
-    auto positionResult = broker_->publishScalarI32(
-        Channels::servoPosition(port),
-        convertScalarI32(static_cast<int32_t>(state.position))
-    );
-    if (positionResult.isFailure()) {
-        logger_->warn("Failed to publish servo position: " + positionResult.error());
-    }
-
-    return Result<void>::success();
-}
-
-exlcm::vector3f_t DataPublisher::convertVector3f(const Vector3f& vector) const {
-    exlcm::vector3f_t message{};
-    message.x = vector.x;
-    message.y = vector.y;
-    message.z = vector.z;
-    return message;
-}
-
-exlcm::scalar_f_t DataPublisher::convertScalarF(float value) const {
-    exlcm::scalar_f_t message{};
-    message.value = value;
-    return message;
-}
-
-exlcm::scalar_i32_t DataPublisher::convertScalarI32(int32_t value) const {
-    exlcm::scalar_i32_t message{};
-    message.value = value;
-    return message;
-}
-
-exlcm::scalar_i8_t DataPublisher::convertScalarI8(uint8_t value) const {
-    exlcm::scalar_i8_t message{};
-    message.dir = value;
-    return message;
-}
-
-Result<void> DataPublisher::publishAnalogValues(const std::array<AnalogValue, MAX_ANALOG_PORTS>& values) {
-    for (size_t i = 0; i < values.size(); ++i) {
-        auto result = broker_->publishScalarI32(
-            Channels::analog(static_cast<PortId>(i)),
-            convertScalarI32(static_cast<int32_t>(values[i]))
-        );
-        if (result.isFailure()) {
-            logger_->warn("Failed to publish analog value " + std::to_string(i) + ": " + result.error());
+    Result<void> DataPublisher::publishSensorData(const SensorData& data)
+    {
+        // Publish IMU data
+        auto gyroResult = broker_->publishVector3f(Channels::GYRO, convertVector3f(data.gyro));
+        if (gyroResult.isFailure())
+        {
+            logger_->warn("Failed to publish gyro data: " + gyroResult.error());
         }
-    }
-    return Result<void>::success();
-}
 
-Result<void> DataPublisher::publishDigitalBits(DigitalValue digitalBits) {
-    for (PortId bit = 0; bit < 11; ++bit) {
-        const int32_t value = (digitalBits >> bit) & 1u;
-        auto result = broker_->publishScalarI32(
-            Channels::digital(bit),
-            convertScalarI32(value)
-        );
-        if (result.isFailure()) {
-            logger_->warn("Failed to publish digital bit " + std::to_string(bit) + ": " + result.error());
+        auto accelResult = broker_->publishVector3f(Channels::ACCELEROMETER, convertVector3f(data.accelerometer));
+        if (accelResult.isFailure())
+        {
+            logger_->warn("Failed to publish accelerometer data: " + accelResult.error());
         }
-    }
-    return Result<void>::success();
-}
 
+        auto magResult = broker_->publishVector3f(Channels::MAGNETOMETER, convertVector3f(data.magnetometer));
+        if (magResult.isFailure())
+        {
+            logger_->warn("Failed to publish magnetometer data: " + magResult.error());
+        }
+
+        // Publish temperature
+        auto tempResult = broker_->publishScalarF(Channels::TEMPERATURE, convertScalarF(data.temperature));
+        if (tempResult.isFailure())
+        {
+            logger_->warn("Failed to publish temperature data: " + tempResult.error());
+        }
+
+        // Publish battery voltage
+        auto batteryResult = broker_->publishScalarF(Channels::BATTERY_VOLTAGE, convertScalarF(data.batteryVoltage));
+        if (batteryResult.isFailure())
+        {
+            logger_->warn("Failed to publish battery voltage data: " + batteryResult.error());
+        }
+
+        // Publish analog and digital values
+        auto analogResult = publishAnalogValues(data.analogValues);
+        if (analogResult.isFailure())
+        {
+            logger_->warn("Failed to publish analog values: " + analogResult.error());
+        }
+
+        auto digitalResult = publishDigitalBits(data.digitalBits);
+        if (digitalResult.isFailure())
+        {
+            logger_->warn("Failed to publish digital bits: " + digitalResult.error());
+        }
+
+        return Result<void>::success();
+    }
+
+    Result<void> DataPublisher::publishMotorState(PortId port, const MotorState& state)
+    {
+        if (port >= MAX_MOTOR_PORTS)
+        {
+            return Result<void>::failure("Invalid motor port: " + std::to_string(port));
+        }
+
+        // Publish motor value (speed)
+        auto valueResult = broker_->publishScalarI32(
+            Channels::motorPower(port),
+            convertScalarI32(
+                static_cast<int32_t>(state.speed * (state.direction == MotorDirection::CounterClockwise ? -1 : 1)))
+        );
+        if (valueResult.isFailure())
+        {
+            logger_->warn("Failed to publish motor value: " + valueResult.error());
+        }
+
+        // Publish back EMF
+        auto bemfResult = broker_->publishScalarI32(
+            Channels::backEmf(port),
+            convertScalarI32(state.backEmf)
+        );
+        if (bemfResult.isFailure())
+        {
+            logger_->warn("Failed to publish back EMF: " + bemfResult.error());
+        }
+
+        return Result<void>::success();
+    }
+
+    Result<void> DataPublisher::publishServoState(PortId port, const ServoState& state)
+    {
+        if (port >= MAX_SERVO_PORTS)
+        {
+            return Result<void>::failure("Invalid servo port: " + std::to_string(port));
+        }
+
+        // Publish servo mode
+        auto modeResult = broker_->publishScalarI8(
+            Channels::servoMode(port),
+            convertScalarI8(static_cast<uint8_t>(state.mode))
+        );
+        if (modeResult.isFailure())
+        {
+            logger_->warn("Failed to publish servo mode: " + modeResult.error());
+        }
+
+        // Publish servo position
+        auto positionResult = broker_->publishScalarI32(
+            Channels::servoPosition(port),
+            convertScalarI32(static_cast<int32_t>(state.position))
+        );
+        if (positionResult.isFailure())
+        {
+            logger_->warn("Failed to publish servo position: " + positionResult.error());
+        }
+
+        return Result<void>::success();
+    }
+
+    exlcm::vector3f_t DataPublisher::convertVector3f(const Vector3f& vector) const
+    {
+        exlcm::vector3f_t message{};
+        message.x = vector.x;
+        message.y = vector.y;
+        message.z = vector.z;
+        return message;
+    }
+
+    exlcm::scalar_f_t DataPublisher::convertScalarF(float value) const
+    {
+        exlcm::scalar_f_t message{};
+        message.value = value;
+        return message;
+    }
+
+    exlcm::scalar_i32_t DataPublisher::convertScalarI32(int32_t value) const
+    {
+        exlcm::scalar_i32_t message{};
+        message.value = value;
+        return message;
+    }
+
+    exlcm::scalar_i8_t DataPublisher::convertScalarI8(uint8_t value) const
+    {
+        exlcm::scalar_i8_t message{};
+        message.dir = value;
+        return message;
+    }
+
+    Result<void> DataPublisher::publishAnalogValues(const std::array<AnalogValue, MAX_ANALOG_PORTS>& values)
+    {
+        for (size_t i = 0; i < values.size(); ++i)
+        {
+            auto result = broker_->publishScalarI32(
+                Channels::analog(static_cast<PortId>(i)),
+                convertScalarI32(static_cast<int32_t>(values[i]))
+            );
+            if (result.isFailure())
+            {
+                logger_->warn("Failed to publish analog value " + std::to_string(i) + ": " + result.error());
+            }
+        }
+        return Result<void>::success();
+    }
+
+    Result<void> DataPublisher::publishDigitalBits(DigitalValue digitalBits)
+    {
+        for (PortId bit = 0; bit < 11; ++bit)
+        {
+            const int32_t value = (digitalBits >> bit) & 1u;
+            auto result = broker_->publishScalarI32(
+                Channels::digital(bit),
+                convertScalarI32(value)
+            );
+            if (result.isFailure())
+            {
+                logger_->warn("Failed to publish digital bit " + std::to_string(bit) + ": " + result.error());
+            }
+        }
+        return Result<void>::success();
+    }
 } // namespace wombat

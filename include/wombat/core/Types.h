@@ -148,6 +148,7 @@ namespace wombat
             return "libstp/servo/" + std::to_string(port) + "/position_cmd";
         }
 
+        constexpr auto DATA_DUMP_REQUEST = "libstp/system/dump_request";
         constexpr auto ERROR_MESSAGES = "libstp/errors";
     }
 }

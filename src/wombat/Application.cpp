@@ -104,7 +104,7 @@ Result<void> Application::createServices() {
     auto spiWithLcm = std::make_unique<Spi>(config_.spi, logger_, messageBroker_);
     deviceController_ = std::make_shared<DeviceController>(std::move(spiWithLcm), logger_);
     dataPublisher_ = std::make_shared<DataPublisher>(messageBroker_, logger_);
-    commandSubscriber_ = std::make_shared<CommandSubscriber>(messageBroker_, deviceController_, logger_);
+    commandSubscriber_ = std::make_shared<CommandSubscriber>(messageBroker_, deviceController_, dataPublisher_, logger_);
 
     logger_->debug("All services created successfully");
     return Result<void>::success();

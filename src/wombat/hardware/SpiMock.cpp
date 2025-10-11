@@ -194,7 +194,7 @@ void set_shutdown_flag(uint8_t bit, bool value)
     }
 }
 
-void set_motor(uint8_t port, MotorDir dir, uint32_t value)
+void set_motor(const uint8_t port, const MotorDir dir, const uint32_t value)
 {
     if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return;
     g_motor_dir[port] = dir;

@@ -98,7 +98,7 @@ Result<void> DeviceController::setMotorCommand(PortId port, MotorDirection direc
 
     motorCommands_[port] = speed;
 
-    MotorState state{direction, speed, 0};
+    const MotorState state{direction, speed, 0};
     auto result = spi_->setMotorState(port, state);
     if (result.isFailure()) {
         logger_->error("Failed to set motor " + std::to_string(port) + " command: " + result.error());

@@ -80,8 +80,19 @@ namespace wombat
                 break;
             case MotorDirection::ServoLike: dir = MOTOR_DIR_SERVO_LIKE;
                 break;
+
             }
-            set_motor(port, dir, st.speed);
+
+            const double percentAbs = std::min(st.speed / 100.0, 1.0);
+
+            uint32_t duty = 0;
+            if (percentAbs > 0.01f) {
+                constexpr double minDutyFrac = 0.1f;
+                const double dutyFrac = minDutyFrac + (1.0f - minDutyFrac) * percentAbs;
+                duty = static_cast<uint32_t>(dutyFrac * 400.0f);
+            }
+
+            set_motor(port, dir, duty);
             motors_[port] = st;
             return Result<void>::success();
         }
