@@ -52,8 +52,13 @@
 #define RX_MAG_Y                 65
 #define RX_MAG_Z                 69
 
+#define RX_QUATERNION_X            70
+#define RX_QUATERNION_Y            71
+#define RX_QUATERNION_Z            72
+#define RX_QUATERNION_W            73
+
 // Temperature (1 x float)
-#define RX_IMU_TEMPERATUR              73
+#define RX_IMU_TEMPERATUR              74
 
 
 /*----------------------------------------------------------------------------------------------------*/
