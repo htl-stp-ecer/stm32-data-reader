@@ -63,6 +63,8 @@ namespace wombat
             for (uint8_t i = 0; i < 6; ++i) d.analogValues[i] = analog_in(i);
             d.digitalBits = digital_raw();
             d.lastUpdate = last_update_us();
+
+            for (uint8_t i = 0; i < 4; i++) motors_[i].backEmf = bemf(i);
             return Result<SensorData>::success(d);
         }
 
@@ -93,6 +95,7 @@ namespace wombat
             }
 
             set_motor(port, dir, duty);
+            st.backEmf = motors_[port].backEmf;
             motors_[port] = st;
             return Result<void>::success();
         }

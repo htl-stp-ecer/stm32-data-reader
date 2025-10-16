@@ -63,10 +63,10 @@ lc = lcm.LCM()
 # for i in range(6):
 #     lc.subscribe(f"libstp/analog/{i}/value", analog_handler)
 #
-for i in range(11):
-    lc.subscribe(f"libstp/digital/{i}/value", digital_handler)
+#for i in range(11):
+#    lc.subscribe(f"libstp/digital/{i}/value", digital_handler)
 #
-# lc.subscribe("libstp/bemf/0/value", bemf_handler)
+lc.subscribe("libstp/bemf/0/value", bemf_handler)
 
 print("Listening for LCM messages...")
 try:

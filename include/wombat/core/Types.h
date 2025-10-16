@@ -55,7 +55,7 @@ namespace wombat
     {
         MotorDirection direction{MotorDirection::Off};
         MotorSpeed speed{0};
-        int32_t backEmf{0};
+        mutable int32_t backEmf{0};
     };
 
     struct ServoState
