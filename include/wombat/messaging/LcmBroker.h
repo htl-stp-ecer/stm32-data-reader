@@ -7,6 +7,7 @@
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
 #include "exlcm/vector3f_t.hpp"
+#include "exlcm/quaternion_t.hpp"
 #include "exlcm/scalar_f_t.hpp"
 #include "exlcm/scalar_i32_t.hpp"
 #include "exlcm/scalar_i8_t.hpp"
@@ -28,6 +29,7 @@ public:
 
     // Typed publishers with change detection
     Result<void> publishVector3f(const std::string& channel, const exlcm::vector3f_t& message);
+    Result<void> publishQuaternion(const std::string& channel, const exlcm::quaternion_t& message);
     Result<void> publishScalarF(const std::string& channel, const exlcm::scalar_f_t& message);
     Result<void> publishScalarI32(const std::string& channel, const exlcm::scalar_i32_t& message);
     Result<void> publishScalarI8(const std::string& channel, const exlcm::scalar_i8_t& message);
@@ -36,6 +38,8 @@ public:
     // Typed subscribers
     Result<void> subscribeVector3f(const std::string& channel,
                                   std::function<void(const exlcm::vector3f_t&)> handler);
+    Result<void> subscribeQuaternion(const std::string& channel,
+                                    std::function<void(const exlcm::quaternion_t&)> handler);
     Result<void> subscribeScalarI32(const std::string& channel,
                                    std::function<void(const exlcm::scalar_i32_t&)> handler);
 

@@ -58,6 +58,10 @@ namespace wombat
             d.magnetometer.x = magX();
             d.magnetometer.y = magY();
             d.magnetometer.z = magZ();
+            d.orientation.w = quatW();
+            d.orientation.x = quatX();
+            d.orientation.y = quatY();
+            d.orientation.z = quatZ();
             d.temperature = imuTemperature();
             d.batteryVoltage = battery_voltage();
             for (uint8_t i = 0; i < 6; ++i) d.analogValues[i] = analog_in(i);

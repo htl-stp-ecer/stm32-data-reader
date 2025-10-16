@@ -81,6 +81,24 @@ public:
         return Result<void>::success();
     }
 
+    Result<void> subscribeQuaternion(const std::string& channel,
+                                     std::function<void(const exlcm::quaternion_t&)> handler) {
+        if (!lcm_ || !lcm_->good()) {
+            return Result<void>::failure("LCM not initialized or unhealthy");
+        }
+
+        std::function<void(const lcm::ReceiveBuffer*, const std::string&, const exlcm::quaternion_t*)> lcmHandler =
+            [handler](const lcm::ReceiveBuffer*, const std::string&, const exlcm::quaternion_t* msg) {
+                if (msg) {
+                    handler(*msg);
+                }
+            };
+        lcm_->subscribe<exlcm::quaternion_t>(channel, lcmHandler);
+
+        logger_->debug("Subscribed to Quaternion channel: " + channel);
+        return Result<void>::success();
+    }
+
     Result<void> subscribeScalarI32(const std::string& channel,
                                    std::function<void(const exlcm::scalar_i32_t&)> handler) {
         if (!lcm_ || !lcm_->good()) {
@@ -146,6 +164,10 @@ Result<void> LcmBroker::publishVector3f(const std::string& channel, const exlcm:
     return impl_->publishIfChanged(channel, message);
 }
 
+Result<void> LcmBroker::publishQuaternion(const std::string& channel, const exlcm::quaternion_t& message) {
+    return impl_->publishIfChanged(channel, message);
+}
+
 Result<void> LcmBroker::publishScalarF(const std::string& channel, const exlcm::scalar_f_t& message) {
     return impl_->publishIfChanged(channel, message);
 }
@@ -165,6 +187,11 @@ Result<void> LcmBroker::publishString(const std::string& channel, const exlcm::s
 Result<void> LcmBroker::subscribeVector3f(const std::string& channel,
                                          std::function<void(const exlcm::vector3f_t&)> handler) {
     return impl_->subscribeVector3f(channel, std::move(handler));
+}
+
+Result<void> LcmBroker::subscribeQuaternion(const std::string& channel,
+                                            std::function<void(const exlcm::quaternion_t&)> handler) {
+    return impl_->subscribeQuaternion(channel, std::move(handler));
 }
 
 Result<void> LcmBroker::subscribeScalarI32(const std::string& channel,

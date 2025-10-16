@@ -6,6 +6,7 @@
 
 #include <cstring>
 #include <ctime>
+#include <cmath>
 
 // -------------------- tiny "HW" model --------------------
 
@@ -45,6 +46,7 @@ static bool g_shutdown_motor = false;
 static float g_gyro[3] = {0};
 static float g_accel[3] = {0};
 static float g_mag[3] = {0};
+static float g_quat[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 static float g_temp_c = 28.0f;
 static float g_batt_v = 12.3f;
 
@@ -96,6 +98,10 @@ bool spi_init(uint32_t speed_hz)
     g_mag[0] = 0.3f;
     g_mag[1] = 0.0f;
     g_mag[2] = 0.5f;
+    g_quat[0] = 1.0f;
+    g_quat[1] = 0.0f;
+    g_quat[2] = 0.0f;
+    g_quat[3] = 0.0f;
     g_temp_c = 28.0f;
     g_batt_v = 12.3f;
 
@@ -140,6 +146,23 @@ bool spi_update(void)
     g_mag[0] = 0.30f + 0.05f * sinf(w * t * 0.3f);
     g_mag[1] = 0.10f + 0.04f * cosf(w * t * 0.4f);
     g_mag[2] = 0.50f + 0.03f * sinf(w * t * 0.5f);
+
+    // Orientation: smoothly varying quaternion derived from small Euler rotations
+    const float roll = 0.12f * sinf(w * t * 0.8f);
+    const float pitch = 0.10f * cosf(w * t * 0.6f);
+    const float yaw = 0.18f * sinf(w * t * 0.4f);
+
+    const float cr = cosf(roll * 0.5f);
+    const float sr = sinf(roll * 0.5f);
+    const float cp = cosf(pitch * 0.5f);
+    const float sp = sinf(pitch * 0.5f);
+    const float cy = cosf(yaw * 0.5f);
+    const float sy = sinf(yaw * 0.5f);
+
+    g_quat[0] = cr * cp * cy + sr * sp * sy;
+    g_quat[1] = sr * cp * cy - cr * sp * sy;
+    g_quat[2] = cr * sp * cy + sr * cp * sy;
+    g_quat[3] = cr * cp * sy - sr * sp * cy;
 
     g_temp_c = 28.0f + 0.3f * sinf(w * t * 0.2f);
 
@@ -244,6 +267,11 @@ float accelZ(void) { return g_accel[2]; }
 float magX(void) { return g_mag[0]; }
 float magY(void) { return g_mag[1]; }
 float magZ(void) { return g_mag[2]; }
+
+float quatX(void) { return g_quat[1]; }
+float quatY(void) { return g_quat[2]; }
+float quatZ(void) { return g_quat[3]; }
+float quatW(void) { return g_quat[0]; }
 
 float imuTemperature(void) { return g_temp_c; }
 

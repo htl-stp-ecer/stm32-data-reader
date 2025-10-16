@@ -28,6 +28,12 @@ namespace wombat
             logger_->warn("Failed to publish magnetometer data: " + magResult.error());
         }
 
+        auto orientationResult = broker_->publishQuaternion(Channels::ORIENTATION, convertQuaternion(data.orientation));
+        if (orientationResult.isFailure())
+        {
+            logger_->warn("Failed to publish orientation data: " + orientationResult.error());
+        }
+
         // Publish temperature
         auto tempResult = broker_->publishScalarF(Channels::TEMPERATURE, convertScalarF(data.temperature));
         if (tempResult.isFailure())
@@ -125,6 +131,16 @@ namespace wombat
         message.x = vector.x;
         message.y = vector.y;
         message.z = vector.z;
+        return message;
+    }
+
+    exlcm::quaternion_t DataPublisher::convertQuaternion(const Quaternionf& quaternion) const
+    {
+        exlcm::quaternion_t message{};
+        message.w = quaternion.w;
+        message.x = quaternion.x;
+        message.y = quaternion.y;
+        message.z = quaternion.z;
         return message;
     }
 

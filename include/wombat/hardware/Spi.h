@@ -69,6 +69,11 @@ float magX(void);
 float magY(void);
 float magZ(void);
 
+float quatX(void);
+float quatY(void);
+float quatZ(void);
+float quatW(void);
+
 float imuTemperature(void);
 
 int32_t bemf(uint8_t mot);

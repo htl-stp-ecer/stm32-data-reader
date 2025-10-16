@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <array>
 #include <chrono>
+#include <cmath>
 
 namespace wombat
 {
@@ -51,6 +52,23 @@ namespace wombat
         }
     };
 
+    struct Quaternionf
+    {
+        float w{1.0f};
+        float x{0.0f};
+        float y{0.0f};
+        float z{0.0f};
+
+        bool operator==(const Quaternionf& other) const noexcept
+        {
+            constexpr float epsilon = 1e-6f;
+            return std::abs(w - other.w) < epsilon &&
+                std::abs(x - other.x) < epsilon &&
+                std::abs(y - other.y) < epsilon &&
+                std::abs(z - other.z) < epsilon;
+        }
+    };
+
     struct MotorState
     {
         MotorDirection direction{MotorDirection::Off};
@@ -69,6 +87,7 @@ namespace wombat
         Vector3f gyro{};
         Vector3f accelerometer{};
         Vector3f magnetometer{};
+        Quaternionf orientation{};
         float temperature{0.0f};
         float batteryVoltage{0.0f};
         std::array<AnalogValue, MAX_ANALOG_PORTS> analogValues{};
@@ -105,6 +124,7 @@ namespace wombat
         constexpr auto GYRO = "libstp/gyro/value";
         constexpr auto ACCELEROMETER = "libstp/accel/value";
         constexpr auto MAGNETOMETER = "libstp/mag/value";
+        constexpr auto ORIENTATION = "libstp/imu/quaternion";
         constexpr auto TEMPERATURE = "libstp/temp/value";
         constexpr auto BATTERY_VOLTAGE = "libstp/battery/voltage";
 

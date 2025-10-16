@@ -290,6 +290,42 @@ SENSOR_TRIPLE(accel, RX_ACCEL_X)
 SENSOR_TRIPLE(mag, RX_MAG_X)
 #undef SENSOR_TRIPLE
 
+float quatX(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    float f;
+    memcpy(&f, &spi_rx()[RX_QUATERNION_X], sizeof(f));
+    return f;
+}
+
+float quatY(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    float f;
+    memcpy(&f, &spi_rx()[RX_QUATERNION_Y], sizeof(f));
+    return f;
+}
+
+float quatZ(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    float f;
+    memcpy(&f, &spi_rx()[RX_QUATERNION_Z], sizeof(f));
+    return f;
+}
+
+float quatW(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    float f;
+    memcpy(&f, &spi_rx()[RX_QUATERNION_W], sizeof(f));
+    return f;
+}
+
 float imuTemperature(void)
 {
     if (!spi_update())

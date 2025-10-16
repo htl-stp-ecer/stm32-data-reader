@@ -25,6 +25,7 @@ namespace wombat
         std::shared_ptr<Logger> logger_;
 
         exlcm::vector3f_t convertVector3f(const Vector3f& vector) const;
+        exlcm::quaternion_t convertQuaternion(const Quaternionf& quaternion) const;
         exlcm::scalar_f_t convertScalarF(float value) const;
         exlcm::scalar_i32_t convertScalarI32(int32_t value) const;
         exlcm::scalar_i8_t convertScalarI8(uint8_t value) const;
