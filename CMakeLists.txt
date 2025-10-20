@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(USE_SPI_MOCK "Use mock SPI implementation for testing" OFF)
+option(USE_SPI_MOCK "Use mock SPI implementation for testing" ON)
 
 include_directories(include)
 include(FetchContent)

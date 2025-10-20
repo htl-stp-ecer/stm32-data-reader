@@ -21,6 +21,7 @@
 #include <linux/spi/spidev.h>
 #include <sys/ioctl.h>
 
+#include "spdlog/spdlog.h"
 #include "spi/pi_buffer.h"
 
 #ifndef SPI_DEVICE
@@ -92,7 +93,7 @@ static bool spi_reopen(void)
         return false;
     }
 
-    ctx.tx[TX_TRANSFER_VERSION] = TRANSFER_VERSION;
+    ctx.tx[RX_TRANSFER_VERSION] = TRANSFER_VERSION;
     memset(&ctx.tr, 0, sizeof(ctx.tr));
     ctx.tr.tx_buf = (unsigned long)ctx.tx;
     ctx.tr.rx_buf = (unsigned long)ctx.rx;

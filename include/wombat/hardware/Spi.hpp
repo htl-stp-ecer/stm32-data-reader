@@ -49,6 +49,7 @@ namespace wombat
             SensorData d{};
             if (!spi_update()) return Result<SensorData>::failure("spi_update() failed");
 
+
             d.gyro.x = gyroX();
             d.gyro.y = gyroY();
             d.gyro.z = gyroZ();

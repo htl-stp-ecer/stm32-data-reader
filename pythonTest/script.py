@@ -5,7 +5,7 @@ from exlcm.scalar_i8_t import scalar_i8_t
 from exlcm.scalar_f_t import scalar_f_t
 from exlcm.scalar_i32_t import scalar_i32_t
 from exlcm.vector3f_t import vector3f_t
-
+from exlcm.quaternion_t import quaternion_t
 
 def motor_handler(channel, msg):
     data = scalar_i32_t.decode(msg)
@@ -48,11 +48,14 @@ def bemf_handler(channel, msg):
     data = scalar_i32_t.decode(msg)
     print(f"[BEMF] Channel: {channel}, value={data.value}")
 
+def quaternion_handler(channel, msg):
+    data = quaternion_t.decode(msg)
+    print(f"[Quaternion] Channel: {channel}, w={data.w}, x={data.x}, y={data.y}, z={data.z}")
 
 lc = lcm.LCM()
 
 # Subscribe to all relevant channels
-# lc.subscribe("libstp/battery/voltage", battery_handler)
+lc.subscribe("libstp/imu/quaternion", quaternion_handler)
 # lc.subscribe("motors_0_power_cmd", motor_handler)
 # lc.subscribe("servos_0_position_cmd", servo_handler)
 # lc.subscribe("libstp/gyro/value", gyro_handler)

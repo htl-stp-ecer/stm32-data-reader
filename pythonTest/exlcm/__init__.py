@@ -4,3 +4,8 @@ DO NOT MODIFY BY HAND!!!!
 lcm-gen 1.5.1
 """
 
+from .quaternion_t import quaternion_t as quaternion_t
+from .scalar_f_t import scalar_f_t as scalar_f_t
+from .scalar_i32_t import scalar_i32_t as scalar_i32_t
+from .scalar_i8_t import scalar_i8_t as scalar_i8_t
+from .vector3f_t import vector3f_t as vector3f_t

@@ -5,7 +5,7 @@
 #ifndef PI_BUFFER_H
 #define PI_BUFFER_H
 
-#define TRANSFER_VERSION 0
+#define TRANSFER_VERSION 2
 
 #define RX_BUFFER_LENGTH 93 //bytes
 #define TX_BUFFER_LENGTH 32 //bytes
@@ -65,7 +65,7 @@
 
 /* <--- TX ---> */
 // The Version describes what kind of communication is used (uint8)
-#define TX_TRANSFER_VERSION        0
+#define TX_TRANSFER_117VERSION        0
 
 // Update flags (uint32_t)
 #define TX_UPDATES                 1
