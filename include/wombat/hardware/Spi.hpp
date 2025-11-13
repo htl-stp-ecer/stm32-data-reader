@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <array>
+#include <algorithm>
 #include "wombat/core/Types.h"
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
@@ -69,7 +70,11 @@ namespace wombat
             d.digitalBits = digital_raw();
             d.lastUpdate = last_update_us();
 
-            for (uint8_t i = 0; i < 4; i++) motors_[i].backEmf = bemf(i);
+            for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
+            {
+                const auto rawValue = bemf(i);
+                motors_[i].backEmf = rawValue - bemfOffsets_[i];
+            }
             return Result<SensorData>::success(d);
         }
 
@@ -136,10 +141,20 @@ namespace wombat
             return Result<ServoState>::success(servos_[port]);
         }
 
+        Result<void> resetBemfSum(PortId port)
+        {
+            if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+            const auto rawValue = motors_[port].backEmf + bemfOffsets_[port];
+            bemfOffsets_[port] = rawValue;
+            motors_[port].backEmf = 0;
+            return Result<void>::success();
+        }
+
     private:
         Configuration::Spi cfg_;
         std::shared_ptr<Logger> logger_;
         std::array<MotorState, MAX_MOTOR_PORTS> motors_{};
         std::array<ServoState, MAX_SERVO_PORTS> servos_{};
+        std::array<int32_t, MAX_MOTOR_PORTS> bemfOffsets_{};
     };
 } // namespace wombat

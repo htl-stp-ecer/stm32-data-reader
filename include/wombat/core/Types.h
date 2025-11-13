@@ -148,6 +148,11 @@ namespace wombat
             return "libstp/bemf/" + std::to_string(port) + "/value";
         }
 
+        inline std::string bemfResetCommand(const PortId port)
+        {
+            return "libstp/bemf/" + std::to_string(port) + "/reset_cmd";
+        }
+
         inline std::string analog(const PortId port)
         {
             return "libstp/analog/" + std::to_string(port) + "/value";

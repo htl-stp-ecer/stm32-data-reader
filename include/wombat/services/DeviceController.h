@@ -24,6 +24,7 @@ public:
 
     Result<void> setMotorCommand(PortId port, MotorDirection direction, MotorSpeed speed);
     Result<void> setServoCommand(PortId port, ServoPosition position);
+    Result<void> resetBemfSum(PortId port);
 
     Result<SensorData> getCurrentSensorData() const;
     Result<MotorState> getMotorState(PortId port) const;

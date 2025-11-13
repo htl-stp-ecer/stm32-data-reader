@@ -34,6 +34,20 @@ namespace wombat
             }
         }
 
+        // Subscribe to BEMF reset commands
+        for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
+        {
+            logger_->info("Subscribing to BEMF reset command channel: " + Channels::bemfResetCommand(i));
+            auto bemfResetResult = broker_->subscribeScalarI32(
+                Channels::bemfResetCommand(i),
+                [this, i](const exlcm::scalar_i32_t& cmd) { onBemfResetCommand(i, cmd); }
+            );
+            if (bemfResetResult.isFailure())
+            {
+                return Result<void>::failure("Failed to subscribe to BEMF reset commands: " + bemfResetResult.error());
+            }
+        }
+
         // Subscribe to servo position commands
         const auto servoResult = broker_->subscribeScalarI32(
             Channels::servoPositionCommand(0),
@@ -171,5 +185,29 @@ namespace wombat
         }
 
         logger_->info("Data dump completed");
+    }
+
+    void CommandSubscriber::onBemfResetCommand(const PortId port, const exlcm::scalar_i32_t& command) const
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received BEMF reset command while not initialized");
+            return;
+        }
+
+        if (command.value == 0)
+        {
+            logger_->debug("Ignoring BEMF reset command with zero value for motor " + std::to_string(port));
+            return;
+        }
+
+        const auto result = deviceController_->resetBemfSum(port);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to reset BEMF sum for motor " + std::to_string(port) + ": " + result.error());
+            return;
+        }
+
+        logger_->info("Reset BEMF sum for motor " + std::to_string(port));
     }
 } // namespace wombat

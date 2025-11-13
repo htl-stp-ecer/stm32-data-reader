@@ -133,6 +133,26 @@ Result<void> DeviceController::setServoCommand(PortId port, ServoPosition positi
     return Result<void>::success();
 }
 
+Result<void> DeviceController::resetBemfSum(PortId port) {
+    if (!isInitialized_) {
+        return Result<void>::failure("Device controller not initialized");
+    }
+
+    auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
+    if (validationResult.isFailure()) {
+        return validationResult;
+    }
+
+    auto result = spi_->resetBemfSum(port);
+    if (result.isFailure()) {
+        logger_->error("Failed to reset BEMF sum for motor " + std::to_string(port) + ": " + result.error());
+        return result;
+    }
+
+    logger_->info("BEMF sum reset for motor " + std::to_string(port));
+    return Result<void>::success();
+}
+
 Result<SensorData> DeviceController::getCurrentSensorData() const {
     if (!isInitialized_) {
         return Result<SensorData>::failure("Device controller not initialized");

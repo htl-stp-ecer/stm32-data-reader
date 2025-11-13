@@ -32,6 +32,7 @@ private:
     void onMotorPowerCommand(PortId port, const exlcm::scalar_i32_t& command) const;
     void onServoPositionCommand(const exlcm::scalar_i32_t& command);
     void onDataDumpRequest(const exlcm::scalar_i32_t& command) const;
+    void onBemfResetCommand(PortId port, const exlcm::scalar_i32_t& command) const;
 
     bool isInitialized_{false};
 };
