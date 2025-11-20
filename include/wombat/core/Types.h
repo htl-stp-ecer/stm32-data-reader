@@ -125,8 +125,9 @@ namespace wombat
         constexpr auto ACCELEROMETER = "libstp/accel/value";
         constexpr auto MAGNETOMETER = "libstp/mag/value";
         constexpr auto ORIENTATION = "libstp/imu/quaternion";
-        constexpr auto TEMPERATURE = "libstp/temp/value";
+        constexpr auto TEMPERATURE = "libstp/imu/temp/value";  // IMU temperature from sensor
         constexpr auto BATTERY_VOLTAGE = "libstp/battery/voltage";
+        constexpr auto CPU_TEMPERATURE = "libstp/cpu/temp/value";  // Raspberry Pi CPU temperature
 
         inline std::string motorPower(const PortId port)
         {
