@@ -96,6 +96,14 @@ Result<void> DeviceController::processUpdate() {
     }
 
     lastSensorData_ = sensorResult.value();
+    // Log key sensor values for debugging (battery, temperature, timestamp, sample gyro/accel)
+    if (logger_) {
+        logger_->info("Sensor update: batteryVoltage=" + std::to_string(lastSensorData_.batteryVoltage) +
+                      ", temperature=" + std::to_string(lastSensorData_.temperature) +
+                      ", timestamp=" + std::to_string(lastSensorData_.lastUpdate));
+        logger_->debug("Sensor update details: gyro=(" + std::to_string(lastSensorData_.gyro.x) + ", " + std::to_string(lastSensorData_.gyro.y) + ", " + std::to_string(lastSensorData_.gyro.z) + ")");
+        logger_->debug("Sensor update details: accel=(" + std::to_string(lastSensorData_.accelerometer.x) + ", " + std::to_string(lastSensorData_.accelerometer.y) + ", " + std::to_string(lastSensorData_.accelerometer.z) + ")");
+    }
     return Result<void>::success();
 }
 

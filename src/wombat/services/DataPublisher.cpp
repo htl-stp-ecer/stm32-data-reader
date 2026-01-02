@@ -1,4 +1,6 @@
 #include "wombat/services/DataPublisher.h"
+#include <fstream>
+#include <string>
 
 namespace wombat
 {
@@ -9,6 +11,15 @@ namespace wombat
 
     Result<void> DataPublisher::publishSensorData(const SensorData& data)
     {
+        // Log summary of sensor data being published
+        if (logger_) {
+            logger_->info("Publishing sensor data: batteryVoltage=" + std::to_string(data.batteryVoltage) +
+                          ", temperature=" + std::to_string(data.temperature) +
+                          ", timestamp=" + std::to_string(data.lastUpdate));
+            logger_->debug("Publishing details: gyro=(" + std::to_string(data.gyro.x) + ", " + std::to_string(data.gyro.y) + ", " + std::to_string(data.gyro.z) + ")");
+            logger_->debug("Publishing details: accel=(" + std::to_string(data.accelerometer.x) + ", " + std::to_string(data.accelerometer.y) + ", " + std::to_string(data.accelerometer.z) + ")");
+        }
+
         // Publish IMU data
         auto gyroResult = broker_->publishVector3f(Channels::GYRO, convertVector3f(data.gyro));
         if (gyroResult.isFailure())
@@ -38,17 +49,35 @@ namespace wombat
         publishAccuracy(data.accuracy);
 
         // Publish temperature
+        if (logger_) {
+            logger_->info("Publishing IMU temperature: " + std::to_string(data.temperature) + "°C on channel " + std::string(Channels::TEMPERATURE));
+        }
         auto tempResult = broker_->publishScalarF(Channels::TEMPERATURE, convertScalarF(data.temperature));
         if (tempResult.isFailure())
         {
             logger_->warn("Failed to publish temperature data: " + tempResult.error());
         }
+        else
+        {
+            if (logger_) {
+                logger_->info("IMU temperature published successfully: " + std::to_string(data.temperature) + "°C");
+            }
+        }
 
         // Publish battery voltage
+        if (logger_) {
+            logger_->info("Publishing battery voltage: " + std::to_string(data.batteryVoltage) + "V on channel " + std::string(Channels::BATTERY_VOLTAGE));
+        }
         auto batteryResult = broker_->publishScalarF(Channels::BATTERY_VOLTAGE, convertScalarF(data.batteryVoltage));
         if (batteryResult.isFailure())
         {
             logger_->warn("Failed to publish battery voltage data: " + batteryResult.error());
+        }
+        else
+        {
+            if (logger_) {
+                logger_->info("Battery voltage published successfully: " + std::to_string(data.batteryVoltage) + "V");
+            }
         }
 
         // Publish analog and digital values
@@ -63,6 +92,8 @@ namespace wombat
         {
             logger_->warn("Failed to publish digital bits: " + digitalResult.error());
         }
+
+        if (logger_) logger_->debug("Sensor data publish completed");
 
         return Result<void>::success();
     }
@@ -248,4 +279,106 @@ namespace wombat
 
         return Result<void>::success();
     }
+
+    Result<void> DataPublisher::updateCpuTemperature(std::chrono::milliseconds publishInterval)
+    {
+        // Check if enough time has elapsed since last publish
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastCpuTempPublishTime_);
+
+        if (elapsed < publishInterval)
+        {
+            // Not time to publish yet
+            return Result<void>::success();
+        }
+
+        // Read CPU temperature
+        auto tempResult = readCpuTemperature();
+        if (tempResult.isFailure())
+        {
+            logger_->warn("Failed to read CPU temperature: " + tempResult.error());
+            return Result<void>::failure("Failed to read CPU temperature: " + tempResult.error());
+        }
+
+        float temperature = tempResult.value();
+
+        // Log the temperature reading at info level (consistent with sensor data logging)
+        if (logger_) {
+            logger_->info("CPU temperature read: " + std::to_string(temperature) + "°C");
+        }
+
+        // Publish the temperature
+        auto publishResult = publishCpuTemperature(temperature);
+        if (publishResult.isFailure())
+        {
+            logger_->warn("Failed to publish CPU temperature: " + publishResult.error());
+            return publishResult;
+        }
+
+        // Update last publish time and value
+        lastCpuTempPublishTime_ = now;
+        lastPublishedCpuTemperature_ = temperature;
+
+        if (logger_) {
+            logger_->info("CPU temperature published: " + std::to_string(temperature) + "°C on channel " + std::string(Channels::CPU_TEMPERATURE));
+        }
+
+        return Result<void>::success();
+    }
+
+    Result<float> DataPublisher::readCpuTemperature()
+    {
+        // Read from Linux thermal zone (temperature in millidegrees Celsius)
+        const std::string thermalPath = "/sys/class/thermal/thermal_zone0/temp";
+
+        std::ifstream thermalFile(thermalPath);
+        if (!thermalFile.is_open())
+        {
+            return Result<float>::failure("Unable to open thermal sensor file: " + thermalPath);
+        }
+
+        std::string tempStr;
+        std::getline(thermalFile, tempStr);
+        thermalFile.close();
+
+        if (tempStr.empty())
+        {
+            return Result<float>::failure("Empty temperature reading from thermal sensor");
+        }
+
+        try
+        {
+            // Convert from millidegrees to degrees Celsius
+            int milliTemp = std::stoi(tempStr);
+            float temperature = static_cast<float>(milliTemp) / 1000.0f;
+
+            // Sanity check: CPU temperature should be between -40°C and 125°C
+            if (temperature < -40.0f || temperature > 125.0f)
+            {
+                return Result<float>::failure("CPU temperature out of valid range: " + std::to_string(temperature));
+            }
+
+            return Result<float>::success(temperature);
+        }
+        catch (const std::exception& e)
+        {
+            return Result<float>::failure("Failed to parse temperature value: " + std::string(e.what()));
+        }
+    }
+
+    Result<void> DataPublisher::publishCpuTemperature(float temperature)
+    {
+        // Convert to LCM message format
+        auto message = convertScalarF(temperature);
+
+        // Publish on the CPU temperature channel
+        auto result = broker_->publishScalarF(Channels::CPU_TEMPERATURE, message);
+        if (result.isFailure())
+        {
+            return Result<void>::failure("Failed to publish CPU temperature: " + result.error());
+        }
+
+        return Result<void>::success();
+    }
+
 } // namespace wombat

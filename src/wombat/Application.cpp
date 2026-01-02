@@ -129,12 +129,14 @@ Result<void> Application::initializeServices() {
         logger_->warn("Failed to initialize command subscriber: " + commandSubscriberResult.error());
     }
 
+
     logger_->debug("All services initialized successfully");
     return Result<void>::success();
 }
 
 Result<void> Application::shutdownServices() {
     // Shutdown in reverse order
+
     if (commandSubscriber_) {
         auto result = commandSubscriber_->shutdown();
         if (result.isFailure()) {
@@ -174,6 +176,14 @@ Result<void> Application::processMainLoop() {
     if (deviceResult.isFailure()) {
         logger_->error("Device controller update failed: " + deviceResult.error());
         return deviceResult;
+    }
+
+    // Update CPU temperature (publishes periodically - every 1 second)
+    if (dataPublisher_) {
+        auto cpuTempResult = dataPublisher_->updateCpuTemperature(std::chrono::milliseconds(1000));
+        if (cpuTempResult.isFailure()) {
+            logger_->debug("CPU temperature update failed: " + cpuTempResult.error());
+        }
     }
 
     // Publish current data
