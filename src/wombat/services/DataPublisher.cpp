@@ -11,15 +11,6 @@ namespace wombat
 
     Result<void> DataPublisher::publishSensorData(const SensorData& data)
     {
-        // Log summary of sensor data being published
-        if (logger_) {
-            logger_->info("Publishing sensor data: batteryVoltage=" + std::to_string(data.batteryVoltage) +
-                          ", temperature=" + std::to_string(data.temperature) +
-                          ", timestamp=" + std::to_string(data.lastUpdate));
-            logger_->debug("Publishing details: gyro=(" + std::to_string(data.gyro.x) + ", " + std::to_string(data.gyro.y) + ", " + std::to_string(data.gyro.z) + ")");
-            logger_->debug("Publishing details: accel=(" + std::to_string(data.accelerometer.x) + ", " + std::to_string(data.accelerometer.y) + ", " + std::to_string(data.accelerometer.z) + ")");
-        }
-
         // Publish IMU data
         auto gyroResult = broker_->publishVector3f(Channels::GYRO, convertVector3f(data.gyro));
         if (gyroResult.isFailure())
@@ -49,36 +40,19 @@ namespace wombat
         publishAccuracy(data.accuracy);
 
         // Publish temperature
-        if (logger_) {
-            logger_->info("Publishing IMU temperature: " + std::to_string(data.temperature) + "°C on channel " + std::string(Channels::TEMPERATURE));
-        }
         auto tempResult = broker_->publishScalarF(Channels::TEMPERATURE, convertScalarF(data.temperature));
         if (tempResult.isFailure())
         {
             logger_->warn("Failed to publish temperature data: " + tempResult.error());
         }
-        else
-        {
-            if (logger_) {
-                logger_->info("IMU temperature published successfully: " + std::to_string(data.temperature) + "°C");
-            }
-        }
 
         // Publish battery voltage
-        if (logger_) {
-            logger_->info("Publishing battery voltage: " + std::to_string(data.batteryVoltage) + "V on channel " + std::string(Channels::BATTERY_VOLTAGE));
-        }
         auto batteryResult = broker_->publishScalarF(Channels::BATTERY_VOLTAGE, convertScalarF(data.batteryVoltage));
         if (batteryResult.isFailure())
         {
             logger_->warn("Failed to publish battery voltage data: " + batteryResult.error());
         }
-        else
-        {
-            if (logger_) {
-                logger_->info("Battery voltage published successfully: " + std::to_string(data.batteryVoltage) + "V");
-            }
-        }
+
 
         // Publish analog and digital values
         auto analogResult = publishAnalogValues(data.analogValues);
@@ -302,11 +276,6 @@ namespace wombat
 
         float temperature = tempResult.value();
 
-        // Log the temperature reading at info level (consistent with sensor data logging)
-        if (logger_) {
-            logger_->info("CPU temperature read: " + std::to_string(temperature) + "°C");
-        }
-
         // Publish the temperature
         auto publishResult = publishCpuTemperature(temperature);
         if (publishResult.isFailure())
@@ -318,10 +287,6 @@ namespace wombat
         // Update last publish time and value
         lastCpuTempPublishTime_ = now;
         lastPublishedCpuTemperature_ = temperature;
-
-        if (logger_) {
-            logger_->info("CPU temperature published: " + std::to_string(temperature) + "°C on channel " + std::string(Channels::CPU_TEMPERATURE));
-        }
 
         return Result<void>::success();
     }
