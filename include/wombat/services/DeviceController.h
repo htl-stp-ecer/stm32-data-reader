@@ -23,6 +23,7 @@ public:
     Result<void> processUpdate();
 
     Result<void> setMotorCommand(PortId port, MotorDirection direction, MotorSpeed speed);
+    Result<void> setMotorStop(PortId port, bool engaged);
     Result<void> setServoCommand(PortId port, ServoPosition position);
     Result<void> resetBemfSum(PortId port);
 
@@ -38,6 +39,7 @@ private:
 
     std::array<std::atomic<MotorSpeed>, MAX_MOTOR_PORTS> motorCommands_{};
     std::array<std::atomic<ServoPosition>, MAX_SERVO_PORTS> servoCommands_{};
+    std::array<std::atomic_bool, MAX_MOTOR_PORTS> motorStopActive_{};
 
     SensorData lastSensorData_{};
     bool isInitialized_{false};

@@ -8,6 +8,8 @@
 #include "wombat/core/Logger.h"
 #include "wombat/messaging/LcmBroker.h"
 #include <memory>
+#include <chrono>
+#include <optional>
 
 namespace wombat
 {
@@ -24,6 +26,11 @@ namespace wombat
         std::shared_ptr<LcmBroker> broker_;
         std::shared_ptr<Logger> logger_;
 
+        // Accuracy throttling and change detection
+        std::optional<ImuAccuracy> lastAccuracy_;
+        std::chrono::steady_clock::time_point lastAccuracyPublishTime_{};
+        static constexpr std::chrono::seconds accuracyPublishInterval_{15};
+
         exlcm::vector3f_t convertVector3f(const Vector3f& vector) const;
         exlcm::quaternion_t convertQuaternion(const Quaternionf& quaternion) const;
         exlcm::scalar_f_t convertScalarF(float value) const;
@@ -32,5 +39,6 @@ namespace wombat
 
         Result<void> publishAnalogValues(const std::array<AnalogValue, MAX_ANALOG_PORTS>& values);
         Result<void> publishDigitalBits(DigitalValue digitalBits);
+        Result<void> publishAccuracy(const ImuAccuracy& accuracy);
     };
 } // namespace wombat

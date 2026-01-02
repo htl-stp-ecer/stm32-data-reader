@@ -69,6 +69,22 @@ namespace wombat
         }
     };
 
+    struct ImuAccuracy
+    {
+        int8_t gyro{0};
+        int8_t accelerometer{0};
+        int8_t compass{0};
+        int8_t quaternion{0};
+
+        bool operator==(const ImuAccuracy& other) const noexcept
+        {
+            return gyro == other.gyro &&
+                accelerometer == other.accelerometer &&
+                compass == other.compass &&
+                quaternion == other.quaternion;
+        }
+    };
+
     struct MotorState
     {
         MotorDirection direction{MotorDirection::Off};
@@ -88,6 +104,7 @@ namespace wombat
         Vector3f accelerometer{};
         Vector3f magnetometer{};
         Quaternionf orientation{};
+        ImuAccuracy accuracy{};
         float temperature{0.0f};
         float batteryVoltage{0.0f};
         std::array<AnalogValue, MAX_ANALOG_PORTS> analogValues{};
@@ -127,6 +144,10 @@ namespace wombat
         constexpr auto ORIENTATION = "libstp/imu/quaternion";
         constexpr auto TEMPERATURE = "libstp/temp/value";
         constexpr auto BATTERY_VOLTAGE = "libstp/battery/voltage";
+        constexpr auto GYRO_ACCURACY = "libstp/gyro/accuracy";
+        constexpr auto ACCEL_ACCURACY = "libstp/accel/accuracy";
+        constexpr auto COMPASS_ACCURACY = "libstp/mag/accuracy";
+        constexpr auto QUATERNION_ACCURACY = "libstp/imu/quaternion_accuracy";
 
         inline std::string motorPower(const PortId port)
         {
@@ -166,6 +187,11 @@ namespace wombat
         inline std::string motorPowerCommand(const PortId port)
         {
             return "libstp/motor/" + std::to_string(port) + "/power_cmd";
+        }
+
+        inline std::string motorStopCommand(const PortId port)
+        {
+            return "libstp/motor/" + std::to_string(port) + "/stop_cmd";
         }
 
         inline std::string servoPositionCommand(const PortId port)

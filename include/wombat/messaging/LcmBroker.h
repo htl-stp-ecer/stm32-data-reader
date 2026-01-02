@@ -35,6 +35,9 @@ public:
     Result<void> publishScalarI8(const std::string& channel, const exlcm::scalar_i8_t& message);
     Result<void> publishString(const std::string& channel, const exlcm::string_t& message);
 
+    // Force publish (bypasses change detection)
+    Result<void> publishScalarI8Force(const std::string& channel, const exlcm::scalar_i8_t& message);
+
     // Typed subscribers
     Result<void> subscribeVector3f(const std::string& channel,
                                   std::function<void(const exlcm::vector3f_t&)> handler);

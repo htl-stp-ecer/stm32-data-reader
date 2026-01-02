@@ -34,6 +34,9 @@ namespace wombat
             logger_->warn("Failed to publish orientation data: " + orientationResult.error());
         }
 
+        // Publish IMU accuracy (throttled)
+        publishAccuracy(data.accuracy);
+
         // Publish temperature
         auto tempResult = broker_->publishScalarF(Channels::TEMPERATURE, convertScalarF(data.temperature));
         if (tempResult.isFailure())
@@ -195,6 +198,54 @@ namespace wombat
                 logger_->warn("Failed to publish digital bit " + std::to_string(bit) + ": " + result.error());
             }
         }
+        return Result<void>::success();
+    }
+
+    Result<void> DataPublisher::publishAccuracy(const ImuAccuracy& accuracy)
+    {
+        const auto now = std::chrono::steady_clock::now();
+        const bool isFirstTime = !lastAccuracy_.has_value();
+        const bool hasChanged = lastAccuracy_.has_value() && !(accuracy == lastAccuracy_.value());
+        const bool intervalElapsed = (now - lastAccuracyPublishTime_) >= accuracyPublishInterval_;
+
+        // Publish on first call, on change, or every 15 seconds
+        if (!isFirstTime && !hasChanged && !intervalElapsed)
+        {
+            return Result<void>::success();
+        }
+
+        // Log on first time, change, or periodic
+        if (isFirstTime)
+        {
+            logger_->info("IMU accuracy (initial): gyro=" + std::to_string(accuracy.gyro) +
+                ", accel=" + std::to_string(accuracy.accelerometer) +
+                ", compass=" + std::to_string(accuracy.compass) +
+                ", quat=" + std::to_string(accuracy.quaternion));
+        }
+        else if (hasChanged)
+        {
+            logger_->info("IMU accuracy changed: gyro=" + std::to_string(accuracy.gyro) +
+                ", accel=" + std::to_string(accuracy.accelerometer) +
+                ", compass=" + std::to_string(accuracy.compass) +
+                ", quat=" + std::to_string(accuracy.quaternion));
+        }
+        else if (intervalElapsed)
+        {
+            logger_->info("IMU accuracy (periodic): gyro=" + std::to_string(accuracy.gyro) +
+                ", accel=" + std::to_string(accuracy.accelerometer) +
+                ", compass=" + std::to_string(accuracy.compass) +
+                ", quat=" + std::to_string(accuracy.quaternion));
+        }
+
+        // Publish all accuracy values (force to bypass change detection)
+        broker_->publishScalarI8Force(Channels::GYRO_ACCURACY, convertScalarI8(accuracy.gyro));
+        broker_->publishScalarI8Force(Channels::ACCEL_ACCURACY, convertScalarI8(accuracy.accelerometer));
+        broker_->publishScalarI8Force(Channels::COMPASS_ACCURACY, convertScalarI8(accuracy.compass));
+        broker_->publishScalarI8Force(Channels::QUATERNION_ACCURACY, convertScalarI8(accuracy.quaternion));
+
+        lastAccuracy_ = accuracy;
+        lastAccuracyPublishTime_ = now;
+
         return Result<void>::success();
     }
 } // namespace wombat

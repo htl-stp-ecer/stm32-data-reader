@@ -32,6 +32,16 @@ namespace wombat
             {
                 return Result<void>::failure("Failed to subscribe to motor commands: " + motorResult.error());
             }
+
+            logger_->info("Subscribing to motor stop command channel: " + Channels::motorStopCommand(i));
+            auto stopResult = broker_->subscribeScalarI32(
+                Channels::motorStopCommand(i),
+                [this, i](const exlcm::scalar_i32_t& cmd) { onMotorStopCommand(i, cmd); }
+            );
+            if (stopResult.isFailure())
+            {
+                return Result<void>::failure("Failed to subscribe to motor stop commands: " + stopResult.error());
+            }
         }
 
         // Subscribe to BEMF reset commands
@@ -113,7 +123,34 @@ namespace wombat
             logger_->error("Failed to force device update after motor command: " + forceResult.error());
         }
 
-        logger_->info("Received motor power_cmd: " + std::to_string(powerValue));
+        logger_->info("Received motor power_cmd on port " + std::to_string(port) + ": " + std::to_string(command.value));
+    }
+
+    void CommandSubscriber::onMotorStopCommand(const PortId port, const exlcm::scalar_i32_t& command) const
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received motor stop command while not initialized");
+            return;
+        }
+
+        const bool engageStop = command.value != 0;
+        auto result = deviceController_->setMotorStop(port, engageStop);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to apply motor stop command on port " + std::to_string(port) + ": " + result.error());
+            return;
+        }
+
+        // Force hardware update so stop/wake applies immediately
+        auto forceResult = deviceController_->processUpdate();
+        if (forceResult.isFailure())
+        {
+            logger_->error("Failed to force device update after motor stop command: " + forceResult.error());
+        }
+
+        const std::string action = engageStop ? "stop engaged" : "wake-up received";
+        logger_->info("Motor " + std::to_string(port) + " " + action);
     }
 
     void CommandSubscriber::onServoPositionCommand(const exlcm::scalar_i32_t& command)

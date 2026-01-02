@@ -309,3 +309,9 @@ float battery_voltage(void)
 {
     return g_batt_v;
 }
+
+// Accuracy (mock returns fixed values indicating "calibrated")
+int8_t gyro_accuracy(void) { return 3; }
+int8_t accel_accuracy(void) { return 3; }
+int8_t compass_accuracy(void) { return 3; }
+int8_t quaternion_accuracy(void) { return 3; }

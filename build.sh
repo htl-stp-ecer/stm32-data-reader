@@ -72,6 +72,7 @@ if [[ "$FORCE_RECONFIGURE" == "1" || ! -f "$BUILD_DIR/CMakeCache.txt" ]]; then
   echo "• Configuring with CMake ($CMAKE_BUILD_TYPE)"
   docker_exec "cmake -S /src -B /src/$BUILD_DIR -G Ninja \
     -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
+    -DUSE_SPI_MOCK=OFF \
     -DCMAKE_C_COMPILER_LAUNCHER=ccache \
     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 else

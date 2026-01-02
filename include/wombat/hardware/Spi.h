@@ -83,6 +83,11 @@ bool digital(uint8_t bit);
 
 float battery_voltage(void);
 
+int8_t gyro_accuracy(void);
+int8_t accel_accuracy(void);
+int8_t compass_accuracy(void);
+int8_t quaternion_accuracy(void);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

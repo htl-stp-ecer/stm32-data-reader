@@ -398,3 +398,31 @@ float battery_voltage(void)
 
     return filtered_voltage;
 }
+
+int8_t gyro_accuracy(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return (int8_t)spi_rx()[RX_GYRO_ACCURACY];
+}
+
+int8_t accel_accuracy(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return (int8_t)spi_rx()[RX_ACCEL_ACCURACY];
+}
+
+int8_t compass_accuracy(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return (int8_t)spi_rx()[RX_COMPASS_ACCURACY];
+}
+
+int8_t quaternion_accuracy(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return (int8_t)spi_rx()[RX_QUATERNION_ACCURACY];
+}

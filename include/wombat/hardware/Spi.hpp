@@ -2,6 +2,8 @@
 #include <memory>
 #include <array>
 #include <algorithm>
+#include <iostream>
+
 #include "wombat/core/Types.h"
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
@@ -64,6 +66,10 @@ namespace wombat
             d.orientation.x = quatX();
             d.orientation.y = quatY();
             d.orientation.z = quatZ();
+            d.accuracy.gyro = gyro_accuracy();
+            d.accuracy.accelerometer = accel_accuracy();
+            d.accuracy.compass = compass_accuracy();
+            d.accuracy.quaternion = quaternion_accuracy();
             d.temperature = imuTemperature();
             d.batteryVoltage = battery_voltage();
             for (uint8_t i = 0; i < 6; ++i) d.analogValues[i] = analog_in(i);
@@ -99,11 +105,14 @@ namespace wombat
 
             uint32_t duty = 0;
             if (percentAbs > 0.01f) {
-                constexpr double minDutyFrac = 0.1f;
-                const double dutyFrac = minDutyFrac + (1.0f - minDutyFrac) * percentAbs;
-                duty = static_cast<uint32_t>(dutyFrac * 400.0f);
+                duty = static_cast<uint32_t>(percentAbs * 400.0f);
             }
 
+            SPDLOG_INFO(
+                "SPI setMotorState port={} dir={} duty={}",
+                static_cast<int>(port),
+                static_cast<int>(dir),
+                duty);
             set_motor(port, dir, duty);
             st.backEmf = motors_[port].backEmf;
             motors_[port] = st;

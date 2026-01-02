@@ -63,6 +63,20 @@ public:
         return Result<void>::success();
     }
 
+    template<typename MessageType>
+    Result<void> publishForce(const std::string& channel, const MessageType& message) {
+        if (!lcm_ || !lcm_->good()) {
+            return Result<void>::failure("LCM not initialized or unhealthy");
+        }
+
+        const int result = lcm_->publish(channel, &message);
+        if (result != 0) {
+            return Result<void>::failure("Failed to publish message on channel: " + channel);
+        }
+
+        return Result<void>::success();
+    }
+
     Result<void> subscribeVector3f(const std::string& channel,
                                   std::function<void(const exlcm::vector3f_t&)> handler) {
         if (!lcm_ || !lcm_->good()) {
@@ -178,6 +192,10 @@ Result<void> LcmBroker::publishScalarI32(const std::string& channel, const exlcm
 
 Result<void> LcmBroker::publishScalarI8(const std::string& channel, const exlcm::scalar_i8_t& message) {
     return impl_->publishIfChanged(channel, message);
+}
+
+Result<void> LcmBroker::publishScalarI8Force(const std::string& channel, const exlcm::scalar_i8_t& message) {
+    return impl_->publishForce(channel, message);
 }
 
 Result<void> LcmBroker::publishString(const std::string& channel, const exlcm::string_t& message) {
