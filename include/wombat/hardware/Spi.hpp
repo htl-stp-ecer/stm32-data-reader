@@ -126,11 +126,11 @@ namespace wombat
 
             }
 
-            const double percentAbs = std::min(st.speed / 100.0, 1.0);
-
+            // st.speed comes from libstp already scaled to 0-400 range (percent * 4)
             uint32_t duty = 0;
-            if (percentAbs > 0.01f) {
-                duty = static_cast<uint32_t>(percentAbs * 400.0f);
+            const int speedAbs = static_cast<int>(st.speed);
+            if (speedAbs > 1) {  // threshold to avoid jitter at very low speeds
+                duty = static_cast<uint32_t>(std::min(speedAbs, 400));
             }
 
             SPDLOG_INFO(

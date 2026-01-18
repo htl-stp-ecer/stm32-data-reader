@@ -1,7 +1,8 @@
 /* spi.c – Pure-C port of the original C++ Spi wrapper
  * ---------------------------------------------------
  * Maintainer: Tobias <tobias.madlberger@gmail.com>
- * Last update: 2025-07-06
+ * Last update: 2026-01-03
+ * Updated to use struct-based protocol format
  */
 
 #include "wombat/hardware/Spi.h"
@@ -28,15 +29,15 @@
 #define SPI_DEVICE "/dev/spidev0.0"
 #endif
 
-#define SPI_MINIMUM_UPDATE_DELAY_MS 20u
+#define SPI_MINIMUM_UPDATE_DELAY_MS 1u
 #define SERVO_MINIMUM_DUTYCYCLE 300u
 
 typedef struct
 {
     int fd;
     struct spi_ioc_transfer tr;
-    uint8_t tx[BUFFER_LENGTH_DUPELX_COMMUNICATION];
-    uint8_t rx[BUFFER_LENGTH_DUPELX_COMMUNICATION];
+    RxBuffer tx;  // What we send to STM32 (commands)
+    TxBuffer rx;  // What we receive from STM32 (sensor data)
     uint32_t speed_hz;
     uint64_t last_call_ms;
 } SpiCtx;
@@ -93,11 +94,11 @@ static bool spi_reopen(void)
         return false;
     }
 
-    ctx.tx[RX_TRANSFER_VERSION] = TRANSFER_VERSION;
+    ctx.tx.transferVersion = TRANSFER_VERSION;
     memset(&ctx.tr, 0, sizeof(ctx.tr));
-    ctx.tr.tx_buf = (unsigned long)ctx.tx;
-    ctx.tr.rx_buf = (unsigned long)ctx.rx;
-    ctx.tr.len = BUFFER_LENGTH_DUPELX_COMMUNICATION;
+    ctx.tr.tx_buf = (unsigned long)&ctx.tx;
+    ctx.tr.rx_buf = (unsigned long)&ctx.rx;
+    ctx.tr.len = BUFFER_LENGTH_DUPLEX_COMMUNICATION;
     ctx.tr.speed_hz = ctx.speed_hz;
     ctx.tr.bits_per_word = bits;
 
@@ -108,7 +109,7 @@ static bool spi_do_transfer(void)
 {
     if (ioctl(ctx.fd, SPI_IOC_MESSAGE(1), &ctx.tr) < 0)
         return false;
-    return ctx.rx[RX_TRANSFER_VERSION] == TRANSFER_VERSION;
+    return ctx.rx.transferVersion == TRANSFER_VERSION;
 }
 
 bool spi_init(uint32_t speed_hz)
@@ -134,8 +135,8 @@ bool spi_update(void)
         return false;
 
     uint64_t now = now_ms();
-    if (now - ctx.last_call_ms < SPI_MINIMUM_UPDATE_DELAY_MS)
-        return ctx.rx[RX_TRANSFER_VERSION] == TRANSFER_VERSION;
+    // if (now - ctx.last_call_ms < SPI_MINIMUM_UPDATE_DELAY_MS)
+    //     return ctx.rx.transferVersion == TRANSFER_VERSION;
 
     ctx.last_call_ms = now;
 
@@ -146,7 +147,7 @@ bool spi_update(void)
             return true;
 
         fprintf(stderr, "[spi] transfer-version mismatch; Received: %d, Expected: %d (attempt %d/%d).\n",
-                ctx.rx[RX_TRANSFER_VERSION],
+                ctx.rx.transferVersion,
                 TRANSFER_VERSION,
                 t + 1, max_tries);
 
@@ -173,7 +174,7 @@ bool spi_update(void)
 
 bool spi_force_update(void)
 {
-    usleep(SPI_MINIMUM_UPDATE_DELAY_MS * 1000);
+    //usleep(SPI_MINIMUM_UPDATE_DELAY_MS * 1000);
     return spi_update();
 }
 
@@ -186,23 +187,12 @@ void spi_close(void)
     }
 }
 
-static inline uint8_t* spi_tx(void)
-{
-    return ctx.tx;
-}
-
-static inline const uint8_t* spi_rx(void)
-{
-    return ctx.rx;
-}
-
 void set_shutdown_flag(uint8_t bit, bool value)
 {
-    uint8_t* tx = spi_tx();
     if (value)
-        tx[TX_SYSTEM_SHUTDOWN] |= (1u << bit);
+        ctx.tx.systemShutdown |= (1u << bit);
     else
-        tx[TX_SYSTEM_SHUTDOWN] &= ~(1u << bit);
+        ctx.tx.systemShutdown &= ~(1u << bit);
 
     if (!spi_update())
         exit(EXIT_FAILURE);
@@ -212,9 +202,8 @@ void set_motor(uint8_t port, MotorDir dir, uint32_t value)
 {
     if (port > 3)
         return;
-    uint8_t* tx = spi_tx();
-    tx[TX_MOT_MODE] = (tx[TX_MOT_MODE] & ~(0b11u << (port * 2))) | ((uint8_t)dir << (port * 2));
-    memcpy(&tx[TX_SPEED_POS_MOT_0 + port * 4], &value, sizeof value);
+    ctx.tx.motorMode = (ctx.tx.motorMode & ~(0b11u << (port * 2))) | ((uint8_t)dir << (port * 2));
+    ctx.tx.motorSpeedPos[port] = value;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }
@@ -223,10 +212,9 @@ void set_servo_mode(uint8_t port, ServoMode mode)
 {
     if (port > 3)
         return;
-    uint8_t* tx = spi_tx();
     uint8_t bitPos = port * 2;
-    tx[TX_SERVO_MODE] &= ~(0b11u << bitPos);
-    tx[TX_SERVO_MODE] |= (((uint8_t)mode & 0b11u) << bitPos);
+    ctx.tx.servoMode &= ~(0b11u << bitPos);
+    ctx.tx.servoMode |= (((uint8_t)mode & 0b11u) << bitPos);
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }
@@ -235,8 +223,7 @@ uint16_t get_servo_pos(uint8_t port)
 {
     if (port > 3)
         return 0;
-    uint16_t pos;
-    memcpy(&pos, &spi_tx()[TX_POS_SERVO_0 + port * 2], sizeof pos);
+    uint16_t pos = ctx.tx.servoPos[port];
     double degrees = ((double)pos - 1500.0) / 10.0;
     double dval = (degrees + 90.0) * 2047.0 / 180.0;
     if (dval < 0.0)
@@ -251,89 +238,116 @@ void set_servo_pos(uint8_t port, uint16_t raw)
     if (port > 3)
         return;
     unsigned short val = 1500 + (unsigned short)round(1800.0 * ((double)raw / 2047.0)) - 900;
-    memcpy(&spi_tx()[TX_POS_SERVO_0 + port * 2], &val, sizeof val);
+    ctx.tx.servoPos[port] = val;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }
 
 uint32_t last_update_us(void)
 {
-    uint32_t v;
-    memcpy(&v, &spi_rx()[RX_UPDATE_TIME], sizeof v);
-    return v;
+    return ctx.rx.updateTime;
 }
 
-#define SENSOR_TRIPLE(name, base)                   \
-    float name##X(void) {                           \
-        if (!spi_update())                          \
-            exit(EXIT_FAILURE);                     \
-        float f;                                    \
-        memcpy(&f, &spi_rx()[base + 0], sizeof(f)); \
-        return f;                                   \
-    }                                               \
-    float name##Y(void) {                           \
-        if (!spi_update())                          \
-            exit(EXIT_FAILURE);                     \
-        float f;                                    \
-        memcpy(&f, &spi_rx()[base + 4], sizeof(f)); \
-        return f;                                   \
-    }                                               \
-    float name##Z(void) {                           \
-        if (!spi_update())                          \
-            exit(EXIT_FAILURE);                     \
-        float f;                                    \
-        memcpy(&f, &spi_rx()[base + 8], sizeof(f)); \
-        return f;                                   \
-    }
+// Gyroscope data access
+float gyroX(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.imu.gyro.data[0];
+}
 
-SENSOR_TRIPLE(gyro, RX_GYRO_X)
-SENSOR_TRIPLE(accel, RX_ACCEL_X)
-SENSOR_TRIPLE(mag, RX_MAG_X)
-#undef SENSOR_TRIPLE
+float gyroY(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.imu.gyro.data[1];
+}
 
+float gyroZ(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.imu.gyro.data[2];
+}
+
+// Accelerometer data access
+float accelX(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.imu.accel.data[0];
+}
+
+float accelY(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.imu.accel.data[1];
+}
+
+float accelZ(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.imu.accel.data[2];
+}
+
+// Magnetometer data access
+float magX(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.imu.compass.data[0];
+}
+
+float magY(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.imu.compass.data[1];
+}
+
+float magZ(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.imu.compass.data[2];
+}
+
+// Quaternion data access (note: struct order is w, x, y, z)
 float quatX(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    float f;
-    memcpy(&f, &spi_rx()[RX_QUATERNION_X], sizeof(f));
-    return f;
+    return ctx.rx.imu.quat.data[1];
 }
 
 float quatY(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    float f;
-    memcpy(&f, &spi_rx()[RX_QUATERNION_Y], sizeof(f));
-    return f;
+    return ctx.rx.imu.quat.data[2];
 }
 
 float quatZ(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    float f;
-    memcpy(&f, &spi_rx()[RX_QUATERNION_Z], sizeof(f));
-    return f;
+    return ctx.rx.imu.quat.data[3];
 }
 
 float quatW(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    float f;
-    memcpy(&f, &spi_rx()[RX_QUATERNION_W], sizeof(f));
-    return f;
+    return ctx.rx.imu.quat.data[0];
 }
 
 float imuTemperature(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    float f;
-    memcpy(&f, &spi_rx()[RX_IMU_TEMPERATUR], sizeof(f));
-    return f;
+    return ctx.rx.imu.temperature;
 }
 
 int32_t bemf(uint8_t mot)
@@ -342,9 +356,7 @@ int32_t bemf(uint8_t mot)
         return 0;
     if (!spi_update())
         exit(EXIT_FAILURE);
-    int32_t v;
-    memcpy(&v, &spi_rx()[RX_BEMF_READING_MOT0 + mot * 4], sizeof v);
-    return v / 250;
+    return ctx.rx.motorBemfSum[mot] / 250;
 }
 
 uint16_t analog_in(uint8_t idx)
@@ -353,18 +365,15 @@ uint16_t analog_in(uint8_t idx)
         return 0;
     if (!spi_update())
         exit(EXIT_FAILURE);
-    uint16_t v;
-    memcpy(&v, &spi_rx()[RX_ANALOG_SENSOR_0 + idx * 2], sizeof v);
-    return v;
+    // analogSensor is now int16_t, cast to uint16_t for compatibility
+    return (uint16_t)ctx.rx.analogSensor[idx];
 }
 
 uint16_t digital_raw(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    uint16_t v;
-    memcpy(&v, &spi_rx()[RX_DIGITAL_VALUES], sizeof v);
-    return v;
+    return ctx.rx.digitalSensors;
 }
 
 bool digital(uint8_t bit)
@@ -376,8 +385,8 @@ float battery_voltage(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    uint16_t v;
-    memcpy(&v, &spi_rx()[RX_BATTERY_VOLTAGE], sizeof v);
+    // batteryVoltage is now int16_t
+    int16_t v = ctx.rx.batteryVoltage;
 
     const float stmVoltage = 3.3f; // Voltage of the STM32 ADC reference
     const float voltageDeviderFactor = 11.0f; // Voltage divider factor (110k:10k resistors)
@@ -403,26 +412,26 @@ int8_t gyro_accuracy(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    return (int8_t)spi_rx()[RX_GYRO_ACCURACY];
+    return ctx.rx.imu.gyro.accuracy;
 }
 
 int8_t accel_accuracy(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    return (int8_t)spi_rx()[RX_ACCEL_ACCURACY];
+    return ctx.rx.imu.accel.accuracy;
 }
 
 int8_t compass_accuracy(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    return (int8_t)spi_rx()[RX_COMPASS_ACCURACY];
+    return ctx.rx.imu.compass.accuracy;
 }
 
 int8_t quaternion_accuracy(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    return (int8_t)spi_rx()[RX_QUATERNION_ACCURACY];
+    return ctx.rx.imu.quat.accuracy;
 }
