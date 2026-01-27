@@ -131,6 +131,24 @@ public:
         return Result<void>::success();
     }
 
+    Result<void> subscribeScalarF(const std::string& channel,
+                                 std::function<void(const exlcm::scalar_f_t&)> handler) {
+        if (!lcm_ || !lcm_->good()) {
+            return Result<void>::failure("LCM not initialized or unhealthy");
+        }
+
+        std::function<void(const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_f_t*)> lcmHandler =
+            [handler](const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_f_t* msg) {
+                if (msg) {
+                    handler(*msg);
+                }
+            };
+        lcm_->subscribe<exlcm::scalar_f_t>(channel, lcmHandler);
+
+        logger_->debug("Subscribed to ScalarF channel: " + channel);
+        return Result<void>::success();
+    }
+
 private:
     std::shared_ptr<Logger> logger_;
     std::unique_ptr<lcm::LCM> lcm_;
@@ -215,6 +233,11 @@ Result<void> LcmBroker::subscribeQuaternion(const std::string& channel,
 Result<void> LcmBroker::subscribeScalarI32(const std::string& channel,
                                           std::function<void(const exlcm::scalar_i32_t&)> handler) {
     return impl_->subscribeScalarI32(channel, std::move(handler));
+}
+
+Result<void> LcmBroker::subscribeScalarF(const std::string& channel,
+                                        std::function<void(const exlcm::scalar_f_t&)> handler) {
+    return impl_->subscribeScalarF(channel, std::move(handler));
 }
 
 } // namespace wombat

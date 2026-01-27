@@ -315,3 +315,25 @@ int8_t gyro_accuracy(void) { return 3; }
 int8_t accel_accuracy(void) { return 3; }
 int8_t compass_accuracy(void) { return 3; }
 int8_t quaternion_accuracy(void) { return 3; }
+
+// BEMF calibration (mock - just stores values)
+static float g_bemf_scale[SPI_MOCK_MAX_MOTORS] = {1.0f, 1.0f, 1.0f, 1.0f};
+static float g_bemf_offset[SPI_MOCK_MAX_MOTORS] = {0.0f, 0.0f, 0.0f, 0.0f};
+static int16_t g_bemf_nominal_voltage = 3000;
+
+void set_bemf_scale(uint8_t port, float scale)
+{
+    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return;
+    g_bemf_scale[port] = scale;
+}
+
+void set_bemf_offset(uint8_t port, float offset)
+{
+    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return;
+    g_bemf_offset[port] = offset;
+}
+
+void set_bemf_nominal_voltage(int16_t adc_value)
+{
+    g_bemf_nominal_voltage = adc_value;
+}

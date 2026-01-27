@@ -26,6 +26,9 @@ public:
     Result<void> setMotorStop(PortId port, bool engaged);
     Result<void> setServoCommand(PortId port, ServoPosition position);
     Result<void> resetBemfSum(PortId port);
+    Result<void> setBemfScale(PortId port, float scale);
+    Result<void> setBemfOffset(PortId port, float offset);
+    Result<void> setBemfNominalVoltage(int16_t adcValue);
 
     Result<SensorData> getCurrentSensorData() const;
     Result<MotorState> getMotorState(PortId port) const;

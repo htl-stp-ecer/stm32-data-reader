@@ -195,6 +195,61 @@ Result<void> DeviceController::resetBemfSum(PortId port) {
     return Result<void>::success();
 }
 
+Result<void> DeviceController::setBemfScale(PortId port, float scale) {
+    if (!isInitialized_) {
+        return Result<void>::failure("Device controller not initialized");
+    }
+
+    auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
+    if (validationResult.isFailure()) {
+        return validationResult;
+    }
+
+    auto result = spi_->setBemfScale(port, scale);
+    if (result.isFailure()) {
+        logger_->error("Failed to set BEMF scale for motor " + std::to_string(port) + ": " + result.error());
+        return result;
+    }
+
+    logger_->info("BEMF scale set for motor " + std::to_string(port) + " to " + std::to_string(scale));
+    return Result<void>::success();
+}
+
+Result<void> DeviceController::setBemfOffset(PortId port, float offset) {
+    if (!isInitialized_) {
+        return Result<void>::failure("Device controller not initialized");
+    }
+
+    auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
+    if (validationResult.isFailure()) {
+        return validationResult;
+    }
+
+    auto result = spi_->setBemfOffset(port, offset);
+    if (result.isFailure()) {
+        logger_->error("Failed to set BEMF offset for motor " + std::to_string(port) + ": " + result.error());
+        return result;
+    }
+
+    logger_->info("BEMF offset set for motor " + std::to_string(port) + " to " + std::to_string(offset));
+    return Result<void>::success();
+}
+
+Result<void> DeviceController::setBemfNominalVoltage(int16_t adcValue) {
+    if (!isInitialized_) {
+        return Result<void>::failure("Device controller not initialized");
+    }
+
+    auto result = spi_->setBemfNominalVoltage(adcValue);
+    if (result.isFailure()) {
+        logger_->error("Failed to set BEMF nominal voltage: " + result.error());
+        return result;
+    }
+
+    logger_->info("BEMF nominal voltage ADC set to " + std::to_string(adcValue));
+    return Result<void>::success();
+}
+
 Result<SensorData> DeviceController::getCurrentSensorData() const {
     if (!isInitialized_) {
         return Result<SensorData>::failure("Device controller not initialized");

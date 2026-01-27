@@ -175,6 +175,18 @@ namespace wombat
             return "libstp/bemf/" + std::to_string(port) + "/reset_cmd";
         }
 
+        inline std::string bemfScaleCommand(const PortId port)
+        {
+            return "libstp/bemf/" + std::to_string(port) + "/scale_cmd";
+        }
+
+        inline std::string bemfOffsetCommand(const PortId port)
+        {
+            return "libstp/bemf/" + std::to_string(port) + "/offset_cmd";
+        }
+
+        constexpr auto BEMF_NOMINAL_VOLTAGE_CMD = "libstp/bemf/nominal_voltage_cmd";
+
         inline std::string analog(const PortId port)
         {
             return "libstp/analog/" + std::to_string(port) + "/value";

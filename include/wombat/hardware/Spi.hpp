@@ -126,11 +126,11 @@ namespace wombat
 
             }
 
-            // st.speed comes from libstp already scaled to 0-400 range (percent * 4)
+            const double percentAbs = std::min(st.speed / 100.0, 1.0);
+
             uint32_t duty = 0;
-            const int speedAbs = static_cast<int>(st.speed);
-            if (speedAbs > 1) {  // threshold to avoid jitter at very low speeds
-                duty = static_cast<uint32_t>(std::min(speedAbs, 400));
+            if (percentAbs > 0.01f) {
+                duty = static_cast<uint32_t>(percentAbs * 400.0f);
             }
 
             SPDLOG_INFO(
@@ -181,6 +181,26 @@ namespace wombat
             const auto rawValue = motors_[port].backEmf + bemfOffsets_[port];
             bemfOffsets_[port] = rawValue;
             motors_[port].backEmf = 0;
+            return Result<void>::success();
+        }
+
+        Result<void> setBemfScale(PortId port, float scale)
+        {
+            if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+            set_bemf_scale(port, scale);
+            return Result<void>::success();
+        }
+
+        Result<void> setBemfOffset(PortId port, float offset)
+        {
+            if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+            set_bemf_offset(port, offset);
+            return Result<void>::success();
+        }
+
+        Result<void> setBemfNominalVoltage(int16_t adcValue)
+        {
+            set_bemf_nominal_voltage(adcValue);
             return Result<void>::success();
         }
 

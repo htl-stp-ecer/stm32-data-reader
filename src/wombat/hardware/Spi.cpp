@@ -435,3 +435,28 @@ int8_t quaternion_accuracy(void)
         exit(EXIT_FAILURE);
     return ctx.rx.imu.quat.accuracy;
 }
+
+void set_bemf_scale(uint8_t port, float scale)
+{
+    if (port > 3)
+        return;
+    ctx.tx.bemfScale[port] = scale;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}
+
+void set_bemf_offset(uint8_t port, float offset)
+{
+    if (port > 3)
+        return;
+    ctx.tx.bemfOffset[port] = offset;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}
+
+void set_bemf_nominal_voltage(int16_t adc_value)
+{
+    ctx.tx.nominalVoltageAdc = adc_value;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}

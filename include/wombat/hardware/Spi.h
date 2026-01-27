@@ -53,6 +53,11 @@ void set_motor(uint8_t port, MotorDir dir, uint32_t value);
 void set_servo_mode(uint8_t port, ServoMode mode);
 void set_servo_pos(uint8_t port, uint16_t raw /* 0‑2047 */);
 
+/* BEMF calibration setters */
+void set_bemf_scale(uint8_t port, float scale);
+void set_bemf_offset(uint8_t port, float offset);
+void set_bemf_nominal_voltage(int16_t adc_value);
+
 /* ---------------- getters (RX) ---------------------- */
 uint16_t get_servo_pos(uint8_t port);
 uint32_t last_update_us(void);

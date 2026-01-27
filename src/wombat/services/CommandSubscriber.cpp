@@ -56,6 +56,39 @@ namespace wombat
             {
                 return Result<void>::failure("Failed to subscribe to BEMF reset commands: " + bemfResetResult.error());
             }
+
+            // Subscribe to BEMF scale commands
+            logger_->info("Subscribing to BEMF scale command channel: " + Channels::bemfScaleCommand(i));
+            auto bemfScaleResult = broker_->subscribeScalarF(
+                Channels::bemfScaleCommand(i),
+                [this, i](const exlcm::scalar_f_t& cmd) { onBemfScaleCommand(i, cmd); }
+            );
+            if (bemfScaleResult.isFailure())
+            {
+                return Result<void>::failure("Failed to subscribe to BEMF scale commands: " + bemfScaleResult.error());
+            }
+
+            // Subscribe to BEMF offset commands
+            logger_->info("Subscribing to BEMF offset command channel: " + Channels::bemfOffsetCommand(i));
+            auto bemfOffsetResult = broker_->subscribeScalarF(
+                Channels::bemfOffsetCommand(i),
+                [this, i](const exlcm::scalar_f_t& cmd) { onBemfOffsetCommand(i, cmd); }
+            );
+            if (bemfOffsetResult.isFailure())
+            {
+                return Result<void>::failure("Failed to subscribe to BEMF offset commands: " + bemfOffsetResult.error());
+            }
+        }
+
+        // Subscribe to BEMF nominal voltage command
+        logger_->info("Subscribing to BEMF nominal voltage command channel: " + std::string(Channels::BEMF_NOMINAL_VOLTAGE_CMD));
+        auto nominalVoltageResult = broker_->subscribeScalarI32(
+            Channels::BEMF_NOMINAL_VOLTAGE_CMD,
+            [this](const exlcm::scalar_i32_t& cmd) { onBemfNominalVoltageCommand(cmd); }
+        );
+        if (nominalVoltageResult.isFailure())
+        {
+            return Result<void>::failure("Failed to subscribe to BEMF nominal voltage command: " + nominalVoltageResult.error());
         }
 
         // Subscribe to servo position commands
@@ -246,5 +279,80 @@ namespace wombat
         }
 
         logger_->info("Reset BEMF sum for motor " + std::to_string(port));
+    }
+
+    void CommandSubscriber::onBemfScaleCommand(const PortId port, const exlcm::scalar_f_t& command) const
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received BEMF scale command while not initialized");
+            return;
+        }
+
+        const auto result = deviceController_->setBemfScale(port, command.value);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set BEMF scale for motor " + std::to_string(port) + ": " + result.error());
+            return;
+        }
+
+        // Force hardware update
+        auto forceResult = deviceController_->processUpdate();
+        if (forceResult.isFailure())
+        {
+            logger_->error("Failed to force device update after BEMF scale command: " + forceResult.error());
+        }
+
+        logger_->info("Set BEMF scale for motor " + std::to_string(port) + " to " + std::to_string(command.value));
+    }
+
+    void CommandSubscriber::onBemfOffsetCommand(const PortId port, const exlcm::scalar_f_t& command) const
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received BEMF offset command while not initialized");
+            return;
+        }
+
+        const auto result = deviceController_->setBemfOffset(port, command.value);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set BEMF offset for motor " + std::to_string(port) + ": " + result.error());
+            return;
+        }
+
+        // Force hardware update
+        auto forceResult = deviceController_->processUpdate();
+        if (forceResult.isFailure())
+        {
+            logger_->error("Failed to force device update after BEMF offset command: " + forceResult.error());
+        }
+
+        logger_->info("Set BEMF offset for motor " + std::to_string(port) + " to " + std::to_string(command.value));
+    }
+
+    void CommandSubscriber::onBemfNominalVoltageCommand(const exlcm::scalar_i32_t& command) const
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received BEMF nominal voltage command while not initialized");
+            return;
+        }
+
+        const auto result = deviceController_->setBemfNominalVoltage(static_cast<int16_t>(command.value));
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set BEMF nominal voltage: " + result.error());
+            return;
+        }
+
+        // Force hardware update
+        auto forceResult = deviceController_->processUpdate();
+        if (forceResult.isFailure())
+        {
+            logger_->error("Failed to force device update after BEMF nominal voltage command: " + forceResult.error());
+        }
+
+        logger_->info("Set BEMF nominal voltage ADC to " + std::to_string(command.value));
     }
 } // namespace wombat
