@@ -1,6 +1,6 @@
 [Unit]
 Description=STM32 Data Reader with LCM
-Requires=multicast-lo.service
+Requires=lcm-loopback-multicast.service
 After=lcm-loopback-multicast.service
 
 [Service]
