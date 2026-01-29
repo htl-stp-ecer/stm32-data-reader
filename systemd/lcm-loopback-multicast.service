@@ -1,0 +1,13 @@
+[Unit]
+Description=Enable multicast on loopback for LCM
+Before=stm32_data_reader.service
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/ip link set lo multicast on
+ExecStart=/sbin/ip route replace 224.0.0.0/4 dev lo
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

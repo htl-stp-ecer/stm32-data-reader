@@ -51,6 +51,13 @@ if [[ -f "systemd/${PROJECT_NAME}.service" ]]; then
   ssh "${REMOTE_USER}@${REMOTE_HOST}" "sudo mv /tmp/${PROJECT_NAME}.service /etc/systemd/system/${PROJECT_NAME}.service && sudo systemctl daemon-reload"
 fi
 
+if [[ -f "systemd/lcm-loopback-multicast.service" ]]; then
+  echo -e "${GREEN}Copying multicast setup service...${NC}"
+  scp "systemd/lcm-loopback-multicast.service" "${REMOTE_USER}@${REMOTE_HOST}:/tmp/"
+  ssh "${REMOTE_USER}@${REMOTE_HOST}" "sudo mv /tmp/lcm-loopback-multicast.service /etc/systemd/system/lcm-loopback-multicast.service && sudo systemctl daemon-reload"
+  ssh "${REMOTE_USER}@${REMOTE_HOST}" "sudo systemctl enable --now lcm-loopback-multicast.service"
+fi
+
 echo -e "${GREEN}Making binary executable...${NC}"
 ssh "${REMOTE_USER}@${REMOTE_HOST}" "chmod +x '${REMOTE_DIR}/${PROJECT_NAME}'"
 

@@ -1,6 +1,7 @@
 [Unit]
-Description=STM32 Data Reader
-After=network.target
+Description=STM32 Data Reader with LCM
+Requires=multicast-lo.service
+After=lcm-loopback-multicast.service
 
 [Service]
 User=pi
