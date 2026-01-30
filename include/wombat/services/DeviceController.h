@@ -25,6 +25,7 @@ public:
     Result<void> setMotorCommand(PortId port, MotorDirection direction, MotorSpeed speed);
     Result<void> setMotorStop(PortId port, bool engaged);
     Result<void> setServoCommand(PortId port, ServoPosition position);
+    Result<void> setServoMode(PortId port, ServoMode mode);
     Result<void> resetBemfSum(PortId port);
     Result<void> setBemfScale(PortId port, float scale);
     Result<void> setBemfOffset(PortId port, float offset);

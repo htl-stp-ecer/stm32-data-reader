@@ -150,6 +150,30 @@ Result<void> DeviceController::setServoCommand(PortId port, ServoPosition positi
     return Result<void>::success();
 }
 
+Result<void> DeviceController::setServoMode(PortId port, ServoMode mode) {
+    auto validationResult = validatePortId(port, MAX_SERVO_PORTS);
+    if (validationResult.isFailure()) {
+        return validationResult;
+    }
+
+    // Get current position to preserve it when changing mode
+    auto currentStateResult = spi_->getServoState(port);
+    ServoPosition currentPosition = 0;
+    if (currentStateResult.isSuccess()) {
+        currentPosition = currentStateResult.value().position;
+    }
+
+    ServoState state{mode, currentPosition};
+    auto result = spi_->setServoState(port, state);
+    if (result.isFailure()) {
+        logger_->error("Failed to set servo " + std::to_string(port) + " mode: " + result.error());
+        return result;
+    }
+
+    logger_->debug("Servo " + std::to_string(port) + " mode set: " + std::to_string(static_cast<int>(mode)));
+    return Result<void>::success();
+}
+
 Result<void> DeviceController::setMotorStop(PortId port, bool engaged) {
     auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
     if (validationResult.isFailure()) {

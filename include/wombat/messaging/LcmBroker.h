@@ -47,6 +47,8 @@ public:
                                    std::function<void(const exlcm::scalar_i32_t&)> handler);
     Result<void> subscribeScalarF(const std::string& channel,
                                  std::function<void(const exlcm::scalar_f_t&)> handler);
+    Result<void> subscribeScalarI8(const std::string& channel,
+                                  std::function<void(const exlcm::scalar_i8_t&)> handler);
 
 private:
     class Impl;

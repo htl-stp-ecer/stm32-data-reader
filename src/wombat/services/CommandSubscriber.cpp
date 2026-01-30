@@ -91,14 +91,28 @@ namespace wombat
             return Result<void>::failure("Failed to subscribe to BEMF nominal voltage command: " + nominalVoltageResult.error());
         }
 
-        // Subscribe to servo position commands
-        const auto servoResult = broker_->subscribeScalarI32(
-            Channels::servoPositionCommand(0),
-            [this](const exlcm::scalar_i32_t& cmd) { onServoPositionCommand(cmd); }
-        );
-        if (servoResult.isFailure())
+        // Subscribe to servo position and mode commands for all ports
+        for (uint8_t i = 0; i < MAX_SERVO_PORTS; ++i)
         {
-            return Result<void>::failure("Failed to subscribe to servo commands: " + servoResult.error());
+            logger_->info("Subscribing to servo position command channel: " + Channels::servoPositionCommand(i));
+            auto posResult = broker_->subscribeScalarI32(
+                Channels::servoPositionCommand(i),
+                [this, i](const exlcm::scalar_i32_t& cmd) { onServoPositionCommand(i, cmd); }
+            );
+            if (posResult.isFailure())
+            {
+                return Result<void>::failure("Failed to subscribe to servo position commands: " + posResult.error());
+            }
+
+            logger_->info("Subscribing to servo mode command channel: " + Channels::servoMode(i));
+            auto modeResult = broker_->subscribeScalarI8(
+                Channels::servoMode(i),
+                [this, i](const exlcm::scalar_i8_t& cmd) { onServoModeCommand(i, cmd); }
+            );
+            if (modeResult.isFailure())
+            {
+                return Result<void>::failure("Failed to subscribe to servo mode commands: " + modeResult.error());
+            }
         }
 
         // Subscribe to data dump request command
@@ -186,7 +200,7 @@ namespace wombat
         logger_->info("Motor " + std::to_string(port) + " " + action);
     }
 
-    void CommandSubscriber::onServoPositionCommand(const exlcm::scalar_i32_t& command)
+    void CommandSubscriber::onServoPositionCommand(const PortId port, const exlcm::scalar_i32_t& command)
     {
         if (!isInitialized_)
         {
@@ -196,7 +210,7 @@ namespace wombat
 
         const auto position = static_cast<ServoPosition>(command.value);
 
-        auto result = deviceController_->setServoCommand(0, position);
+        auto result = deviceController_->setServoCommand(port, position);
         if (result.isFailure())
         {
             logger_->error("Failed to set servo command: " + result.error());
@@ -210,7 +224,34 @@ namespace wombat
             logger_->error("Failed to force device update after servo command: " + forceResult.error());
         }
 
-        logger_->info("Received servo position_cmd: " + std::to_string(command.value));
+        logger_->info("Received servo position_cmd on port " + std::to_string(port) + ": " + std::to_string(command.value));
+    }
+
+    void CommandSubscriber::onServoModeCommand(const PortId port, const exlcm::scalar_i8_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received servo mode command while not initialized");
+            return;
+        }
+
+        const auto mode = static_cast<ServoMode>(command.dir);
+
+        auto result = deviceController_->setServoMode(port, mode);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set servo mode: " + result.error());
+            return;
+        }
+
+        // Force hardware update
+        auto forceResult = deviceController_->processUpdate();
+        if (forceResult.isFailure())
+        {
+            logger_->error("Failed to force device update after servo mode command: " + forceResult.error());
+        }
+
+        logger_->info("Received servo mode_cmd on port " + std::to_string(port) + ": " + std::to_string(command.dir));
     }
 
     void CommandSubscriber::onDataDumpRequest(const exlcm::scalar_i32_t& command) const
