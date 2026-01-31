@@ -135,8 +135,8 @@ bool spi_update(void)
         return false;
 
     uint64_t now = now_ms();
-    // if (now - ctx.last_call_ms < SPI_MINIMUM_UPDATE_DELAY_MS)
-    //     return ctx.rx.transferVersion == TRANSFER_VERSION;
+    if (now - ctx.last_call_ms < SPI_MINIMUM_UPDATE_DELAY_MS)
+        return ctx.rx.transferVersion == TRANSFER_VERSION;
 
     ctx.last_call_ms = now;
 
