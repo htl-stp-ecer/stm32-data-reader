@@ -126,6 +126,17 @@ namespace wombat
             return Result<void>::failure("Failed to subscribe to data dump request: " + dumpResult.error());
         }
 
+        // Subscribe to shutdown command
+        logger_->info("Subscribing to shutdown command channel: " + std::string(Channels::SHUTDOWN_CMD));
+        const auto shutdownResult = broker_->subscribeScalarI32(
+            Channels::SHUTDOWN_CMD,
+            [this](const exlcm::scalar_i32_t& cmd) { onShutdownCommand(cmd); }
+        );
+        if (shutdownResult.isFailure())
+        {
+            return Result<void>::failure("Failed to subscribe to shutdown command: " + shutdownResult.error());
+        }
+
         isInitialized_ = true;
         logger_->info("Command subscriber initialized successfully");
         return Result<void>::success();
@@ -153,7 +164,16 @@ namespace wombat
         }
 
         const int32_t powerValue = command.value;
-        const auto direction = powerValue >= 0 ? MotorDirection::Clockwise : MotorDirection::CounterClockwise;
+
+        // When speed is 0, use active braking instead of coasting
+        MotorDirection direction;
+        if (powerValue == 0) {
+            direction = MotorDirection::Brake;
+        } else if (powerValue > 0) {
+            direction = MotorDirection::Clockwise;
+        } else {
+            direction = MotorDirection::CounterClockwise;
+        }
         const auto speed = static_cast<MotorSpeed>(std::abs(powerValue));
 
         const auto result = deviceController_->setMotorCommand(port, direction, speed);
@@ -395,5 +415,36 @@ namespace wombat
         }
 
         logger_->info("Set BEMF nominal voltage ADC to " + std::to_string(command.value));
+    }
+
+    void CommandSubscriber::onShutdownCommand(const exlcm::scalar_i32_t& command) const
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received shutdown command while not initialized");
+            return;
+        }
+
+        const bool enabled = command.value != 0;
+        const auto result = deviceController_->setShutdown(enabled);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set shutdown: " + result.error());
+            return;
+        }
+
+        // Force hardware update
+        auto forceResult = deviceController_->processUpdate();
+        if (forceResult.isFailure())
+        {
+            logger_->error("Failed to force device update after shutdown command: " + forceResult.error());
+        }
+
+        // Publish shutdown status so subscribers (like the UI) can react
+        // Bitmask: bit 0 = servo shutdown, bit 1 = motor shutdown (both enabled/disabled together)
+        const uint8_t shutdownFlags = enabled ? 0x03 : 0x00;
+        dataPublisher_->publishShutdownStatus(shutdownFlags);
+
+        logger_->info("Shutdown " + std::string(enabled ? "enabled" : "disabled"));
     }
 } // namespace wombat

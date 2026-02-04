@@ -37,6 +37,7 @@ public:
 
     // Force publish (bypasses change detection)
     Result<void> publishScalarI8Force(const std::string& channel, const exlcm::scalar_i8_t& message);
+    Result<void> publishScalarI32Force(const std::string& channel, const exlcm::scalar_i32_t& message);
 
     // Typed subscribers
     Result<void> subscribeVector3f(const std::string& channel,

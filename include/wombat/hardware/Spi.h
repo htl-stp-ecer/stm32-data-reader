@@ -30,7 +30,7 @@ typedef enum
     MOTOR_DIR_OFF = 0,
     MOTOR_DIR_CCW = 1,
     MOTOR_DIR_CW = 2,
-    MOTOR_DIR_SERVO_LIKE = 3
+    MOTOR_DIR_BRAKE = 3  /* Active braking - short-circuits motor windings */
 } MotorDir;
 
 typedef enum

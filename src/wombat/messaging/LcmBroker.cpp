@@ -234,6 +234,10 @@ Result<void> LcmBroker::publishScalarI8Force(const std::string& channel, const e
     return impl_->publishForce(channel, message);
 }
 
+Result<void> LcmBroker::publishScalarI32Force(const std::string& channel, const exlcm::scalar_i32_t& message) {
+    return impl_->publishForce(channel, message);
+}
+
 Result<void> LcmBroker::publishString(const std::string& channel, const exlcm::string_t& message) {
     return impl_->publishIfChanged(channel, message);
 }

@@ -42,7 +42,6 @@ Result<void> DeviceController::initialize() {
     }
 
     isInitialized_ = true;
-    emergencyStopActive_ = false;
     logger_->info("Device controller initialized successfully");
     return Result<void>::success();
 }
@@ -52,10 +51,8 @@ Result<void> DeviceController::shutdown() {
         return Result<void>::success();
     }
 
-    auto emergencyResult = emergencyStop();
-    if (emergencyResult.isFailure()) {
-        logger_->error("Failed to perform emergency stop during shutdown: " + emergencyResult.error());
-    }
+    // Enable STM32 shutdown flag to disable motors and servos at firmware level
+    spi_->setShutdown(true);
 
     auto result = spi_->shutdown();
     if (result.isFailure()) {
@@ -73,15 +70,11 @@ Result<void> DeviceController::processUpdate() {
         return Result<void>::failure("Device controller not initialized");
     }
 
-    if (emergencyStopActive_) {
-        return Result<void>::success();
-    }
-
-    // Enforce stop latch by continually driving stopped state
+    // Enforce stop latch by continually driving stopped state with active braking
     for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port) {
         if (motorStopActive_[port].load()) {
             motorCommands_[port] = 0;
-            MotorState motorState{MotorDirection::Off, 0, 0};
+            MotorState motorState{MotorDirection::Brake, 0, 0};
             auto stopResult = spi_->setMotorState(port, motorState);
             if (stopResult.isFailure()) {
                 logger_->warn("Failed to enforce stop latch on motor " + std::to_string(port) + ": " + stopResult.error());
@@ -103,10 +96,6 @@ Result<void> DeviceController::setMotorCommand(PortId port, MotorDirection direc
     auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
     if (validationResult.isFailure()) {
         return validationResult;
-    }
-
-    if (emergencyStopActive_) {
-        return Result<void>::failure("Emergency stop is active, motor commands disabled");
     }
 
     if (motorStopActive_[port].load()) {
@@ -131,10 +120,6 @@ Result<void> DeviceController::setServoCommand(PortId port, ServoPosition positi
     auto validationResult = validatePortId(port, MAX_SERVO_PORTS);
     if (validationResult.isFailure()) {
         return validationResult;
-    }
-
-    if (emergencyStopActive_) {
-        return Result<void>::failure("Emergency stop is active, servo commands disabled");
     }
 
     servoCommands_[port] = position;
@@ -184,14 +169,14 @@ Result<void> DeviceController::setMotorStop(PortId port, bool engaged) {
 
     if (engaged) {
         motorCommands_[port] = 0;
-        MotorState motorState{MotorDirection::Off, 0, 0};
+        MotorState motorState{MotorDirection::Brake, 0, 0};
         auto result = spi_->setMotorState(port, motorState);
         if (result.isFailure()) {
             logger_->error("Failed to apply stop command to motor " + std::to_string(port) + ": " + result.error());
             return result;
         }
 
-        logger_->warn("Motor " + std::to_string(port) + " stop engaged - ignoring commands until wake-up");
+        logger_->warn("Motor " + std::to_string(port) + " stop engaged (active braking) - ignoring commands until wake-up");
     } else {
         logger_->info("Motor " + std::to_string(port) + " stop cleared - accepting commands again");
     }
@@ -296,39 +281,18 @@ Result<ServoState> DeviceController::getServoState(PortId port) const {
     return spi_->getServoState(port);
 }
 
-Result<void> DeviceController::emergencyStop() {
+Result<void> DeviceController::setShutdown(bool enabled) {
     if (!isInitialized_) {
         return Result<void>::failure("Device controller not initialized");
     }
 
-    emergencyStopActive_ = true;
-    logger_->warn("Emergency stop activated - stopping all motors and disabling servos");
-
-    // Stop all motors
-    for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port) {
-        motorCommands_[port] = 0;
-        MotorState motorState{MotorDirection::Off, 0, 0};
-        auto result = spi_->setMotorState(port, motorState);
-        if (result.isFailure()) {
-            logger_->error("Failed to stop motor " + std::to_string(port) + " during emergency stop");
-        }
+    auto result = spi_->setShutdown(enabled);
+    if (result.isFailure()) {
+        logger_->error("Failed to set shutdown: " + result.error());
+        return result;
     }
 
-    // Disable all servos
-    for (PortId port = 0; port < MAX_SERVO_PORTS; ++port) {
-        ServoState servoState{ServoMode::Disabled, 0};
-        auto result = spi_->setServoState(port, servoState);
-        if (result.isFailure()) {
-            logger_->error("Failed to disable servo " + std::to_string(port) + " during emergency stop");
-        }
-    }
-
-    auto forceUpdateResult = spi_->forceUpdate();
-    if (forceUpdateResult.isFailure()) {
-        logger_->error("Failed to force hardware update during emergency stop");
-        return forceUpdateResult;
-    }
-
+    logger_->info("Shutdown " + std::string(enabled ? "enabled" : "disabled"));
     return Result<void>::success();
 }
 

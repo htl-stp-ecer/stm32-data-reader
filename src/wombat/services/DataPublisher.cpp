@@ -346,4 +346,23 @@ namespace wombat
         return Result<void>::success();
     }
 
+    Result<void> DataPublisher::publishShutdownStatus(uint8_t shutdownFlags)
+    {
+        // Publish the shutdown status as a bitmask
+        // bit 0 = servo shutdown, bit 1 = motor shutdown
+        auto message = convertScalarI32(static_cast<int32_t>(shutdownFlags));
+
+        auto result = broker_->publishScalarI32Force(Channels::SHUTDOWN_STATUS, message);
+        if (result.isFailure())
+        {
+            return Result<void>::failure("Failed to publish shutdown status: " + result.error());
+        }
+
+        logger_->info("Published shutdown status: " + std::to_string(shutdownFlags) +
+            " (servo=" + (shutdownFlags & 0x01 ? "on" : "off") +
+            ", motor=" + (shutdownFlags & 0x02 ? "on" : "off") + ")");
+
+        return Result<void>::success();
+    }
+
 } // namespace wombat

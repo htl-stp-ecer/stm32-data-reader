@@ -24,6 +24,13 @@ namespace wombat
         Result<void> publishServoState(PortId port, const ServoState& state);
 
         /**
+         * @brief Publish the current shutdown status
+         * @param shutdownFlags Bitmask: bit 0 = servo shutdown, bit 1 = motor shutdown
+         * @return Result indicating success or failure
+         */
+        Result<void> publishShutdownStatus(uint8_t shutdownFlags);
+
+        /**
          * @brief Update and publish CPU temperature if enough time has elapsed
          * @param publishInterval Minimum time between CPU temperature publishes
          * @return Result indicating success or failure

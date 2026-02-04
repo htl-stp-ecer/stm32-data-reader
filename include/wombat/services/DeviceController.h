@@ -35,7 +35,8 @@ public:
     Result<MotorState> getMotorState(PortId port) const;
     Result<ServoState> getServoState(PortId port) const;
 
-    Result<void> emergencyStop();
+    // STM32 shutdown flag - disables motors and servos at firmware level
+    Result<void> setShutdown(bool enabled);
 
 private:
     std::unique_ptr<Spi> spi_;
@@ -47,7 +48,6 @@ private:
 
     SensorData lastSensorData_{};
     bool isInitialized_{false};
-    bool emergencyStopActive_{false};
 
     [[nodiscard]] Result<void> validatePortId(PortId port, PortId maxPort) const;
 };

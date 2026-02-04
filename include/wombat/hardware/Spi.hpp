@@ -121,9 +121,8 @@ namespace wombat
                 break;
             case MotorDirection::Clockwise: dir = MOTOR_DIR_CW;
                 break;
-            case MotorDirection::ServoLike: dir = MOTOR_DIR_SERVO_LIKE;
+            case MotorDirection::Brake: dir = MOTOR_DIR_BRAKE;
                 break;
-
             }
 
             const double percentAbs = std::min(st.speed / 100.0, 1.0);
@@ -201,6 +200,14 @@ namespace wombat
         Result<void> setBemfNominalVoltage(int16_t adcValue)
         {
             set_bemf_nominal_voltage(adcValue);
+            return Result<void>::success();
+        }
+
+        Result<void> setShutdown(bool enabled)
+        {
+            set_shutdown_flag(SHUTDOWN_MOTOR_FLAG, enabled);
+            set_shutdown_flag(SHUTDOWN_SERVO_FLAG, enabled);
+            if (logger_) logger_->info("SPI: Shutdown " + std::string(enabled ? "enabled" : "disabled"));
             return Result<void>::success();
         }
 

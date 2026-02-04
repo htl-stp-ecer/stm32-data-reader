@@ -27,7 +27,7 @@ namespace wombat
         Off = 0b00,
         CounterClockwise = 0b01,
         Clockwise = 0b10,
-        ServoLike = 0b11
+        Brake = 0b11  // Active braking - short-circuits motor windings for fast stopping
     };
 
     enum class ServoMode : uint8_t
@@ -214,5 +214,12 @@ namespace wombat
 
         constexpr auto DATA_DUMP_REQUEST = "libstp/system/dump_request";
         constexpr auto ERROR_MESSAGES = "libstp/errors";
+
+        // STM32 shutdown flag command (disables motors and servos at firmware level)
+        constexpr auto SHUTDOWN_CMD = "libstp/system/shutdown_cmd";
+
+        // STM32 shutdown flag status (published when shutdown state changes)
+        // Value is a bitmask: bit 0 = servo shutdown, bit 1 = motor shutdown
+        constexpr auto SHUTDOWN_STATUS = "libstp/system/shutdown_status";
     }
 }
