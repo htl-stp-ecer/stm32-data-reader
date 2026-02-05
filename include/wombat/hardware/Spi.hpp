@@ -69,6 +69,11 @@ namespace wombat
             d.magnetometer.z = magZ();
             if (logger_) logger_->debug("SPI: Read magnetometer -> x=" + std::to_string(d.magnetometer.x) + ", y=" + std::to_string(d.magnetometer.y) + ", z=" + std::to_string(d.magnetometer.z));
 
+            d.linearAcceleration.x = linearAccelX();
+            d.linearAcceleration.y = linearAccelY();
+            d.linearAcceleration.z = linearAccelZ();
+            if (logger_) logger_->debug("SPI: Read linear accel -> x=" + std::to_string(d.linearAcceleration.x) + ", y=" + std::to_string(d.linearAcceleration.y) + ", z=" + std::to_string(d.linearAcceleration.z));
+
             d.orientation.w = quatW();
             d.orientation.x = quatX();
             d.orientation.y = quatY();
@@ -77,6 +82,7 @@ namespace wombat
 
             d.accuracy.gyro = gyro_accuracy();
             d.accuracy.accelerometer = accel_accuracy();
+            d.accuracy.linearAcceleration = linear_accel_accuracy();
             d.accuracy.compass = compass_accuracy();
             d.accuracy.quaternion = quaternion_accuracy();
             d.temperature = imuTemperature();

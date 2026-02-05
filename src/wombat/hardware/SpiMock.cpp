@@ -273,6 +273,11 @@ float quatY(void) { return g_quat[2]; }
 float quatZ(void) { return g_quat[3]; }
 float quatW(void) { return g_quat[0]; }
 
+float linearAccelX(void) { return g_accel[0]; }
+float linearAccelY(void) { return g_accel[1]; }
+float linearAccelZ(void) { return g_accel[2] - 1.0f; }
+int8_t linear_accel_accuracy(void) { return 3; }
+
 float imuTemperature(void) { return g_temp_c; }
 
 // Motors → back-EMF (toy model)

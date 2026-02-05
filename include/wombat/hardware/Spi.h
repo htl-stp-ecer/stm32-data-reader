@@ -79,6 +79,11 @@ float quatY(void);
 float quatZ(void);
 float quatW(void);
 
+float linearAccelX(void);
+float linearAccelY(void);
+float linearAccelZ(void);
+int8_t linear_accel_accuracy(void);
+
 float imuTemperature(void);
 
 int32_t bemf(uint8_t mot);

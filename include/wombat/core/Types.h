@@ -73,6 +73,7 @@ namespace wombat
     {
         int8_t gyro{0};
         int8_t accelerometer{0};
+        int8_t linearAcceleration{0};
         int8_t compass{0};
         int8_t quaternion{0};
 
@@ -80,6 +81,7 @@ namespace wombat
         {
             return gyro == other.gyro &&
                 accelerometer == other.accelerometer &&
+                linearAcceleration == other.linearAcceleration &&
                 compass == other.compass &&
                 quaternion == other.quaternion;
         }
@@ -103,6 +105,7 @@ namespace wombat
         Vector3f gyro{};
         Vector3f accelerometer{};
         Vector3f magnetometer{};
+        Vector3f linearAcceleration{};
         Quaternionf orientation{};
         ImuAccuracy accuracy{};
         float temperature{0.0f};
@@ -140,6 +143,7 @@ namespace wombat
     {
         constexpr auto GYRO = "libstp/gyro/value";
         constexpr auto ACCELEROMETER = "libstp/accel/value";
+        constexpr auto LINEAR_ACCELERATION = "libstp/linear_accel/value";
         constexpr auto MAGNETOMETER = "libstp/mag/value";
         constexpr auto ORIENTATION = "libstp/imu/quaternion";
         constexpr auto TEMPERATURE = "libstp/imu/temp/value";  // IMU temperature from sensor

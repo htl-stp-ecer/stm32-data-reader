@@ -30,6 +30,12 @@ namespace wombat
             logger_->warn("Failed to publish magnetometer data: " + magResult.error());
         }
 
+        auto linAccelResult = broker_->publishVector3f(Channels::LINEAR_ACCELERATION, convertVector3f(data.linearAcceleration));
+        if (linAccelResult.isFailure())
+        {
+            logger_->warn("Failed to publish linear acceleration data: " + linAccelResult.error());
+        }
+
         auto orientationResult = broker_->publishQuaternion(Channels::ORIENTATION, convertQuaternion(data.orientation));
         if (orientationResult.isFailure())
         {
@@ -224,6 +230,7 @@ namespace wombat
         {
             logger_->info("IMU accuracy (initial): gyro=" + std::to_string(accuracy.gyro) +
                 ", accel=" + std::to_string(accuracy.accelerometer) +
+                ", lin_accel=" + std::to_string(accuracy.linearAcceleration) +
                 ", compass=" + std::to_string(accuracy.compass) +
                 ", quat=" + std::to_string(accuracy.quaternion));
         }
@@ -231,6 +238,7 @@ namespace wombat
         {
             logger_->info("IMU accuracy changed: gyro=" + std::to_string(accuracy.gyro) +
                 ", accel=" + std::to_string(accuracy.accelerometer) +
+                ", lin_accel=" + std::to_string(accuracy.linearAcceleration) +
                 ", compass=" + std::to_string(accuracy.compass) +
                 ", quat=" + std::to_string(accuracy.quaternion));
         }
@@ -238,6 +246,7 @@ namespace wombat
         {
             logger_->info("IMU accuracy (periodic): gyro=" + std::to_string(accuracy.gyro) +
                 ", accel=" + std::to_string(accuracy.accelerometer) +
+                ", lin_accel=" + std::to_string(accuracy.linearAcceleration) +
                 ", compass=" + std::to_string(accuracy.compass) +
                 ", quat=" + std::to_string(accuracy.quaternion));
         }

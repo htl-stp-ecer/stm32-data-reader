@@ -29,7 +29,7 @@
 #define SPI_DEVICE "/dev/spidev0.0"
 #endif
 
-#define SPI_MINIMUM_UPDATE_DELAY_MS 1u
+#define SPI_MINIMUM_UPDATE_DELAY_MS 0u
 #define SERVO_MINIMUM_DUTYCYCLE 300u
 
 typedef struct
@@ -109,6 +109,9 @@ static bool spi_do_transfer(void)
 {
     if (ioctl(ctx.fd, SPI_IOC_MESSAGE(1), &ctx.tr) < 0)
         return false;
+    // Clear update flags after transmission so subsequent sensor-only
+    // transfers don't re-trigger actuator updates on the STM32
+    ctx.tx.updates = 0;
     return ctx.rx.transferVersion == TRANSFER_VERSION;
 }
 
@@ -189,11 +192,17 @@ void spi_close(void)
 
 void set_shutdown_flag(uint8_t bit, bool value)
 {
+    uint8_t prev = ctx.tx.systemShutdown;
     if (value)
         ctx.tx.systemShutdown |= (1u << bit);
     else
         ctx.tx.systemShutdown &= ~(1u << bit);
 
+    if (ctx.tx.systemShutdown == prev)
+        return;
+
+    // Shutdown affects both servo and motor processing on the firmware side
+    ctx.tx.updates |= PI_BUFFER_UPDATE_SERVO_CMD | PI_BUFFER_UPDATE_MOTOR_CMD;
     if (!spi_update())
         exit(EXIT_FAILURE);
 }
@@ -202,8 +211,12 @@ void set_motor(uint8_t port, MotorDir dir, uint32_t value)
 {
     if (port > 3)
         return;
-    ctx.tx.motorMode = (ctx.tx.motorMode & ~(0b11u << (port * 2))) | ((uint8_t)dir << (port * 2));
+    uint8_t newMode = (ctx.tx.motorMode & ~(0b11u << (port * 2))) | ((uint8_t)dir << (port * 2));
+    if (ctx.tx.motorMode == newMode && ctx.tx.motorSpeedPos[port] == value)
+        return;
+    ctx.tx.motorMode = newMode;
     ctx.tx.motorSpeedPos[port] = value;
+    ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_CMD;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }
@@ -213,8 +226,11 @@ void set_servo_mode(uint8_t port, ServoMode mode)
     if (port > 3)
         return;
     uint8_t bitPos = port * 2;
-    ctx.tx.servoMode &= ~(0b11u << bitPos);
-    ctx.tx.servoMode |= (((uint8_t)mode & 0b11u) << bitPos);
+    uint8_t newServoMode = (ctx.tx.servoMode & ~(0b11u << bitPos)) | (((uint8_t)mode & 0b11u) << bitPos);
+    if (ctx.tx.servoMode == newServoMode)
+        return;
+    ctx.tx.servoMode = newServoMode;
+    ctx.tx.updates |= PI_BUFFER_UPDATE_SERVO_CMD;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }
@@ -238,7 +254,10 @@ void set_servo_pos(uint8_t port, uint16_t raw)
     if (port > 3)
         return;
     unsigned short val = 1500 + (unsigned short)round(1800.0 * ((double)raw / 2047.0)) - 900;
+    if (ctx.tx.servoPos[port] == val)
+        return;
     ctx.tx.servoPos[port] = val;
+    ctx.tx.updates |= PI_BUFFER_UPDATE_SERVO_CMD;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }
@@ -341,6 +360,35 @@ float quatW(void)
     if (!spi_update())
         exit(EXIT_FAILURE);
     return ctx.rx.imu.quat.data[0];
+}
+
+// Linear acceleration data access (gravity removed)
+float linearAccelX(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.imu.linearAccel.data[0];
+}
+
+float linearAccelY(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.imu.linearAccel.data[1];
+}
+
+float linearAccelZ(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.imu.linearAccel.data[2];
+}
+
+int8_t linear_accel_accuracy(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.imu.linearAccel.accuracy;
 }
 
 float imuTemperature(void)

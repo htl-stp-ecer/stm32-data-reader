@@ -30,7 +30,6 @@ private:
     std::shared_ptr<Logger> logger_;
 
     void onMotorPowerCommand(PortId port, const exlcm::scalar_i32_t& command) const;
-    void onMotorStopCommand(PortId port, const exlcm::scalar_i32_t& command) const;
     void onServoPositionCommand(PortId port, const exlcm::scalar_i32_t& command);
     void onServoModeCommand(PortId port, const exlcm::scalar_i8_t& command);
     void onDataDumpRequest(const exlcm::scalar_i32_t& command) const;

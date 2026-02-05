@@ -23,7 +23,6 @@ Result<void> DeviceController::initialize() {
     // Initialize all motors to off state
     for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port) {
         motorCommands_[port] = 0;
-        motorStopActive_[port] = false;
         MotorState motorState{MotorDirection::Off, 0, 0};
         auto setResult = spi_->setMotorState(port, motorState);
         if (setResult.isFailure()) {
@@ -70,18 +69,6 @@ Result<void> DeviceController::processUpdate() {
         return Result<void>::failure("Device controller not initialized");
     }
 
-    // Enforce stop latch by continually driving stopped state with active braking
-    for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port) {
-        if (motorStopActive_[port].load()) {
-            motorCommands_[port] = 0;
-            MotorState motorState{MotorDirection::Brake, 0, 0};
-            auto stopResult = spi_->setMotorState(port, motorState);
-            if (stopResult.isFailure()) {
-                logger_->warn("Failed to enforce stop latch on motor " + std::to_string(port) + ": " + stopResult.error());
-            }
-        }
-    }
-
     auto sensorResult = spi_->readSensorData();
     if (sensorResult.isFailure()) {
         logger_->error("Failed to read sensor data: " + sensorResult.error());
@@ -96,10 +83,6 @@ Result<void> DeviceController::setMotorCommand(PortId port, MotorDirection direc
     auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
     if (validationResult.isFailure()) {
         return validationResult;
-    }
-
-    if (motorStopActive_[port].load()) {
-        return Result<void>::failure("Motor stop switch active for port " + std::to_string(port));
     }
 
     motorCommands_[port] = speed;
@@ -156,31 +139,6 @@ Result<void> DeviceController::setServoMode(PortId port, ServoMode mode) {
     }
 
     logger_->debug("Servo " + std::to_string(port) + " mode set: " + std::to_string(static_cast<int>(mode)));
-    return Result<void>::success();
-}
-
-Result<void> DeviceController::setMotorStop(PortId port, bool engaged) {
-    auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
-    if (validationResult.isFailure()) {
-        return validationResult;
-    }
-
-    motorStopActive_[port] = engaged;
-
-    if (engaged) {
-        motorCommands_[port] = 0;
-        MotorState motorState{MotorDirection::Brake, 0, 0};
-        auto result = spi_->setMotorState(port, motorState);
-        if (result.isFailure()) {
-            logger_->error("Failed to apply stop command to motor " + std::to_string(port) + ": " + result.error());
-            return result;
-        }
-
-        logger_->warn("Motor " + std::to_string(port) + " stop engaged (active braking) - ignoring commands until wake-up");
-    } else {
-        logger_->info("Motor " + std::to_string(port) + " stop cleared - accepting commands again");
-    }
-
     return Result<void>::success();
 }
 
