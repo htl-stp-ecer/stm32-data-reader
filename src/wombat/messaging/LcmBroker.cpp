@@ -33,9 +33,15 @@ public:
             return Result<void>::failure("LCM not initialized or unhealthy");
         }
 
-        const int result = lcm_->handleTimeout(0);
-        if (result < 0) {
-            return Result<void>::failure("Failed to process LCM messages");
+        // Drain all pending messages instead of just one
+        while (true) {
+            const int result = lcm_->handleTimeout(0);
+            if (result < 0) {
+                return Result<void>::failure("Failed to process LCM messages");
+            }
+            if (result == 0) {
+                break; // No more pending messages
+            }
         }
 
         return Result<void>::success();

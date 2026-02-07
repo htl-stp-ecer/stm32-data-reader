@@ -1,6 +1,7 @@
 #include "wombat/services/DataPublisher.h"
 #include <fstream>
 #include <string>
+#include <chrono>
 
 namespace wombat
 {
@@ -139,9 +140,16 @@ namespace wombat
         return Result<void>::success();
     }
 
+    static int64_t currentTimestampUsec()
+    {
+        return std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+    }
+
     exlcm::vector3f_t DataPublisher::convertVector3f(const Vector3f& vector) const
     {
         exlcm::vector3f_t message{};
+        message.timestamp = currentTimestampUsec();
         message.x = vector.x;
         message.y = vector.y;
         message.z = vector.z;
@@ -151,6 +159,7 @@ namespace wombat
     exlcm::quaternion_t DataPublisher::convertQuaternion(const Quaternionf& quaternion) const
     {
         exlcm::quaternion_t message{};
+        message.timestamp = currentTimestampUsec();
         message.w = quaternion.w;
         message.x = quaternion.x;
         message.y = quaternion.y;
@@ -161,6 +170,7 @@ namespace wombat
     exlcm::scalar_f_t DataPublisher::convertScalarF(float value) const
     {
         exlcm::scalar_f_t message{};
+        message.timestamp = currentTimestampUsec();
         message.value = value;
         return message;
     }
@@ -168,6 +178,7 @@ namespace wombat
     exlcm::scalar_i32_t DataPublisher::convertScalarI32(int32_t value) const
     {
         exlcm::scalar_i32_t message{};
+        message.timestamp = currentTimestampUsec();
         message.value = value;
         return message;
     }
@@ -175,6 +186,7 @@ namespace wombat
     exlcm::scalar_i8_t DataPublisher::convertScalarI8(uint8_t value) const
     {
         exlcm::scalar_i8_t message{};
+        message.timestamp = currentTimestampUsec();
         message.dir = value;
         return message;
     }

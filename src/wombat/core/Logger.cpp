@@ -5,6 +5,7 @@
 #include "wombat/messaging/LcmBroker.h"
 #include "exlcm/string_t.hpp"
 #include <spdlog/spdlog.h>
+#include <chrono>
 
 namespace wombat
 {
@@ -62,6 +63,8 @@ namespace wombat
             }
 
             exlcm::string_t errorMsg;
+            errorMsg.timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
             errorMsg.value = message;
             lcmBroker_->publishString(Channels::ERROR_MESSAGES, errorMsg);
         }

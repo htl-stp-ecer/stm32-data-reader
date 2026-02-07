@@ -10,6 +10,9 @@
 #include "wombat/services/DeviceController.h"
 #include "wombat/services/DataPublisher.h"
 #include <memory>
+#include <unordered_map>
+#include <string>
+#include <cstdint>
 
 namespace wombat {
 
@@ -29,17 +32,20 @@ private:
     std::shared_ptr<DataPublisher> dataPublisher_;
     std::shared_ptr<Logger> logger_;
 
-    void onMotorPowerCommand(PortId port, const exlcm::scalar_i32_t& command) const;
+    void onMotorPowerCommand(PortId port, const exlcm::scalar_i32_t& command);
     void onServoPositionCommand(PortId port, const exlcm::scalar_i32_t& command);
     void onServoModeCommand(PortId port, const exlcm::scalar_i8_t& command);
     void onDataDumpRequest(const exlcm::scalar_i32_t& command) const;
-    void onBemfResetCommand(PortId port, const exlcm::scalar_i32_t& command) const;
-    void onBemfScaleCommand(PortId port, const exlcm::scalar_f_t& command) const;
-    void onBemfOffsetCommand(PortId port, const exlcm::scalar_f_t& command) const;
-    void onBemfNominalVoltageCommand(const exlcm::scalar_i32_t& command) const;
-    void onShutdownCommand(const exlcm::scalar_i32_t& command) const;
+    void onBemfResetCommand(PortId port, const exlcm::scalar_i32_t& command);
+    void onBemfScaleCommand(PortId port, const exlcm::scalar_f_t& command);
+    void onBemfOffsetCommand(PortId port, const exlcm::scalar_f_t& command);
+    void onBemfNominalVoltageCommand(const exlcm::scalar_i32_t& command);
+    void onShutdownCommand(const exlcm::scalar_i32_t& command);
+
+    bool isTimestampNewer(const std::string& channel, int64_t timestamp);
 
     bool isInitialized_{false};
+    std::unordered_map<std::string, int64_t> latestTimestamps_;
 };
 
 }

@@ -1,4 +1,5 @@
 #include "wombat/services/CommandSubscriber.h"
+#include <chrono>
 
 namespace wombat
 {
@@ -132,6 +133,27 @@ namespace wombat
         return Result<void>::success();
     }
 
+    bool CommandSubscriber::isTimestampNewer(const std::string& channel, int64_t timestamp)
+    {
+        auto it = latestTimestamps_.find(channel);
+        if (it == latestTimestamps_.end())
+        {
+            latestTimestamps_[channel] = timestamp;
+            return true;
+        }
+
+        if (timestamp > it->second)
+        {
+            it->second = timestamp;
+            return true;
+        }
+
+        logger_->debug("Dropping stale message on " + channel +
+            " (ts=" + std::to_string(timestamp) +
+            " <= latest=" + std::to_string(it->second) + ")");
+        return false;
+    }
+
     Result<void> CommandSubscriber::shutdown()
     {
         if (!isInitialized_)
@@ -144,14 +166,19 @@ namespace wombat
         return Result<void>::success();
     }
 
-    void CommandSubscriber::onMotorPowerCommand(const PortId port, const exlcm::scalar_i32_t& command) const
+    void CommandSubscriber::onMotorPowerCommand(const PortId port, const exlcm::scalar_i32_t& command)
     {
-        logger_->debug("onMotorPowerCommand called with value: " + std::to_string(command.value));
+        const auto nowUs = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        const auto lcmLatencyUs = nowUs - command.timestamp;
         if (!isInitialized_)
         {
             logger_->warn("Received motor command while not initialized");
             return;
         }
+
+        if (!isTimestampNewer(Channels::motorPowerCommand(port), command.timestamp))
+            return;
 
         const int32_t powerValue = command.value;
 
@@ -172,15 +199,6 @@ namespace wombat
             logger_->error("Failed to set motor command: " + result.error());
             return;
         }
-
-        // Force hardware update
-        auto forceResult = deviceController_->processUpdate();
-        if (forceResult.isFailure())
-        {
-            logger_->error("Failed to force device update after motor command: " + forceResult.error());
-        }
-
-        logger_->info("Received motor power_cmd on port " + std::to_string(port) + ": " + std::to_string(command.value));
     }
 
     void CommandSubscriber::onServoPositionCommand(const PortId port, const exlcm::scalar_i32_t& command)
@@ -191,6 +209,9 @@ namespace wombat
             return;
         }
 
+        if (!isTimestampNewer(Channels::servoPositionCommand(port), command.timestamp))
+            return;
+
         const auto position = static_cast<ServoPosition>(command.value);
 
         auto result = deviceController_->setServoCommand(port, position);
@@ -198,13 +219,6 @@ namespace wombat
         {
             logger_->error("Failed to set servo command: " + result.error());
             return;
-        }
-
-        // Force hardware update
-        auto forceResult = deviceController_->processUpdate();
-        if (forceResult.isFailure())
-        {
-            logger_->error("Failed to force device update after servo command: " + forceResult.error());
         }
 
         logger_->info("Received servo position_cmd on port " + std::to_string(port) + ": " + std::to_string(command.value));
@@ -218,6 +232,9 @@ namespace wombat
             return;
         }
 
+        if (!isTimestampNewer(Channels::servoMode(port), command.timestamp))
+            return;
+
         const auto mode = static_cast<ServoMode>(command.dir);
 
         auto result = deviceController_->setServoMode(port, mode);
@@ -225,13 +242,6 @@ namespace wombat
         {
             logger_->error("Failed to set servo mode: " + result.error());
             return;
-        }
-
-        // Force hardware update
-        auto forceResult = deviceController_->processUpdate();
-        if (forceResult.isFailure())
-        {
-            logger_->error("Failed to force device update after servo mode command: " + forceResult.error());
         }
 
         logger_->info("Received servo mode_cmd on port " + std::to_string(port) + ": " + std::to_string(command.dir));
@@ -281,13 +291,16 @@ namespace wombat
         logger_->info("Data dump completed");
     }
 
-    void CommandSubscriber::onBemfResetCommand(const PortId port, const exlcm::scalar_i32_t& command) const
+    void CommandSubscriber::onBemfResetCommand(const PortId port, const exlcm::scalar_i32_t& command)
     {
         if (!isInitialized_)
         {
             logger_->warn("Received BEMF reset command while not initialized");
             return;
         }
+
+        if (!isTimestampNewer(Channels::bemfResetCommand(port), command.timestamp))
+            return;
 
         if (command.value == 0)
         {
@@ -305,13 +318,16 @@ namespace wombat
         logger_->info("Reset BEMF sum for motor " + std::to_string(port));
     }
 
-    void CommandSubscriber::onBemfScaleCommand(const PortId port, const exlcm::scalar_f_t& command) const
+    void CommandSubscriber::onBemfScaleCommand(const PortId port, const exlcm::scalar_f_t& command)
     {
         if (!isInitialized_)
         {
             logger_->warn("Received BEMF scale command while not initialized");
             return;
         }
+
+        if (!isTimestampNewer(Channels::bemfScaleCommand(port), command.timestamp))
+            return;
 
         const auto result = deviceController_->setBemfScale(port, command.value);
         if (result.isFailure())
@@ -320,23 +336,19 @@ namespace wombat
             return;
         }
 
-        // Force hardware update
-        auto forceResult = deviceController_->processUpdate();
-        if (forceResult.isFailure())
-        {
-            logger_->error("Failed to force device update after BEMF scale command: " + forceResult.error());
-        }
-
         logger_->info("Set BEMF scale for motor " + std::to_string(port) + " to " + std::to_string(command.value));
     }
 
-    void CommandSubscriber::onBemfOffsetCommand(const PortId port, const exlcm::scalar_f_t& command) const
+    void CommandSubscriber::onBemfOffsetCommand(const PortId port, const exlcm::scalar_f_t& command)
     {
         if (!isInitialized_)
         {
             logger_->warn("Received BEMF offset command while not initialized");
             return;
         }
+
+        if (!isTimestampNewer(Channels::bemfOffsetCommand(port), command.timestamp))
+            return;
 
         const auto result = deviceController_->setBemfOffset(port, command.value);
         if (result.isFailure())
@@ -345,23 +357,19 @@ namespace wombat
             return;
         }
 
-        // Force hardware update
-        auto forceResult = deviceController_->processUpdate();
-        if (forceResult.isFailure())
-        {
-            logger_->error("Failed to force device update after BEMF offset command: " + forceResult.error());
-        }
-
         logger_->info("Set BEMF offset for motor " + std::to_string(port) + " to " + std::to_string(command.value));
     }
 
-    void CommandSubscriber::onBemfNominalVoltageCommand(const exlcm::scalar_i32_t& command) const
+    void CommandSubscriber::onBemfNominalVoltageCommand(const exlcm::scalar_i32_t& command)
     {
         if (!isInitialized_)
         {
             logger_->warn("Received BEMF nominal voltage command while not initialized");
             return;
         }
+
+        if (!isTimestampNewer(Channels::BEMF_NOMINAL_VOLTAGE_CMD, command.timestamp))
+            return;
 
         const auto result = deviceController_->setBemfNominalVoltage(static_cast<int16_t>(command.value));
         if (result.isFailure())
@@ -370,23 +378,19 @@ namespace wombat
             return;
         }
 
-        // Force hardware update
-        auto forceResult = deviceController_->processUpdate();
-        if (forceResult.isFailure())
-        {
-            logger_->error("Failed to force device update after BEMF nominal voltage command: " + forceResult.error());
-        }
-
         logger_->info("Set BEMF nominal voltage ADC to " + std::to_string(command.value));
     }
 
-    void CommandSubscriber::onShutdownCommand(const exlcm::scalar_i32_t& command) const
+    void CommandSubscriber::onShutdownCommand(const exlcm::scalar_i32_t& command)
     {
         if (!isInitialized_)
         {
             logger_->warn("Received shutdown command while not initialized");
             return;
         }
+
+        if (!isTimestampNewer(Channels::SHUTDOWN_CMD, command.timestamp))
+            return;
 
         const bool enabled = command.value != 0;
         const auto result = deviceController_->setShutdown(enabled);
