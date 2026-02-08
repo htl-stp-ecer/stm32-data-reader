@@ -23,7 +23,7 @@ Result<void> DeviceController::initialize() {
     // Initialize all motors to off state
     for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port) {
         motorCommands_[port] = 0;
-        MotorState motorState{MotorDirection::Off, 0, 0};
+        MotorState motorState{MotorDirection::Off, MotorControlMode::Pwm, 0};
         auto setResult = spi_->setMotorState(port, motorState);
         if (setResult.isFailure()) {
             logger_->warn("Failed to initialize motor " + std::to_string(port) + ": " + setResult.error());
@@ -87,7 +87,7 @@ Result<void> DeviceController::setMotorCommand(PortId port, MotorDirection direc
 
     motorCommands_[port] = speed;
 
-    const MotorState state{direction, speed, 0};
+    const MotorState state{direction, MotorControlMode::Pwm, speed};
     auto result = spi_->setMotorState(port, state);
     if (result.isFailure()) {
         logger_->error("Failed to set motor " + std::to_string(port) + " command: " + result.error());
@@ -97,6 +97,70 @@ Result<void> DeviceController::setMotorCommand(PortId port, MotorDirection direc
     logger_->debug("Motor " + std::to_string(port) + " command set: direction=" +
                   std::to_string(static_cast<int>(direction)) + ", speed=" + std::to_string(speed));
     return Result<void>::success();
+}
+
+Result<void> DeviceController::setMotorVelocity(PortId port, int32_t velocity) {
+    auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
+    if (validationResult.isFailure()) {
+        return validationResult;
+    }
+
+    auto result = spi_->setMotorVelocity(port, velocity);
+    if (result.isFailure()) {
+        logger_->error("Failed to set motor " + std::to_string(port) + " velocity: " + result.error());
+        return result;
+    }
+
+    logger_->debug("Motor " + std::to_string(port) + " velocity set: " + std::to_string(velocity));
+    return Result<void>::success();
+}
+
+Result<void> DeviceController::setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition) {
+    auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
+    if (validationResult.isFailure()) {
+        return validationResult;
+    }
+
+    auto result = spi_->setMotorPosition(port, velocity, goalPosition);
+    if (result.isFailure()) {
+        logger_->error("Failed to set motor " + std::to_string(port) + " position: " + result.error());
+        return result;
+    }
+
+    logger_->debug("Motor " + std::to_string(port) + " position set: velocity=" +
+                  std::to_string(velocity) + ", goal=" + std::to_string(goalPosition));
+    return Result<void>::success();
+}
+
+Result<void> DeviceController::setMotorRelative(PortId port, int32_t velocity, int32_t deltaPosition) {
+    auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
+    if (validationResult.isFailure()) {
+        return validationResult;
+    }
+
+    auto result = spi_->setMotorRelative(port, velocity, deltaPosition);
+    if (result.isFailure()) {
+        logger_->error("Failed to set motor " + std::to_string(port) + " relative: " + result.error());
+        return result;
+    }
+
+    logger_->debug("Motor " + std::to_string(port) + " relative set: velocity=" +
+                  std::to_string(velocity) + ", delta=" + std::to_string(deltaPosition));
+    return Result<void>::success();
+}
+
+Result<int32_t> DeviceController::getMotorPosition(PortId port) const {
+    if (!isInitialized_) {
+        return Result<int32_t>::failure("Device controller not initialized");
+    }
+    return spi_->getMotorPosition(port);
+}
+
+Result<uint8_t> DeviceController::getMotorDone() const {
+    if (!isInitialized_) {
+        return Result<uint8_t>::failure("Device controller not initialized");
+    }
+    return spi_->getMotorDone();
 }
 
 Result<void> DeviceController::setServoCommand(PortId port, ServoPosition position) {
@@ -214,6 +278,27 @@ Result<void> DeviceController::setBemfNominalVoltage(int16_t adcValue) {
     }
 
     logger_->info("BEMF nominal voltage ADC set to " + std::to_string(adcValue));
+    return Result<void>::success();
+}
+
+Result<void> DeviceController::setMotorPid(PortId port, float kp, float ki, float kd) {
+    if (!isInitialized_) {
+        return Result<void>::failure("Device controller not initialized");
+    }
+
+    auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
+    if (validationResult.isFailure()) {
+        return validationResult;
+    }
+
+    auto result = spi_->setMotorPid(port, kp, ki, kd);
+    if (result.isFailure()) {
+        logger_->error("Failed to set motor PID for port " + std::to_string(port) + ": " + result.error());
+        return result;
+    }
+
+    logger_->info("Motor PID set for port " + std::to_string(port) +
+                  ": kp=" + std::to_string(kp) + ", ki=" + std::to_string(ki) + ", kd=" + std::to_string(kd));
     return Result<void>::success();
 }
 

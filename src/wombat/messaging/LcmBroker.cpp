@@ -3,8 +3,59 @@
 #include <unordered_map>
 #include <vector>
 #include <cstring>
+#include <chrono>
+#include <algorithm>
+#include <limits>
+#include <mutex>
 
 namespace wombat {
+
+namespace {
+
+int64_t nowUsec() {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+struct LatencyStats {
+    std::mutex mtx;
+    int64_t minUs{std::numeric_limits<int64_t>::max()};
+    int64_t maxUs{0};
+    int64_t sumUs{0};
+    uint64_t count{0};
+
+    void record(int64_t latencyUs) {
+        std::lock_guard<std::mutex> lock(mtx);
+        if (latencyUs < 0) return; // clock skew, ignore
+        minUs = std::min(minUs, latencyUs);
+        maxUs = std::max(maxUs, latencyUs);
+        sumUs += latencyUs;
+        ++count;
+    }
+
+    struct Snapshot {
+        int64_t minUs, maxUs, avgUs;
+        uint64_t count;
+    };
+
+    Snapshot resetAndSnapshot() {
+        std::lock_guard<std::mutex> lock(mtx);
+        Snapshot s{};
+        s.count = count;
+        if (count > 0) {
+            s.minUs = minUs;
+            s.maxUs = maxUs;
+            s.avgUs = static_cast<int64_t>(sumUs / count);
+        }
+        minUs = std::numeric_limits<int64_t>::max();
+        maxUs = 0;
+        sumUs = 0;
+        count = 0;
+        return s;
+    }
+};
+
+} // anonymous namespace
 
 class LcmBroker::Impl {
 public:
@@ -34,6 +85,7 @@ public:
         }
 
         // Drain all pending messages instead of just one
+        int messagesProcessed = 0;
         while (true) {
             const int result = lcm_->handleTimeout(0);
             if (result < 0) {
@@ -42,7 +94,40 @@ public:
             if (result == 0) {
                 break; // No more pending messages
             }
+            ++messagesProcessed;
         }
+
+        const auto now = std::chrono::steady_clock::now();
+        ++processCallCount_;
+
+        intervalMessagesProcessed_ += messagesProcessed;
+
+        if (lastProcessTime_.time_since_epoch().count() > 0) {
+            const auto dt = std::chrono::duration<double>(now - lastProcessTime_).count();
+            const double hz = (dt > 0.0) ? 1.0 / dt : 0.0;
+
+            // Log every 100 calls to avoid spamming
+            if (processCallCount_ % 100 == 0) {
+                const double avgMsgsPerCall = static_cast<double>(intervalMessagesProcessed_) / 100.0;
+                const auto latency = latencyStats_.resetAndSnapshot();
+                std::string latencyStr = "no msgs";
+                if (latency.count > 0) {
+                    latencyStr = "min=" + std::to_string(latency.minUs / 1000) + "ms"
+                        + " avg=" + std::to_string(latency.avgUs / 1000) + "ms"
+                        + " max=" + std::to_string(latency.maxUs / 1000) + "ms"
+                        + " (n=" + std::to_string(latency.count) + ")";
+                }
+                logger_->info("LCM processMessages: avg=" + std::to_string(avgMsgsPerCall).substr(0, 5)
+                    + " msgs/call, rate=" + std::to_string(hz).substr(0, 5) + "Hz"
+                    + ", total calls=" + std::to_string(processCallCount_)
+                    + ", total msgs=" + std::to_string(totalMessagesProcessed_ + messagesProcessed)
+                    + ", latency: " + latencyStr);
+                intervalMessagesProcessed_ = 0;
+            }
+        }
+
+        totalMessagesProcessed_ += messagesProcessed;
+        lastProcessTime_ = now;
 
         return Result<void>::success();
     }
@@ -90,8 +175,9 @@ public:
         }
 
         std::function<void(const lcm::ReceiveBuffer*, const std::string&, const exlcm::vector3f_t*)> lcmHandler =
-            [handler](const lcm::ReceiveBuffer*, const std::string&, const exlcm::vector3f_t* msg) {
+            [handler, this](const lcm::ReceiveBuffer*, const std::string&, const exlcm::vector3f_t* msg) {
                 if (msg) {
+                    latencyStats_.record(nowUsec() - msg->timestamp);
                     handler(*msg);
                 }
             };
@@ -108,8 +194,9 @@ public:
         }
 
         std::function<void(const lcm::ReceiveBuffer*, const std::string&, const exlcm::quaternion_t*)> lcmHandler =
-            [handler](const lcm::ReceiveBuffer*, const std::string&, const exlcm::quaternion_t* msg) {
+            [handler, this](const lcm::ReceiveBuffer*, const std::string&, const exlcm::quaternion_t* msg) {
                 if (msg) {
+                    latencyStats_.record(nowUsec() - msg->timestamp);
                     handler(*msg);
                 }
             };
@@ -126,8 +213,9 @@ public:
         }
 
         std::function<void(const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_i32_t*)> lcmHandler =
-            [handler](const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_i32_t* msg) {
+            [handler, this](const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_i32_t* msg) {
                 if (msg) {
+                    latencyStats_.record(nowUsec() - msg->timestamp);
                     handler(*msg);
                 }
             };
@@ -144,8 +232,9 @@ public:
         }
 
         std::function<void(const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_f_t*)> lcmHandler =
-            [handler](const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_f_t* msg) {
+            [handler, this](const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_f_t* msg) {
                 if (msg) {
+                    latencyStats_.record(nowUsec() - msg->timestamp);
                     handler(*msg);
                 }
             };
@@ -162,8 +251,9 @@ public:
         }
 
         std::function<void(const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_i8_t*)> lcmHandler =
-            [handler](const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_i8_t* msg) {
+            [handler, this](const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_i8_t* msg) {
                 if (msg) {
+                    latencyStats_.record(nowUsec() - msg->timestamp);
                     handler(*msg);
                 }
             };
@@ -177,6 +267,11 @@ private:
     std::shared_ptr<Logger> logger_;
     std::unique_ptr<lcm::LCM> lcm_;
     std::unordered_map<std::string, std::vector<uint8_t>> messageCache_;
+    std::chrono::steady_clock::time_point lastProcessTime_{};
+    uint64_t processCallCount_{0};
+    uint64_t totalMessagesProcessed_{0};
+    uint64_t intervalMessagesProcessed_{0};
+    LatencyStats latencyStats_;
 
     template<typename MessageType>
     bool hasMessageChanged(const std::string& channel, const MessageType& message) {

@@ -207,15 +207,57 @@ void set_shutdown_flag(uint8_t bit, bool value)
         exit(EXIT_FAILURE);
 }
 
+static void set_motor_control_mode(uint8_t port, MotorControlMode mode)
+{
+    uint8_t newCtlMode = (ctx.tx.motorControlMode & ~(0b11u << (port * 2))) | ((uint8_t)mode << (port * 2));
+    ctx.tx.motorControlMode = newCtlMode;
+}
+
 void set_motor(uint8_t port, MotorDir dir, uint32_t value)
 {
     if (port > 3)
         return;
-    uint8_t newMode = (ctx.tx.motorMode & ~(0b11u << (port * 2))) | ((uint8_t)dir << (port * 2));
-    if (ctx.tx.motorMode == newMode && ctx.tx.motorSpeedPos[port] == value)
+    uint8_t newDir = (ctx.tx.motorDirection & ~(0b11u << (port * 2))) | ((uint8_t)dir << (port * 2));
+    set_motor_control_mode(port, MOTOR_CTL_PWM);
+    if (ctx.tx.motorDirection == newDir && ctx.tx.motorTarget[port] == (int32_t)value)
         return;
-    ctx.tx.motorMode = newMode;
-    ctx.tx.motorSpeedPos[port] = value;
+    ctx.tx.motorDirection = newDir;
+    ctx.tx.motorTarget[port] = (int32_t)value;
+    ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_CMD;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}
+
+void set_motor_velocity(uint8_t port, int32_t velocity)
+{
+    if (port > 3)
+        return;
+    set_motor_control_mode(port, MOTOR_CTL_MAV);
+    ctx.tx.motorTarget[port] = velocity;
+    ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_CMD;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}
+
+void set_motor_position(uint8_t port, int32_t velocity, int32_t goal_position)
+{
+    if (port > 3)
+        return;
+    set_motor_control_mode(port, MOTOR_CTL_MTP);
+    ctx.tx.motorTarget[port] = velocity;
+    ctx.tx.motorGoalPosition[port] = goal_position;
+    ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_CMD;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}
+
+void set_motor_relative(uint8_t port, int32_t velocity, int32_t delta_position)
+{
+    if (port > 3)
+        return;
+    set_motor_control_mode(port, MOTOR_CTL_MRP);
+    ctx.tx.motorTarget[port] = velocity;
+    ctx.tx.motorGoalPosition[port] = delta_position;
     ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_CMD;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
@@ -404,7 +446,23 @@ int32_t bemf(uint8_t mot)
         return 0;
     if (!spi_update())
         exit(EXIT_FAILURE);
-    return ctx.rx.motorBemfSum[mot] / 250;
+    return ctx.rx.motorBemf[mot];
+}
+
+int32_t get_motor_position(uint8_t port)
+{
+    if (port > 3)
+        return 0;
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.motorPosition[port];
+}
+
+uint8_t get_motor_done(void)
+{
+    if (!spi_update())
+        exit(EXIT_FAILURE);
+    return ctx.rx.motorDone;
 }
 
 uint16_t analog_in(uint8_t idx)
@@ -482,6 +540,18 @@ int8_t quaternion_accuracy(void)
     if (!spi_update())
         exit(EXIT_FAILURE);
     return ctx.rx.imu.quat.accuracy;
+}
+
+void set_motor_pid(uint8_t port, float kp, float ki, float kd)
+{
+    if (port > 3)
+        return;
+    ctx.tx.motorPidSettings.pids[port].Kp = kp;
+    ctx.tx.motorPidSettings.pids[port].Ki = ki;
+    ctx.tx.motorPidSettings.pids[port].Kd = kd;
+    ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_PID;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
 }
 
 void set_bemf_scale(uint8_t port, float scale)

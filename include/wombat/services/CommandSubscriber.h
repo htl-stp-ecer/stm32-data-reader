@@ -33,6 +33,9 @@ private:
     std::shared_ptr<Logger> logger_;
 
     void onMotorPowerCommand(PortId port, const exlcm::scalar_i32_t& command);
+    void onMotorVelocityCommand(PortId port, const exlcm::scalar_i32_t& command);
+    void onMotorPositionCommand(PortId port, const exlcm::vector3f_t& command);
+    void onMotorRelativeCommand(PortId port, const exlcm::vector3f_t& command);
     void onServoPositionCommand(PortId port, const exlcm::scalar_i32_t& command);
     void onServoModeCommand(PortId port, const exlcm::scalar_i8_t& command);
     void onDataDumpRequest(const exlcm::scalar_i32_t& command) const;
@@ -40,6 +43,7 @@ private:
     void onBemfScaleCommand(PortId port, const exlcm::scalar_f_t& command);
     void onBemfOffsetCommand(PortId port, const exlcm::scalar_f_t& command);
     void onBemfNominalVoltageCommand(const exlcm::scalar_i32_t& command);
+    void onMotorPidCommand(PortId port, const exlcm::vector3f_t& command);
     void onShutdownCommand(const exlcm::scalar_i32_t& command);
 
     bool isTimestampNewer(const std::string& channel, int64_t timestamp);

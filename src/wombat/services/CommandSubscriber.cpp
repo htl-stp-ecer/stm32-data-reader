@@ -35,6 +35,48 @@ namespace wombat
             }
         }
 
+        // Subscribe to motor velocity commands
+        for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
+        {
+            logger_->info("Subscribing to motor velocity command channel: " + Channels::motorVelocityCommand(i));
+            auto velocityResult = broker_->subscribeScalarI32(
+                Channels::motorVelocityCommand(i),
+                [this, i](const exlcm::scalar_i32_t& cmd) { onMotorVelocityCommand(i, cmd); }
+            );
+            if (velocityResult.isFailure())
+            {
+                return Result<void>::failure("Failed to subscribe to motor velocity commands: " + velocityResult.error());
+            }
+        }
+
+        // Subscribe to motor position commands (vector3f: x=velocity, y=goal_position)
+        for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
+        {
+            logger_->info("Subscribing to motor position command channel: " + Channels::motorPositionCommand(i));
+            auto positionResult = broker_->subscribeVector3f(
+                Channels::motorPositionCommand(i),
+                [this, i](const exlcm::vector3f_t& cmd) { onMotorPositionCommand(i, cmd); }
+            );
+            if (positionResult.isFailure())
+            {
+                return Result<void>::failure("Failed to subscribe to motor position commands: " + positionResult.error());
+            }
+        }
+
+        // Subscribe to motor relative commands (vector3f: x=velocity, y=delta_position)
+        for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
+        {
+            logger_->info("Subscribing to motor relative command channel: " + Channels::motorRelativeCommand(i));
+            auto relativeResult = broker_->subscribeVector3f(
+                Channels::motorRelativeCommand(i),
+                [this, i](const exlcm::vector3f_t& cmd) { onMotorRelativeCommand(i, cmd); }
+            );
+            if (relativeResult.isFailure())
+            {
+                return Result<void>::failure("Failed to subscribe to motor relative commands: " + relativeResult.error());
+            }
+        }
+
         // Subscribe to BEMF reset commands
         for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
         {
@@ -68,6 +110,20 @@ namespace wombat
             if (bemfOffsetResult.isFailure())
             {
                 return Result<void>::failure("Failed to subscribe to BEMF offset commands: " + bemfOffsetResult.error());
+            }
+        }
+
+        // Subscribe to motor PID commands (vector3f: x=kp, y=ki, z=kd)
+        for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
+        {
+            logger_->info("Subscribing to motor PID command channel: " + Channels::motorPidCommand(i));
+            auto pidResult = broker_->subscribeVector3f(
+                Channels::motorPidCommand(i),
+                [this, i](const exlcm::vector3f_t& cmd) { onMotorPidCommand(i, cmd); }
+            );
+            if (pidResult.isFailure())
+            {
+                return Result<void>::failure("Failed to subscribe to motor PID commands: " + pidResult.error());
             }
         }
 
@@ -201,6 +257,77 @@ namespace wombat
         }
     }
 
+    void CommandSubscriber::onMotorVelocityCommand(const PortId port, const exlcm::scalar_i32_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received motor velocity command while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::motorVelocityCommand(port), command.timestamp))
+            return;
+
+        const auto result = deviceController_->setMotorVelocity(port, command.value);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set motor velocity: " + result.error());
+            return;
+        }
+
+        logger_->info("Received motor velocity_cmd on port " + std::to_string(port) + ": " + std::to_string(command.value));
+    }
+
+    void CommandSubscriber::onMotorPositionCommand(const PortId port, const exlcm::vector3f_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received motor position command while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::motorPositionCommand(port), command.timestamp))
+            return;
+
+        const int32_t velocity = static_cast<int32_t>(command.x);
+        const int32_t goalPosition = static_cast<int32_t>(command.y);
+
+        const auto result = deviceController_->setMotorPosition(port, velocity, goalPosition);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set motor position: " + result.error());
+            return;
+        }
+
+        logger_->info("Received motor position_cmd on port " + std::to_string(port) +
+            ": velocity=" + std::to_string(velocity) + ", goal=" + std::to_string(goalPosition));
+    }
+
+    void CommandSubscriber::onMotorRelativeCommand(const PortId port, const exlcm::vector3f_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received motor relative command while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::motorRelativeCommand(port), command.timestamp))
+            return;
+
+        const int32_t velocity = static_cast<int32_t>(command.x);
+        const int32_t deltaPosition = static_cast<int32_t>(command.y);
+
+        const auto result = deviceController_->setMotorRelative(port, velocity, deltaPosition);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set motor relative: " + result.error());
+            return;
+        }
+
+        logger_->info("Received motor relative_cmd on port " + std::to_string(port) +
+            ": velocity=" + std::to_string(velocity) + ", delta=" + std::to_string(deltaPosition));
+    }
+
     void CommandSubscriber::onServoPositionCommand(const PortId port, const exlcm::scalar_i32_t& command)
     {
         if (!isInitialized_)
@@ -243,8 +370,6 @@ namespace wombat
             logger_->error("Failed to set servo mode: " + result.error());
             return;
         }
-
-        logger_->info("Received servo mode_cmd on port " + std::to_string(port) + ": " + std::to_string(command.dir));
     }
 
     void CommandSubscriber::onDataDumpRequest(const exlcm::scalar_i32_t& command) const
@@ -379,6 +504,32 @@ namespace wombat
         }
 
         logger_->info("Set BEMF nominal voltage ADC to " + std::to_string(command.value));
+    }
+
+    void CommandSubscriber::onMotorPidCommand(const PortId port, const exlcm::vector3f_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received motor PID command while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::motorPidCommand(port), command.timestamp))
+            return;
+
+        const float kp = command.x;
+        const float ki = command.y;
+        const float kd = command.z;
+
+        const auto result = deviceController_->setMotorPid(port, kp, ki, kd);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set motor PID: " + result.error());
+            return;
+        }
+
+        logger_->info("Received motor pid_cmd on port " + std::to_string(port) +
+            ": kp=" + std::to_string(kp) + ", ki=" + std::to_string(ki) + ", kd=" + std::to_string(kd));
     }
 
     void CommandSubscriber::onShutdownCommand(const exlcm::scalar_i32_t& command)

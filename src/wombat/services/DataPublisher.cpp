@@ -107,6 +107,64 @@ namespace wombat
             logger_->warn("Failed to publish back EMF: " + bemfResult.error());
         }
 
+        // Publish motor position
+        auto posResult = broker_->publishScalarI32(
+            Channels::motorPosition(port),
+            convertScalarI32(state.position)
+        );
+        if (posResult.isFailure())
+        {
+            logger_->warn("Failed to publish motor position: " + posResult.error());
+        }
+
+        // Publish motor done flag
+        auto doneResult = broker_->publishScalarI32(
+            Channels::motorDone(port),
+            convertScalarI32(state.done ? 1 : 0)
+        );
+        if (doneResult.isFailure())
+        {
+            logger_->warn("Failed to publish motor done: " + doneResult.error());
+        }
+
+        return Result<void>::success();
+    }
+
+    Result<void> DataPublisher::publishMotorPosition(PortId port, int32_t position)
+    {
+        if (port >= MAX_MOTOR_PORTS)
+        {
+            return Result<void>::failure("Invalid motor port: " + std::to_string(port));
+        }
+
+        auto result = broker_->publishScalarI32(
+            Channels::motorPosition(port),
+            convertScalarI32(position)
+        );
+        if (result.isFailure())
+        {
+            logger_->warn("Failed to publish motor position: " + result.error());
+        }
+
+        return Result<void>::success();
+    }
+
+    Result<void> DataPublisher::publishMotorDone(PortId port, bool done)
+    {
+        if (port >= MAX_MOTOR_PORTS)
+        {
+            return Result<void>::failure("Invalid motor port: " + std::to_string(port));
+        }
+
+        auto result = broker_->publishScalarI32(
+            Channels::motorDone(port),
+            convertScalarI32(done ? 1 : 0)
+        );
+        if (result.isFailure())
+        {
+            logger_->warn("Failed to publish motor done: " + result.error());
+        }
+
         return Result<void>::success();
     }
 

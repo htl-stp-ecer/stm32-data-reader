@@ -21,6 +21,8 @@ namespace wombat
 
         Result<void> publishSensorData(const SensorData& data);
         Result<void> publishMotorState(PortId port, const MotorState& state);
+        Result<void> publishMotorPosition(PortId port, int32_t position);
+        Result<void> publishMotorDone(PortId port, bool done);
         Result<void> publishServoState(PortId port, const ServoState& state);
 
         /**

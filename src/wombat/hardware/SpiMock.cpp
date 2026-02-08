@@ -224,6 +224,29 @@ void set_motor(const uint8_t port, const MotorDir dir, const uint32_t value)
     g_motor_cmd[port] = value;
 }
 
+void set_motor_velocity(uint8_t port, int32_t velocity)
+{
+    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return;
+    g_motor_dir[port] = (velocity >= 0) ? MOTOR_DIR_CW : MOTOR_DIR_CCW;
+    g_motor_cmd[port] = (uint32_t)abs(velocity);
+}
+
+void set_motor_position(uint8_t port, int32_t velocity, int32_t goal_position)
+{
+    (void)goal_position;
+    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return;
+    g_motor_dir[port] = (velocity >= 0) ? MOTOR_DIR_CW : MOTOR_DIR_CCW;
+    g_motor_cmd[port] = (uint32_t)abs(velocity);
+}
+
+void set_motor_relative(uint8_t port, int32_t velocity, int32_t delta_position)
+{
+    (void)delta_position;
+    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return;
+    g_motor_dir[port] = (velocity >= 0) ? MOTOR_DIR_CW : MOTOR_DIR_CCW;
+    g_motor_cmd[port] = (uint32_t)abs(velocity);
+}
+
 void set_servo_mode(uint8_t port, ServoMode mode)
 {
     if (!idx_ok(port, SPI_MOCK_MAX_SERVOS)) return;
@@ -292,6 +315,19 @@ int32_t bemf(uint8_t mot)
     return sign * v;
 }
 
+int32_t get_motor_position(uint8_t port)
+{
+    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return 0;
+    // Simulate a simple position accumulator based on motor command
+    return (int32_t)g_motor_cmd[port] * ((g_motor_dir[port] == MOTOR_DIR_CCW) ? -1 : 1);
+}
+
+uint8_t get_motor_done(void)
+{
+    // In mock mode, all motors report done (all bits set)
+    return 0x0F;
+}
+
 // IO
 uint16_t analog_in(uint8_t idx)
 {
@@ -341,4 +377,17 @@ void set_bemf_offset(uint8_t port, float offset)
 void set_bemf_nominal_voltage(int16_t adc_value)
 {
     g_bemf_nominal_voltage = adc_value;
+}
+
+// Motor PID (mock - just stores values)
+static float g_motor_pid_kp[SPI_MOCK_MAX_MOTORS] = {1.0f, 1.0f, 1.0f, 1.0f};
+static float g_motor_pid_ki[SPI_MOCK_MAX_MOTORS] = {0.0f, 0.0f, 0.0f, 0.0f};
+static float g_motor_pid_kd[SPI_MOCK_MAX_MOTORS] = {0.0f, 0.0f, 0.0f, 0.0f};
+
+void set_motor_pid(uint8_t port, float kp, float ki, float kd)
+{
+    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return;
+    g_motor_pid_kp[port] = kp;
+    g_motor_pid_ki[port] = ki;
+    g_motor_pid_kd[port] = kd;
 }

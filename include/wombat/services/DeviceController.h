@@ -23,12 +23,18 @@ public:
     Result<void> processUpdate();
 
     Result<void> setMotorCommand(PortId port, MotorDirection direction, MotorSpeed speed);
+    Result<void> setMotorVelocity(PortId port, int32_t velocity);
+    Result<void> setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition);
+    Result<void> setMotorRelative(PortId port, int32_t velocity, int32_t deltaPosition);
+    Result<int32_t> getMotorPosition(PortId port) const;
+    Result<uint8_t> getMotorDone() const;
     Result<void> setServoCommand(PortId port, ServoPosition position);
     Result<void> setServoMode(PortId port, ServoMode mode);
     Result<void> resetBemfSum(PortId port);
     Result<void> setBemfScale(PortId port, float scale);
     Result<void> setBemfOffset(PortId port, float offset);
     Result<void> setBemfNominalVoltage(int16_t adcValue);
+    Result<void> setMotorPid(PortId port, float kp, float ki, float kd);
 
     Result<SensorData> getCurrentSensorData() const;
     Result<MotorState> getMotorState(PortId port) const;

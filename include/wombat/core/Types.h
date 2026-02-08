@@ -30,6 +30,14 @@ namespace wombat
         Brake = 0b11  // Active braking - short-circuits motor windings for fast stopping
     };
 
+    enum class MotorControlMode : uint8_t
+    {
+        Pwm = 0,                // Direct PWM, no PID
+        MoveAtVelocity = 1,     // PID velocity control
+        MoveToPosition = 2,     // PID position control (absolute)
+        MoveRelativePosition = 3 // PID position control (relative, converted to absolute on STM32)
+    };
+
     enum class ServoMode : uint8_t
     {
         FullyDisabled = 0,
@@ -90,8 +98,11 @@ namespace wombat
     struct MotorState
     {
         MotorDirection direction{MotorDirection::Off};
+        MotorControlMode controlMode{MotorControlMode::Pwm};
         MotorSpeed speed{0};
         mutable int32_t backEmf{0};
+        int32_t position{0};
+        bool done{false};
     };
 
     struct ServoState
@@ -123,7 +134,6 @@ namespace wombat
             uint32_t speedHz{20'000'000};
             uint8_t mode{0};
             uint8_t bitsPerWord{8};
-            std::chrono::milliseconds minimumUpdateDelay{20};
             uint8_t maxRetryAttempts{3};
             uint8_t protocolVersion{1};
         } spi;
@@ -209,6 +219,36 @@ namespace wombat
         inline std::string motorStopCommand(const PortId port)
         {
             return "libstp/motor/" + std::to_string(port) + "/stop_cmd";
+        }
+
+        inline std::string motorVelocityCommand(const PortId port)
+        {
+            return "libstp/motor/" + std::to_string(port) + "/velocity_cmd";
+        }
+
+        inline std::string motorPositionCommand(const PortId port)
+        {
+            return "libstp/motor/" + std::to_string(port) + "/position_cmd";
+        }
+
+        inline std::string motorRelativeCommand(const PortId port)
+        {
+            return "libstp/motor/" + std::to_string(port) + "/relative_cmd";
+        }
+
+        inline std::string motorPidCommand(const PortId port)
+        {
+            return "libstp/motor/" + std::to_string(port) + "/pid_cmd";
+        }
+
+        inline std::string motorPosition(const PortId port)
+        {
+            return "libstp/motor/" + std::to_string(port) + "/position";
+        }
+
+        inline std::string motorDone(const PortId port)
+        {
+            return "libstp/motor/" + std::to_string(port) + "/done";
         }
 
         inline std::string servoPositionCommand(const PortId port)

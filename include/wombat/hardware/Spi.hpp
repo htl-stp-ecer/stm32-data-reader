@@ -106,10 +106,13 @@ namespace wombat
             d.lastUpdate = last_update_us();
             if (logger_) logger_->debug("SPI: Read last update timestamp -> " + std::to_string(d.lastUpdate));
 
+            const uint8_t doneFlags = get_motor_done();
             for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
             {
                 const auto rawValue = bemf(i);
                 motors_[i].backEmf = rawValue - bemfOffsets_[i];
+                motors_[i].position = get_motor_position(i);
+                motors_[i].done = (doneFlags & (1u << i)) != 0;
                 if (logger_) logger_->debug("SPI: Read BEMF motor " + std::to_string(i) + " -> raw=" + std::to_string(rawValue) + ", offset=" + std::to_string(bemfOffsets_[i]) + ", corrected=" + std::to_string(motors_[i].backEmf));
             }
             return Result<SensorData>::success(d);
@@ -138,7 +141,7 @@ namespace wombat
                 duty = static_cast<uint32_t>(percentAbs * 400.0f);
             }
 
-            SPDLOG_INFO(
+            SPDLOG_TRACE(
                 "SPI setMotorState port={} dir={} duty={}",
                 static_cast<int>(port),
                 static_cast<int>(dir),
@@ -147,6 +150,41 @@ namespace wombat
             st.backEmf = motors_[port].backEmf;
             motors_[port] = st;
             return Result<void>::success();
+        }
+
+        Result<void> setMotorVelocity(PortId port, int32_t velocity)
+        {
+            if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+            set_motor_velocity(port, velocity);
+            motors_[port].controlMode = MotorControlMode::MoveAtVelocity;
+            return Result<void>::success();
+        }
+
+        Result<void> setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition)
+        {
+            if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+            set_motor_position(port, velocity, goalPosition);
+            motors_[port].controlMode = MotorControlMode::MoveToPosition;
+            return Result<void>::success();
+        }
+
+        Result<void> setMotorRelative(PortId port, int32_t velocity, int32_t deltaPosition)
+        {
+            if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+            set_motor_relative(port, velocity, deltaPosition);
+            motors_[port].controlMode = MotorControlMode::MoveRelativePosition;
+            return Result<void>::success();
+        }
+
+        Result<int32_t> getMotorPosition(PortId port)
+        {
+            if (port >= MAX_MOTOR_PORTS) return Result<int32_t>::failure("motor port out of range");
+            return Result<int32_t>::success(get_motor_position(port));
+        }
+
+        Result<uint8_t> getMotorDone()
+        {
+            return Result<uint8_t>::success(get_motor_done());
         }
 
         Result<MotorState> getMotorState(PortId port) const
@@ -186,6 +224,13 @@ namespace wombat
             const auto rawValue = motors_[port].backEmf + bemfOffsets_[port];
             bemfOffsets_[port] = rawValue;
             motors_[port].backEmf = 0;
+            return Result<void>::success();
+        }
+
+        Result<void> setMotorPid(PortId port, float kp, float ki, float kd)
+        {
+            if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+            set_motor_pid(port, kp, ki, kd);
             return Result<void>::success();
         }
 
