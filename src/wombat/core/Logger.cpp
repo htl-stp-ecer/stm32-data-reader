@@ -2,6 +2,7 @@
 // Created by tobias on 9/14/25.
 //
 #include "wombat/core/Logger.h"
+#include "wombat/core/Channels.h"
 #include "wombat/messaging/LcmBroker.h"
 #include "exlcm/string_t.hpp"
 #include <spdlog/spdlog.h>
@@ -66,7 +67,7 @@ namespace wombat
             errorMsg.timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count();
             errorMsg.value = message;
-            lcmBroker_->publishString(Channels::ERROR_MESSAGES, errorMsg);
+            lcmBroker_->publish(Channels::ERROR_MESSAGES, errorMsg);
         }
 
         static spdlog::level::level_enum convertLogLevel(Configuration::Logging::Level level)

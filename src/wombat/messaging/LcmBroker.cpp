@@ -168,98 +168,25 @@ public:
         return Result<void>::success();
     }
 
-    Result<void> subscribeVector3f(const std::string& channel,
-                                  std::function<void(const exlcm::vector3f_t&)> handler) {
+    template <LcmMessage T>
+    Result<void> subscribe(const std::string& channel,
+                           std::function<void(const T&)> handler)
+    {
         if (!lcm_ || !lcm_->good()) {
             return Result<void>::failure("LCM not initialized or unhealthy");
         }
 
-        std::function<void(const lcm::ReceiveBuffer*, const std::string&, const exlcm::vector3f_t*)> lcmHandler =
-            [handler, this](const lcm::ReceiveBuffer*, const std::string&, const exlcm::vector3f_t* msg) {
-                if (msg) {
+        std::function<void(const lcm::ReceiveBuffer*, const std::string&, const T*)> lcmHandler =
+            [handler, this](const lcm::ReceiveBuffer*, const std::string&, const T* msg)
+        {
+            if (msg) {
                     latencyStats_.record(nowUsec() - msg->timestamp);
                     handler(*msg);
                 }
-            };
-        lcm_->subscribe<exlcm::vector3f_t>(channel, lcmHandler);
+        };
+        lcm_->subscribe<T>(channel, lcmHandler);
 
-        logger_->debug("Subscribed to Vector3f channel: " + channel);
-        return Result<void>::success();
-    }
-
-    Result<void> subscribeQuaternion(const std::string& channel,
-                                     std::function<void(const exlcm::quaternion_t&)> handler) {
-        if (!lcm_ || !lcm_->good()) {
-            return Result<void>::failure("LCM not initialized or unhealthy");
-        }
-
-        std::function<void(const lcm::ReceiveBuffer*, const std::string&, const exlcm::quaternion_t*)> lcmHandler =
-            [handler, this](const lcm::ReceiveBuffer*, const std::string&, const exlcm::quaternion_t* msg) {
-                if (msg) {
-                    latencyStats_.record(nowUsec() - msg->timestamp);
-                    handler(*msg);
-                }
-            };
-        lcm_->subscribe<exlcm::quaternion_t>(channel, lcmHandler);
-
-        logger_->debug("Subscribed to Quaternion channel: " + channel);
-        return Result<void>::success();
-    }
-
-    Result<void> subscribeScalarI32(const std::string& channel,
-                                   std::function<void(const exlcm::scalar_i32_t&)> handler) {
-        if (!lcm_ || !lcm_->good()) {
-            return Result<void>::failure("LCM not initialized or unhealthy");
-        }
-
-        std::function<void(const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_i32_t*)> lcmHandler =
-            [handler, this](const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_i32_t* msg) {
-                if (msg) {
-                    latencyStats_.record(nowUsec() - msg->timestamp);
-                    handler(*msg);
-                }
-            };
-        lcm_->subscribe<exlcm::scalar_i32_t>(channel, lcmHandler);
-
-        logger_->debug("Subscribed to ScalarI32 channel: " + channel);
-        return Result<void>::success();
-    }
-
-    Result<void> subscribeScalarF(const std::string& channel,
-                                 std::function<void(const exlcm::scalar_f_t&)> handler) {
-        if (!lcm_ || !lcm_->good()) {
-            return Result<void>::failure("LCM not initialized or unhealthy");
-        }
-
-        std::function<void(const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_f_t*)> lcmHandler =
-            [handler, this](const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_f_t* msg) {
-                if (msg) {
-                    latencyStats_.record(nowUsec() - msg->timestamp);
-                    handler(*msg);
-                }
-            };
-        lcm_->subscribe<exlcm::scalar_f_t>(channel, lcmHandler);
-
-        logger_->debug("Subscribed to ScalarF channel: " + channel);
-        return Result<void>::success();
-    }
-
-    Result<void> subscribeScalarI8(const std::string& channel,
-                                  std::function<void(const exlcm::scalar_i8_t&)> handler) {
-        if (!lcm_ || !lcm_->good()) {
-            return Result<void>::failure("LCM not initialized or unhealthy");
-        }
-
-        std::function<void(const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_i8_t*)> lcmHandler =
-            [handler, this](const lcm::ReceiveBuffer*, const std::string&, const exlcm::scalar_i8_t* msg) {
-                if (msg) {
-                    latencyStats_.record(nowUsec() - msg->timestamp);
-                    handler(*msg);
-                }
-            };
-        lcm_->subscribe<exlcm::scalar_i8_t>(channel, lcmHandler);
-
-        logger_->debug("Subscribed to ScalarI8 channel: " + channel);
+        logger_->debug("Subscribed to " + std::string(T::getTypeName()) + " channel: " + channel);
         return Result<void>::success();
     }
 
@@ -311,61 +238,88 @@ bool LcmBroker::isHealthy() const {
     return impl_->isHealthy();
 }
 
-Result<void> LcmBroker::publishVector3f(const std::string& channel, const exlcm::vector3f_t& message) {
-    return impl_->publishIfChanged(channel, message);
+// Explicit template instantiations — publish
+template <>
+Result<void> LcmBroker::publish<exlcm::vector3f_t>(const std::string& ch, const exlcm::vector3f_t& m)
+{
+    return impl_->publishIfChanged(ch, m);
 }
 
-Result<void> LcmBroker::publishQuaternion(const std::string& channel, const exlcm::quaternion_t& message) {
-    return impl_->publishIfChanged(channel, message);
+template <>
+Result<void> LcmBroker::publish<exlcm::quaternion_t>(const std::string& ch, const exlcm::quaternion_t& m)
+{
+    return impl_->publishIfChanged(ch, m);
 }
 
-Result<void> LcmBroker::publishScalarF(const std::string& channel, const exlcm::scalar_f_t& message) {
-    return impl_->publishIfChanged(channel, message);
+template <>
+Result<void> LcmBroker::publish<exlcm::scalar_f_t>(const std::string& ch, const exlcm::scalar_f_t& m)
+{
+    return impl_->publishIfChanged(ch, m);
 }
 
-Result<void> LcmBroker::publishScalarI32(const std::string& channel, const exlcm::scalar_i32_t& message) {
-    return impl_->publishIfChanged(channel, message);
+template <>
+Result<void> LcmBroker::publish<exlcm::scalar_i32_t>(const std::string& ch, const exlcm::scalar_i32_t& m)
+{
+    return impl_->publishIfChanged(ch, m);
 }
 
-Result<void> LcmBroker::publishScalarI8(const std::string& channel, const exlcm::scalar_i8_t& message) {
-    return impl_->publishIfChanged(channel, message);
+template <>
+Result<void> LcmBroker::publish<exlcm::scalar_i8_t>(const std::string& ch, const exlcm::scalar_i8_t& m)
+{
+    return impl_->publishIfChanged(ch, m);
 }
 
-Result<void> LcmBroker::publishScalarI8Force(const std::string& channel, const exlcm::scalar_i8_t& message) {
-    return impl_->publishForce(channel, message);
+template <>
+Result<void> LcmBroker::publish<exlcm::string_t>(const std::string& ch, const exlcm::string_t& m)
+{
+    return impl_->publishIfChanged(ch, m);
 }
 
-Result<void> LcmBroker::publishScalarI32Force(const std::string& channel, const exlcm::scalar_i32_t& message) {
-    return impl_->publishForce(channel, message);
+// Explicit template instantiations — publishForce
+template <>
+Result<void> LcmBroker::publishForce<exlcm::scalar_i8_t>(const std::string& ch, const exlcm::scalar_i8_t& m)
+{
+    return impl_->publishForce(ch, m);
 }
 
-Result<void> LcmBroker::publishString(const std::string& channel, const exlcm::string_t& message) {
-    return impl_->publishIfChanged(channel, message);
+template <>
+Result<void> LcmBroker::publishForce<exlcm::scalar_i32_t>(const std::string& ch, const exlcm::scalar_i32_t& m)
+{
+    return impl_->publishForce(ch, m);
 }
 
-Result<void> LcmBroker::subscribeVector3f(const std::string& channel,
-                                         std::function<void(const exlcm::vector3f_t&)> handler) {
-    return impl_->subscribeVector3f(channel, std::move(handler));
+// Explicit template instantiations — subscribe
+template <>
+Result<void> LcmBroker::subscribe<exlcm::vector3f_t>(const std::string& ch,
+                                                     std::function<void(const exlcm::vector3f_t&)> h)
+{
+    return impl_->subscribe<exlcm::vector3f_t>(ch, std::move(h));
 }
 
-Result<void> LcmBroker::subscribeQuaternion(const std::string& channel,
-                                            std::function<void(const exlcm::quaternion_t&)> handler) {
-    return impl_->subscribeQuaternion(channel, std::move(handler));
+template <>
+Result<void> LcmBroker::subscribe<exlcm::quaternion_t>(const std::string& ch,
+                                                       std::function<void(const exlcm::quaternion_t&)> h)
+{
+    return impl_->subscribe<exlcm::quaternion_t>(ch, std::move(h));
 }
 
-Result<void> LcmBroker::subscribeScalarI32(const std::string& channel,
-                                          std::function<void(const exlcm::scalar_i32_t&)> handler) {
-    return impl_->subscribeScalarI32(channel, std::move(handler));
+template <>
+Result<void> LcmBroker::subscribe<exlcm::scalar_i32_t>(const std::string& ch,
+                                                       std::function<void(const exlcm::scalar_i32_t&)> h)
+{
+    return impl_->subscribe<exlcm::scalar_i32_t>(ch, std::move(h));
 }
 
-Result<void> LcmBroker::subscribeScalarF(const std::string& channel,
-                                        std::function<void(const exlcm::scalar_f_t&)> handler) {
-    return impl_->subscribeScalarF(channel, std::move(handler));
+template <>
+Result<void> LcmBroker::subscribe<exlcm::scalar_f_t>(const std::string& ch,
+                                                     std::function<void(const exlcm::scalar_f_t&)> h)
+{
+    return impl_->subscribe<exlcm::scalar_f_t>(ch, std::move(h));
 }
 
-Result<void> LcmBroker::subscribeScalarI8(const std::string& channel,
-                                         std::function<void(const exlcm::scalar_i8_t&)> handler) {
-    return impl_->subscribeScalarI8(channel, std::move(handler));
+template <>
+Result<void> LcmBroker::subscribe<exlcm::scalar_i8_t>(const std::string& ch, std::function<void(const exlcm::scalar_i8_t&)> h) {
+    return impl_->subscribe<exlcm::scalar_i8_t>(ch, std::move(h));
 }
 
 } // namespace wombat

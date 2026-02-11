@@ -45,6 +45,7 @@ set(CORE_SOURCES
         src/wombat/services/DeviceController.cpp
         src/wombat/services/DataPublisher.cpp
         src/wombat/services/CommandSubscriber.cpp
+        src/wombat/services/SystemMonitor.cpp
         src/wombat/Application.cpp
 )
 
@@ -53,7 +54,7 @@ if (USE_SPI_MOCK)
     set(SPI_SOURCE src/wombat/hardware/SpiMock.cpp)
 else ()
     message(STATUS "Using real SPI implementation")
-    set(SPI_SOURCE src/wombat/hardware/Spi.cpp)
+    set(SPI_SOURCE src/wombat/hardware/Spi.cpp src/wombat/hardware/SpiReal.cpp)
 endif ()
 
 add_executable(${PROJECT_NAME}
@@ -62,6 +63,10 @@ add_executable(${PROJECT_NAME}
         ${SPI_SOURCE}
 )
 
+
+if (USE_SPI_MOCK)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE USE_SPI_MOCK)
+endif ()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE spdlog::spdlog_header_only)
 

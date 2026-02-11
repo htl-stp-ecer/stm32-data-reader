@@ -3,13 +3,15 @@
 //
 #pragma once
 
-#include "wombat/core/Types.h"
+#include "wombat/core/DeviceTypes.h"
+#include "wombat/core/Configuration.h"
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
 #include "wombat/messaging/LcmBroker.h"
 #include "wombat/services/DeviceController.h"
 #include "wombat/services/DataPublisher.h"
 #include "wombat/services/CommandSubscriber.h"
+#include "wombat/services/SystemMonitor.h"
 #include <memory>
 #include <atomic>
 
@@ -42,6 +44,7 @@ namespace wombat
         std::shared_ptr<DeviceController> deviceController_;
         std::shared_ptr<DataPublisher> dataPublisher_;
         std::shared_ptr<CommandSubscriber> commandSubscriber_;
+        std::unique_ptr<SystemMonitor> systemMonitor_;
 
         std::atomic<bool> shouldShutdown_{false};
         bool isInitialized_{false};
@@ -54,5 +57,8 @@ namespace wombat
         Result<void> publishCurrentData();
 
         Timestamp lastPublishedTimestamp_{0};
+
+        // BEMF change detection for timing instrumentation
+        int32_t lastBemf_[4]{0, 0, 0, 0};
     };
 } // namespace wombat

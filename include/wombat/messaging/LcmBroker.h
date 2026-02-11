@@ -3,9 +3,9 @@
 //
 #pragma once
 
-#include "wombat/core/Types.h"
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
+#include "wombat/messaging/LcmConcepts.h"
 #include "exlcm/vector3f_t.hpp"
 #include "exlcm/quaternion_t.hpp"
 #include "exlcm/scalar_f_t.hpp"
@@ -15,45 +15,30 @@
 #include <memory>
 #include <functional>
 
-namespace wombat {
+namespace wombat
+{
+    class LcmBroker
+    {
+    public:
+        explicit LcmBroker(std::shared_ptr<Logger> logger);
+        ~LcmBroker();
 
-class LcmBroker {
-public:
-    explicit LcmBroker(std::shared_ptr<Logger> logger);
-    ~LcmBroker();
+        Result<void> initialize();
+        Result<void> shutdown();
+        Result<void> processMessages();
+        [[nodiscard]] bool isHealthy() const;
 
-    Result<void> initialize();
-    Result<void> shutdown();
-    Result<void> processMessages();
-    [[nodiscard]] bool isHealthy() const;
+        template <LcmMessage T>
+        Result<void> publish(const std::string& channel, const T& message);
 
-    // Typed publishers with change detection
-    Result<void> publishVector3f(const std::string& channel, const exlcm::vector3f_t& message);
-    Result<void> publishQuaternion(const std::string& channel, const exlcm::quaternion_t& message);
-    Result<void> publishScalarF(const std::string& channel, const exlcm::scalar_f_t& message);
-    Result<void> publishScalarI32(const std::string& channel, const exlcm::scalar_i32_t& message);
-    Result<void> publishScalarI8(const std::string& channel, const exlcm::scalar_i8_t& message);
-    Result<void> publishString(const std::string& channel, const exlcm::string_t& message);
+        template <LcmMessage T>
+        Result<void> publishForce(const std::string& channel, const T& message);
 
-    // Force publish (bypasses change detection)
-    Result<void> publishScalarI8Force(const std::string& channel, const exlcm::scalar_i8_t& message);
-    Result<void> publishScalarI32Force(const std::string& channel, const exlcm::scalar_i32_t& message);
+        template <LcmMessage T>
+        Result<void> subscribe(const std::string& channel, std::function<void(const T &)> handler);
 
-    // Typed subscribers
-    Result<void> subscribeVector3f(const std::string& channel,
-                                  std::function<void(const exlcm::vector3f_t&)> handler);
-    Result<void> subscribeQuaternion(const std::string& channel,
-                                    std::function<void(const exlcm::quaternion_t&)> handler);
-    Result<void> subscribeScalarI32(const std::string& channel,
-                                   std::function<void(const exlcm::scalar_i32_t&)> handler);
-    Result<void> subscribeScalarF(const std::string& channel,
-                                 std::function<void(const exlcm::scalar_f_t&)> handler);
-    Result<void> subscribeScalarI8(const std::string& channel,
-                                  std::function<void(const exlcm::scalar_i8_t&)> handler);
-
-private:
-    class Impl;
-    std::unique_ptr<Impl> impl_;
-};
-
+    private:
+        class Impl;
+        std::unique_ptr<Impl> impl_;
+    };
 }

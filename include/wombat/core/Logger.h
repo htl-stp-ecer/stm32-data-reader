@@ -5,7 +5,7 @@
 
 #include <string>
 #include <memory>
-#include "Types.h"
+#include "wombat/core/Configuration.h"
 
 namespace wombat
 {
@@ -21,8 +21,11 @@ namespace wombat
         virtual void debug(const std::string& message) = 0;
 
         static std::unique_ptr<Logger> create(const Configuration::Logging& config);
-        static std::unique_ptr<Logger> create(const Configuration::Logging& config, std::shared_ptr<LcmBroker> lcmBroker);
+        static std::unique_ptr<Logger> create(const Configuration::Logging& config,
+                                              std::shared_ptr<LcmBroker> lcmBroker);
 
-        virtual void setLcmBroker(std::shared_ptr<LcmBroker> /*lcmBroker*/) {};
+        virtual void setLcmBroker(std::shared_ptr<LcmBroker> /*lcmBroker*/)
+        {
+        };
     };
 }

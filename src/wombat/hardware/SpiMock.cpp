@@ -1,393 +1,252 @@
-// SpiMock.c — ultra-cheap userspace mock for spi.h
-// Build: compile and link this file instead of your real Spi.c
-// License: CC0/Unlicense — do whatever you want.
-
-#include "wombat/hardware/Spi.h"
-
-#include <cstring>
-#include <ctime>
+#include "wombat/hardware/SpiMock.h"
 #include <cmath>
+#include <algorithm>
+#include <string>
 
-// -------------------- tiny "HW" model --------------------
-
-#ifndef SPI_MOCK_MAX_MOTORS
-#define SPI_MOCK_MAX_MOTORS 8
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
 #endif
 
-#ifndef SPI_MOCK_MAX_SERVOS
-#define SPI_MOCK_MAX_SERVOS 8
-#endif
-
-#ifndef SPI_MOCK_MAX_ANALOG
-#define SPI_MOCK_MAX_ANALOG 8
-#endif
-
-static bool g_inited = false;
-static bool g_spi_mode = false; // ignored, but kept for completeness
-
-static struct timespec g_t0;
-static struct timespec g_t_last;
-static uint32_t g_last_update_us = 0;
-static double g_t_secs = 0.0;
-
-// motors
-static MotorDir g_motor_dir[SPI_MOCK_MAX_MOTORS];
-static uint32_t g_motor_cmd[SPI_MOCK_MAX_MOTORS]; // arbitrary units
-
-// servos
-static ServoMode g_servo_mode[SPI_MOCK_MAX_SERVOS];
-static uint16_t g_servo_pos[SPI_MOCK_MAX_SERVOS]; // 0..2047
-
-// shutdown flags
-static bool g_shutdown_servo = false;
-static bool g_shutdown_motor = false;
-
-// imu, battery
-static float g_gyro[3] = {0};
-static float g_accel[3] = {0};
-static float g_mag[3] = {0};
-static float g_quat[4] = {1.0f, 0.0f, 0.0f, 0.0f};
-static float g_temp_c = 28.0f;
-static float g_batt_v = 12.3f;
-
-// digital/analog
-static uint16_t g_digital = 0x0001; // simple walking 1
-static uint16_t g_analog[SPI_MOCK_MAX_ANALOG];
-
-// -------------------- helpers --------------------
-
-static inline double ts_diff_s(const struct timespec* a, const struct timespec* b)
+namespace wombat
 {
-    return (double)(a->tv_sec - b->tv_sec) + (double)(a->tv_nsec - b->tv_nsec) / 1e9;
-}
-
-static inline uint32_t clamp_u32(uint32_t v, uint32_t lo, uint32_t hi)
-{
-    return v < lo ? lo : (v > hi ? hi : v);
-}
-
-static inline uint16_t clamp_u16(uint16_t v, uint16_t lo, uint16_t hi)
-{
-    return v < lo ? lo : (v > hi ? hi : v);
-}
-
-static inline int idx_ok(uint8_t idx, int maxn)
-{
-    return idx < (uint8_t)maxn;
-}
-
-// -------------------- lifecycle --------------------
-
-bool spi_init(uint32_t speed_hz)
-{
-    (void)speed_hz; // not used in the mock
-
-    memset(g_motor_dir, 0, sizeof(g_motor_dir));
-    memset(g_motor_cmd, 0, sizeof(g_motor_cmd));
-    memset(g_servo_mode, 0, sizeof(g_servo_mode));
-    memset(g_servo_pos, 0, sizeof(g_servo_pos));
-    memset(g_analog, 0, sizeof(g_analog));
-
-    g_shutdown_servo = false;
-    g_shutdown_motor = false;
-
-    g_gyro[0] = g_gyro[1] = g_gyro[2] = 0.0f;
-    g_accel[0] = 0.0f;
-    g_accel[1] = 0.0f;
-    g_accel[2] = 1.0f; // gravity-ish
-    g_mag[0] = 0.3f;
-    g_mag[1] = 0.0f;
-    g_mag[2] = 0.5f;
-    g_quat[0] = 1.0f;
-    g_quat[1] = 0.0f;
-    g_quat[2] = 0.0f;
-    g_quat[3] = 0.0f;
-    g_temp_c = 28.0f;
-    g_batt_v = 12.3f;
-
-    g_digital = 0x0001;
-
-    clock_gettime(CLOCK_MONOTONIC, &g_t0);
-    g_t_last = g_t0;
-    g_last_update_us = 0;
-    g_t_secs = 0.0;
-
-    g_inited = true;
-    return true;
-}
-
-bool spi_update(void)
-{
-    if (!g_inited) return false;
-
-    struct timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-
-    double dt = ts_diff_s(&now, &g_t_last);
-    if (dt < 0) dt = 0;
-    if (dt > 0.2) dt = 0.2; // clamp if app stalls
-
-    g_t_secs += dt;
-    g_last_update_us = (uint32_t)(dt * 1e6);
-    g_t_last = now;
-
-    // IMU: tiny smooth motion
-    const float w = 2.0f * (float)M_PI * 0.2f; // 0.2 Hz
-    float t = (float)g_t_secs;
-
-    g_gyro[0] = 5.0f * sinf(w * t);
-    g_gyro[1] = 3.0f * cosf(w * t * 0.7f);
-    g_gyro[2] = 2.0f * sinf(w * t * 1.3f);
-
-    g_accel[0] = 0.02f * sinf(w * t * 0.5f);
-    g_accel[1] = 0.02f * cosf(w * t * 0.5f);
-    g_accel[2] = 1.00f + 0.01f * sinf(w * t);
-
-    g_mag[0] = 0.30f + 0.05f * sinf(w * t * 0.3f);
-    g_mag[1] = 0.10f + 0.04f * cosf(w * t * 0.4f);
-    g_mag[2] = 0.50f + 0.03f * sinf(w * t * 0.5f);
-
-    // Orientation: smoothly varying quaternion derived from small Euler rotations
-    const float roll = 0.12f * sinf(w * t * 0.8f);
-    const float pitch = 0.10f * cosf(w * t * 0.6f);
-    const float yaw = 0.18f * sinf(w * t * 0.4f);
-
-    const float cr = cosf(roll * 0.5f);
-    const float sr = sinf(roll * 0.5f);
-    const float cp = cosf(pitch * 0.5f);
-    const float sp = sinf(pitch * 0.5f);
-    const float cy = cosf(yaw * 0.5f);
-    const float sy = sinf(yaw * 0.5f);
-
-    g_quat[0] = cr * cp * cy + sr * sp * sy;
-    g_quat[1] = sr * cp * cy - cr * sp * sy;
-    g_quat[2] = cr * sp * cy + sr * cp * sy;
-    g_quat[3] = cr * cp * sy - sr * sp * cy;
-
-    g_temp_c = 28.0f + 0.3f * sinf(w * t * 0.2f);
-
-    // Battery: very slow drift down + tiny ripple
-    g_batt_v -= (float)(dt * 0.0005); // ~0.001 V every 2 s
-    if (g_batt_v < 10.5f) g_batt_v = 12.3f; // wrap
-    g_batt_v += 0.02f * sinf(2.0f * (float)M_PI * 2.0f * t); // 2 Hz ripple
-
-    // Digital: rotate a single '1' bit
-    g_digital = (uint16_t)((g_digital << 1) | (g_digital >> 15));
-
-    // Analog: deterministic pattern per index + a small wobble
-    for (int i = 0; i < SPI_MOCK_MAX_ANALOG; ++i)
+    SpiMock::SpiMock(const Configuration::Spi& cfg, std::shared_ptr<Logger> logger)
+        : cfg_(cfg), logger_(std::move(logger))
     {
-        float base = 800.0f + 100.0f * (float)i; // 800, 900, ...
-        float wob = 50.0f * sinf(w * t * (0.6f + 0.1f * (float)i));
-        int val = (int)(base + wob);
-        if (val < 0) val = 0;
-        if (val > 4095) val = 4095;
-        g_analog[i] = (uint16_t)val;
     }
 
-    return true;
-}
-
-void set_spi_mode(bool on)
-{
-    g_spi_mode = on; // no-op in mock
-}
-
-bool spi_force_update(void)
-{
-    return spi_update();
-}
-
-void spi_close(void)
-{
-    g_inited = false;
-}
-
-// -------------------- setters (TX) --------------------
-
-void set_shutdown_flag(uint8_t bit, bool value)
-{
-    switch (bit)
+    Result<void> SpiMock::initialize()
     {
-    case SHUTDOWN_SERVO_FLAG: g_shutdown_servo = value;
-        break;
-    case SHUTDOWN_MOTOR_FLAG: g_shutdown_motor = value;
-        break;
-    default: /* ignore */ break;
+        lastUpdateTime_ = std::chrono::steady_clock::now();
+        elapsedSecs_ = 0.0;
+        initialized_ = true;
+        if (logger_) logger_->info("SPI Mock initialized");
+        return Result<void>::success();
     }
-}
 
-void set_motor(const uint8_t port, const MotorDir dir, const uint32_t value)
-{
-    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return;
-    g_motor_dir[port] = dir;
-    g_motor_cmd[port] = value;
-}
+    Result<void> SpiMock::shutdown()
+    {
+        initialized_ = false;
+        if (logger_) logger_->info("SPI Mock shut down");
+        return Result<void>::success();
+    }
 
-void set_motor_velocity(uint8_t port, int32_t velocity)
-{
-    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return;
-    g_motor_dir[port] = (velocity >= 0) ? MOTOR_DIR_CW : MOTOR_DIR_CCW;
-    g_motor_cmd[port] = (uint32_t)abs(velocity);
-}
+    Result<void> SpiMock::forceUpdate()
+    {
+        // Just trigger a sensor read cycle in mock mode
+        return Result<void>::success();
+    }
 
-void set_motor_position(uint8_t port, int32_t velocity, int32_t goal_position)
-{
-    (void)goal_position;
-    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return;
-    g_motor_dir[port] = (velocity >= 0) ? MOTOR_DIR_CW : MOTOR_DIR_CCW;
-    g_motor_cmd[port] = (uint32_t)abs(velocity);
-}
+    Result<SensorData> SpiMock::readSensorData()
+    {
+        if (!initialized_) return Result<SensorData>::failure("SPI Mock not initialized");
 
-void set_motor_relative(uint8_t port, int32_t velocity, int32_t delta_position)
-{
-    (void)delta_position;
-    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return;
-    g_motor_dir[port] = (velocity >= 0) ? MOTOR_DIR_CW : MOTOR_DIR_CCW;
-    g_motor_cmd[port] = (uint32_t)abs(velocity);
-}
+        auto now = std::chrono::steady_clock::now();
+        double dt = std::chrono::duration<double>(now - lastUpdateTime_).count();
+        if (dt < 0) dt = 0;
+        if (dt > 0.2) dt = 0.2; // clamp if app stalls
+        elapsedSecs_ += dt;
+        lastUpdateTime_ = now;
 
-void set_servo_mode(uint8_t port, ServoMode mode)
-{
-    if (!idx_ok(port, SPI_MOCK_MAX_SERVOS)) return;
-    g_servo_mode[port] = mode;
-}
+        const float w = 2.0f * static_cast<float>(M_PI) * 0.2f; // 0.2 Hz
+        const float t = static_cast<float>(elapsedSecs_);
 
-void set_servo_pos(uint8_t port, uint16_t raw /* 0-2047 */)
-{
-    if (!idx_ok(port, SPI_MOCK_MAX_SERVOS)) return;
-    g_servo_pos[port] = clamp_u16(raw, 0, 2047);
-}
+        SensorData d{};
 
-// -------------------- getters (RX) --------------------
+        // Gyro
+        d.gyro.x = 5.0f * sinf(w * t);
+        d.gyro.y = 3.0f * cosf(w * t * 0.7f);
+        d.gyro.z = 2.0f * sinf(w * t * 1.3f);
 
-uint16_t get_servo_pos(uint8_t port)
-{
-    if (!idx_ok(port, SPI_MOCK_MAX_SERVOS)) return 0;
-    // If servo shutdown is set or mode is disabled, just report 0
-    if (g_shutdown_servo || g_servo_mode[port] != SERVO_MODE_ENABLED)
-        return 0;
-    // Tiny +/-1 jitter to look alive, driven by g_t_secs
-    int jitter = ((int)(g_t_secs * 1000.0) + port) % 3 - 1; // -1..+1
-    int v = (int)g_servo_pos[port] + jitter;
-    return (uint16_t)clamp_u16((uint16_t)(v < 0 ? 0 : v), 0, 2047);
-}
+        // Accelerometer
+        d.accelerometer.x = 0.02f * sinf(w * t * 0.5f);
+        d.accelerometer.y = 0.02f * cosf(w * t * 0.5f);
+        d.accelerometer.z = 1.00f + 0.01f * sinf(w * t);
 
-uint32_t last_update_us(void)
-{
-    return g_last_update_us;
-}
+        // Magnetometer
+        d.magnetometer.x = 0.30f + 0.05f * sinf(w * t * 0.3f);
+        d.magnetometer.y = 0.10f + 0.04f * cosf(w * t * 0.4f);
+        d.magnetometer.z = 0.50f + 0.03f * sinf(w * t * 0.5f);
 
-// IMU
-float gyroX(void) { return g_gyro[0]; }
-float gyroY(void) { return g_gyro[1]; }
-float gyroZ(void) { return g_gyro[2]; }
+        // Linear acceleration (gravity removed)
+        d.linearAcceleration.x = d.accelerometer.x;
+        d.linearAcceleration.y = d.accelerometer.y;
+        d.linearAcceleration.z = d.accelerometer.z - 1.0f;
 
-float accelX(void) { return g_accel[0]; }
-float accelY(void) { return g_accel[1]; }
-float accelZ(void) { return g_accel[2]; }
+        // Orientation: smoothly varying quaternion from small Euler rotations
+        const float roll = 0.12f * sinf(w * t * 0.8f);
+        const float pitch = 0.10f * cosf(w * t * 0.6f);
+        const float yaw = 0.18f * sinf(w * t * 0.4f);
 
-float magX(void) { return g_mag[0]; }
-float magY(void) { return g_mag[1]; }
-float magZ(void) { return g_mag[2]; }
+        const float cr = cosf(roll * 0.5f);
+        const float sr = sinf(roll * 0.5f);
+        const float cp = cosf(pitch * 0.5f);
+        const float sp = sinf(pitch * 0.5f);
+        const float cy = cosf(yaw * 0.5f);
+        const float sy = sinf(yaw * 0.5f);
 
-float quatX(void) { return g_quat[1]; }
-float quatY(void) { return g_quat[2]; }
-float quatZ(void) { return g_quat[3]; }
-float quatW(void) { return g_quat[0]; }
+        d.orientation.w = cr * cp * cy + sr * sp * sy;
+        d.orientation.x = sr * cp * cy - cr * sp * sy;
+        d.orientation.y = cr * sp * cy + sr * cp * sy;
+        d.orientation.z = cr * cp * sy - sr * sp * cy;
 
-float linearAccelX(void) { return g_accel[0]; }
-float linearAccelY(void) { return g_accel[1]; }
-float linearAccelZ(void) { return g_accel[2] - 1.0f; }
-int8_t linear_accel_accuracy(void) { return 3; }
+        // IMU accuracy (mock: calibrated)
+        d.accuracy.gyro = 3;
+        d.accuracy.accelerometer = 3;
+        d.accuracy.linearAcceleration = 3;
+        d.accuracy.compass = 3;
+        d.accuracy.quaternion = 3;
 
-float imuTemperature(void) { return g_temp_c; }
+        // Temperature
+        d.temperature = 28.0f + 0.3f * sinf(w * t * 0.2f);
 
-// Motors → back-EMF (toy model)
-int32_t bemf(uint8_t mot)
-{
-    if (!idx_ok(mot, SPI_MOCK_MAX_MOTORS)) return 0;
-    if (g_shutdown_motor || g_motor_dir[mot] == MOTOR_DIR_OFF) return 0;
+        // Battery: slow drift + ripple
+        static float batteryV = 12.3f;
+        batteryV -= static_cast<float>(dt * 0.0005);
+        if (batteryV < 10.5f) batteryV = 12.3f;
+        d.batteryVoltage = batteryV + 0.02f * sinf(2.0f * static_cast<float>(M_PI) * 2.0f * t);
 
-    int sign = (g_motor_dir[mot] == MOTOR_DIR_CCW) ? -1 : +1;
-    // crude scaling to keep values small-ish
-    int32_t v = (int32_t)(g_motor_cmd[mot] / 4u);
-    return sign * v;
-}
+        // Analog: deterministic pattern per index + wobble
+        for (uint8_t i = 0; i < MAX_ANALOG_PORTS; ++i)
+        {
+            float base = 800.0f + 100.0f * static_cast<float>(i);
+            float wob = 50.0f * sinf(w * t * (0.6f + 0.1f * static_cast<float>(i)));
+            int val = static_cast<int>(base + wob);
+            if (val < 0) val = 0;
+            if (val > 4095) val = 4095;
+            d.analogValues[i] = static_cast<uint16_t>(val);
+        }
 
-int32_t get_motor_position(uint8_t port)
-{
-    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return 0;
-    // Simulate a simple position accumulator based on motor command
-    return (int32_t)g_motor_cmd[port] * ((g_motor_dir[port] == MOTOR_DIR_CCW) ? -1 : 1);
-}
+        // Digital: rotating single '1' bit
+        static uint16_t digitalBits = 0x0001;
+        digitalBits = static_cast<uint16_t>((digitalBits << 1) | (digitalBits >> 15));
+        d.digitalBits = digitalBits;
 
-uint8_t get_motor_done(void)
-{
-    // In mock mode, all motors report done (all bits set)
-    return 0x0F;
-}
+        d.lastUpdate = static_cast<uint32_t>(dt * 1e6);
 
-// IO
-uint16_t analog_in(uint8_t idx)
-{
-    if (!idx_ok(idx, SPI_MOCK_MAX_ANALOG)) return 0;
-    return g_analog[idx];
-}
+        // Update motor BEMF and position from mock state
+        for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
+        {
+            // Back EMF: toy model proportional to motor speed
+            int32_t rawBemf = 0;
+            if (motors_[i].direction != MotorDirection::Off)
+            {
+                int sign = (motors_[i].direction == MotorDirection::CounterClockwise) ? -1 : 1;
+                rawBemf = sign * static_cast<int32_t>(motors_[i].speed / 4u);
+            }
+            motors_[i].backEmf = rawBemf - bemfOffsets_[i];
 
-uint16_t digital_raw(void)
-{
-    return g_digital;
-}
+            // Position: simple mock based on speed and direction
+            int32_t posSign = (motors_[i].direction == MotorDirection::CounterClockwise) ? -1 : 1;
+            motors_[i].position = static_cast<int32_t>(motors_[i].speed) * posSign;
 
-bool digital(uint8_t bit)
-{
-    if (bit >= 16) return false;
-    return (g_digital >> bit) & 0x1;
-}
+            // All motors report done in mock mode
+            motors_[i].done = true;
+        }
 
-float battery_voltage(void)
-{
-    return g_batt_v;
-}
+        return Result<SensorData>::success(d);
+    }
 
-// Accuracy (mock returns fixed values indicating "calibrated")
-int8_t gyro_accuracy(void) { return 3; }
-int8_t accel_accuracy(void) { return 3; }
-int8_t compass_accuracy(void) { return 3; }
-int8_t quaternion_accuracy(void) { return 3; }
+    Result<void> SpiMock::setMotorState(PortId port, const MotorState& st)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        st.backEmf = motors_[port].backEmf;
+        motors_[port] = st;
+        return Result<void>::success();
+    }
 
-// BEMF calibration (mock - just stores values)
-static float g_bemf_scale[SPI_MOCK_MAX_MOTORS] = {1.0f, 1.0f, 1.0f, 1.0f};
-static float g_bemf_offset[SPI_MOCK_MAX_MOTORS] = {0.0f, 0.0f, 0.0f, 0.0f};
-static int16_t g_bemf_nominal_voltage = 3000;
+    Result<void> SpiMock::setMotorVelocity(PortId port, int32_t velocity)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        motors_[port].controlMode = MotorControlMode::MoveAtVelocity;
+        motors_[port].direction = (velocity >= 0) ? MotorDirection::Clockwise : MotorDirection::CounterClockwise;
+        motors_[port].speed = static_cast<MotorSpeed>(std::abs(velocity));
+        return Result<void>::success();
+    }
 
-void set_bemf_scale(uint8_t port, float scale)
-{
-    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return;
-    g_bemf_scale[port] = scale;
-}
+    Result<void> SpiMock::setMotorPosition(PortId port, int32_t velocity, int32_t /*goalPosition*/)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        motors_[port].controlMode = MotorControlMode::MoveToPosition;
+        motors_[port].direction = (velocity >= 0) ? MotorDirection::Clockwise : MotorDirection::CounterClockwise;
+        motors_[port].speed = static_cast<MotorSpeed>(std::abs(velocity));
+        return Result<void>::success();
+    }
 
-void set_bemf_offset(uint8_t port, float offset)
-{
-    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return;
-    g_bemf_offset[port] = offset;
-}
+    Result<void> SpiMock::setMotorRelative(PortId port, int32_t velocity, int32_t /*deltaPosition*/)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        motors_[port].controlMode = MotorControlMode::MoveRelativePosition;
+        motors_[port].direction = (velocity >= 0) ? MotorDirection::Clockwise : MotorDirection::CounterClockwise;
+        motors_[port].speed = static_cast<MotorSpeed>(std::abs(velocity));
+        return Result<void>::success();
+    }
 
-void set_bemf_nominal_voltage(int16_t adc_value)
-{
-    g_bemf_nominal_voltage = adc_value;
-}
+    Result<int32_t> SpiMock::getMotorPosition(PortId port)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<int32_t>::failure("motor port out of range");
+        return Result<int32_t>::success(motors_[port].position);
+    }
 
-// Motor PID (mock - just stores values)
-static float g_motor_pid_kp[SPI_MOCK_MAX_MOTORS] = {1.0f, 1.0f, 1.0f, 1.0f};
-static float g_motor_pid_ki[SPI_MOCK_MAX_MOTORS] = {0.0f, 0.0f, 0.0f, 0.0f};
-static float g_motor_pid_kd[SPI_MOCK_MAX_MOTORS] = {0.0f, 0.0f, 0.0f, 0.0f};
+    Result<uint8_t> SpiMock::getMotorDone()
+    {
+        return Result<uint8_t>::success(0x0F); // All motors done
+    }
 
-void set_motor_pid(uint8_t port, float kp, float ki, float kd)
-{
-    if (!idx_ok(port, SPI_MOCK_MAX_MOTORS)) return;
-    g_motor_pid_kp[port] = kp;
-    g_motor_pid_ki[port] = ki;
-    g_motor_pid_kd[port] = kd;
+    Result<MotorState> SpiMock::getMotorState(PortId port) const
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<MotorState>::failure("motor port out of range");
+        return Result<MotorState>::success(motors_[port]);
+    }
+
+    Result<void> SpiMock::setServoState(PortId port, const ServoState& st)
+    {
+        if (port >= MAX_SERVO_PORTS) return Result<void>::failure("servo port out of range");
+        servos_[port] = st;
+        return Result<void>::success();
+    }
+
+    Result<ServoState> SpiMock::getServoState(PortId port) const
+    {
+        if (port >= MAX_SERVO_PORTS) return Result<ServoState>::failure("servo port out of range");
+        return Result<ServoState>::success(servos_[port]);
+    }
+
+    Result<void> SpiMock::resetBemfSum(PortId port)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        const auto rawValue = motors_[port].backEmf + bemfOffsets_[port];
+        bemfOffsets_[port] = rawValue;
+        motors_[port].backEmf = 0;
+        return Result<void>::success();
+    }
+
+    Result<void> SpiMock::setMotorPid(PortId port, float /*kp*/, float /*ki*/, float /*kd*/)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        // Mock: just store, no actual PID control
+        return Result<void>::success();
+    }
+
+    Result<void> SpiMock::setBemfScale(PortId port, float /*scale*/)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        return Result<void>::success();
+    }
+
+    Result<void> SpiMock::setBemfOffset(PortId port, float /*offset*/)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        return Result<void>::success();
+    }
+
+    Result<void> SpiMock::setBemfNominalVoltage(int16_t /*adcValue*/)
+    {
+        return Result<void>::success();
+    }
+
+    Result<void> SpiMock::setShutdown(bool enabled)
+    {
+        if (logger_) logger_->info("SPI Mock: Shutdown " + std::string(enabled ? "enabled" : "disabled"));
+        return Result<void>::success();
+    }
 }

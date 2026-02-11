@@ -3,57 +3,57 @@
 //
 #pragma once
 
-#include "wombat/core/Types.h"
+#include "wombat/core/DeviceTypes.h"
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
-#include "wombat/hardware/Spi.hpp"
+#include "wombat/hardware/ISpi.h"
 #include <memory>
 #include <array>
 #include <atomic>
 
-namespace wombat {
+namespace wombat
+{
+    class DeviceController
+    {
+    public:
+        DeviceController(std::unique_ptr<ISpi> spi, std::shared_ptr<Logger> logger);
+        ~DeviceController();
 
-class DeviceController {
-public:
-    DeviceController(std::unique_ptr<Spi> spi, std::shared_ptr<Logger> logger);
-    ~DeviceController();
+        Result<void> initialize();
+        Result<void> shutdown();
+        Result<void> processUpdate();
 
-    Result<void> initialize();
-    Result<void> shutdown();
-    Result<void> processUpdate();
+        Result<void> setMotorCommand(PortId port, MotorDirection direction, MotorSpeed speed);
+        Result<void> setMotorVelocity(PortId port, int32_t velocity);
+        Result<void> setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition);
+        Result<void> setMotorRelative(PortId port, int32_t velocity, int32_t deltaPosition);
+        Result<int32_t> getMotorPosition(PortId port) const;
+        Result<uint8_t> getMotorDone() const;
+        Result<void> setServoCommand(PortId port, ServoPosition position);
+        Result<void> setServoMode(PortId port, ServoMode mode);
+        Result<void> resetBemfSum(PortId port);
+        Result<void> setBemfScale(PortId port, float scale);
+        Result<void> setBemfOffset(PortId port, float offset);
+        Result<void> setBemfNominalVoltage(int16_t adcValue);
+        Result<void> setMotorPid(PortId port, float kp, float ki, float kd);
 
-    Result<void> setMotorCommand(PortId port, MotorDirection direction, MotorSpeed speed);
-    Result<void> setMotorVelocity(PortId port, int32_t velocity);
-    Result<void> setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition);
-    Result<void> setMotorRelative(PortId port, int32_t velocity, int32_t deltaPosition);
-    Result<int32_t> getMotorPosition(PortId port) const;
-    Result<uint8_t> getMotorDone() const;
-    Result<void> setServoCommand(PortId port, ServoPosition position);
-    Result<void> setServoMode(PortId port, ServoMode mode);
-    Result<void> resetBemfSum(PortId port);
-    Result<void> setBemfScale(PortId port, float scale);
-    Result<void> setBemfOffset(PortId port, float offset);
-    Result<void> setBemfNominalVoltage(int16_t adcValue);
-    Result<void> setMotorPid(PortId port, float kp, float ki, float kd);
+        Result<SensorData> getCurrentSensorData() const;
+        Result<MotorState> getMotorState(PortId port) const;
+        Result<ServoState> getServoState(PortId port) const;
 
-    Result<SensorData> getCurrentSensorData() const;
-    Result<MotorState> getMotorState(PortId port) const;
-    Result<ServoState> getServoState(PortId port) const;
+        // STM32 shutdown flag - disables motors and servos at firmware level
+        Result<void> setShutdown(bool enabled);
 
-    // STM32 shutdown flag - disables motors and servos at firmware level
-    Result<void> setShutdown(bool enabled);
+    private:
+        std::unique_ptr<ISpi> spi_;
+        std::shared_ptr<Logger> logger_;
 
-private:
-    std::unique_ptr<Spi> spi_;
-    std::shared_ptr<Logger> logger_;
+        std::array<std::atomic<MotorSpeed>, MAX_MOTOR_PORTS> motorCommands_{};
+        std::array<std::atomic<ServoPosition>, MAX_SERVO_PORTS> servoCommands_{};
 
-    std::array<std::atomic<MotorSpeed>, MAX_MOTOR_PORTS> motorCommands_{};
-    std::array<std::atomic<ServoPosition>, MAX_SERVO_PORTS> servoCommands_{};
+        SensorData lastSensorData_{};
+        bool isInitialized_{false};
 
-    SensorData lastSensorData_{};
-    bool isInitialized_{false};
-
-    [[nodiscard]] Result<void> validatePortId(PortId port, PortId maxPort) const;
-};
-
+        [[nodiscard]] Result<void> validatePortId(PortId port, PortId maxPort) const;
+    };
 } // namespace wombat

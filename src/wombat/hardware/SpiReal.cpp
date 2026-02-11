@@ -1,0 +1,268 @@
+#include "wombat/hardware/SpiReal.h"
+#include <algorithm>
+#include <string>
+
+// C API
+extern "C" {
+#include "wombat/hardware/Spi.h"
+}
+
+namespace wombat
+{
+    SpiReal::SpiReal(const Configuration::Spi& cfg, std::shared_ptr<Logger> logger)
+        : cfg_(cfg), logger_(std::move(logger))
+    {
+    }
+
+    Result<void> SpiReal::initialize()
+    {
+        if (!spi_init(cfg_.speedHz))
+        {
+            return Result<void>::failure("spi_init() failed");
+        }
+        set_spi_mode(true);
+        return Result<void>::success();
+    }
+
+    Result<void> SpiReal::shutdown()
+    {
+        set_spi_mode(false);
+        spi_close();
+        return Result<void>::success();
+    }
+
+    Result<void> SpiReal::forceUpdate()
+    {
+        if (!spi_force_update()) return Result<void>::failure("spi_force_update() failed");
+        return Result<void>::success();
+    }
+
+    Result<SensorData> SpiReal::readSensorData()
+    {
+        SensorData d{};
+        if (!spi_update()) return Result<SensorData>::failure("spi_update() failed");
+
+        d.gyro.x = gyroX();
+        d.gyro.y = gyroY();
+        d.gyro.z = gyroZ();
+        if (logger_) logger_->debug(
+            "SPI: Read gyro -> x=" + std::to_string(d.gyro.x) + ", y=" + std::to_string(d.gyro.y) + ", z=" +
+            std::to_string(d.gyro.z));
+
+        d.accelerometer.x = accelX();
+        d.accelerometer.y = accelY();
+        d.accelerometer.z = accelZ();
+        if (logger_) logger_->debug(
+            "SPI: Read accelerometer -> x=" + std::to_string(d.accelerometer.x) + ", y=" +
+            std::to_string(d.accelerometer.y) + ", z=" + std::to_string(d.accelerometer.z));
+
+        d.magnetometer.x = magX();
+        d.magnetometer.y = magY();
+        d.magnetometer.z = magZ();
+        if (logger_) logger_->debug(
+            "SPI: Read magnetometer -> x=" + std::to_string(d.magnetometer.x) + ", y=" +
+            std::to_string(d.magnetometer.y) + ", z=" + std::to_string(d.magnetometer.z));
+
+        d.linearAcceleration.x = linearAccelX();
+        d.linearAcceleration.y = linearAccelY();
+        d.linearAcceleration.z = linearAccelZ();
+        if (logger_) logger_->debug(
+            "SPI: Read linear accel -> x=" + std::to_string(d.linearAcceleration.x) + ", y=" +
+            std::to_string(d.linearAcceleration.y) + ", z=" + std::to_string(d.linearAcceleration.z));
+
+        d.orientation.w = quatW();
+        d.orientation.x = quatX();
+        d.orientation.y = quatY();
+        d.orientation.z = quatZ();
+        if (logger_) logger_->debug(
+            "SPI: Read orientation quat -> w=" + std::to_string(d.orientation.w) + ", x=" +
+            std::to_string(d.orientation.x) + ", y=" + std::to_string(d.orientation.y) + ", z=" + std::to_string(
+                d.orientation.z));
+
+        d.accuracy.gyro = gyro_accuracy();
+        d.accuracy.accelerometer = accel_accuracy();
+        d.accuracy.linearAcceleration = linear_accel_accuracy();
+        d.accuracy.compass = compass_accuracy();
+        d.accuracy.quaternion = quaternion_accuracy();
+        d.temperature = imuTemperature();
+        if (logger_) logger_->debug("SPI: Read IMU temperature -> " + std::to_string(d.temperature));
+
+        d.batteryVoltage = battery_voltage();
+        if (logger_) logger_->debug("SPI: Read battery voltage -> " + std::to_string(d.batteryVoltage));
+
+        for (uint8_t i = 0; i < 6; ++i) d.analogValues[i] = analog_in(i);
+        if (logger_)
+        {
+            std::string analogStr = "";
+            for (uint8_t i = 0; i < 6; ++i)
+            {
+                analogStr += (i == 0 ? "" : ", ") + std::to_string(d.analogValues[i]);
+            }
+            logger_->debug("SPI: Read analog inputs -> [" + analogStr + "]");
+        }
+
+        d.digitalBits = digital_raw();
+        if (logger_) logger_->debug("SPI: Read digital bits -> 0x" + std::to_string(d.digitalBits));
+
+        d.lastUpdate = last_update_us();
+        if (logger_) logger_->debug("SPI: Read last update timestamp -> " + std::to_string(d.lastUpdate));
+
+        const uint8_t doneFlags = get_motor_done();
+        for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
+        {
+            const auto rawValue = bemf(i);
+            motors_[i].backEmf = rawValue - bemfOffsets_[i];
+            motors_[i].position = get_motor_position(i);
+            motors_[i].done = (doneFlags & (1u << i)) != 0;
+            if (logger_) logger_->debug(
+                "SPI: Read BEMF motor " + std::to_string(i) + " -> raw=" + std::to_string(rawValue) + ", offset=" +
+                std::to_string(bemfOffsets_[i]) + ", corrected=" + std::to_string(motors_[i].backEmf));
+        }
+        return Result<SensorData>::success(d);
+    }
+
+    Result<void> SpiReal::setMotorState(PortId port, const MotorState& st)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        MotorDir dir = MOTOR_DIR_OFF;
+        switch (st.direction)
+        {
+        case MotorDirection::Off: dir = MOTOR_DIR_OFF;
+            break;
+        case MotorDirection::CounterClockwise: dir = MOTOR_DIR_CCW;
+            break;
+        case MotorDirection::Clockwise: dir = MOTOR_DIR_CW;
+            break;
+        case MotorDirection::Brake: dir = MOTOR_DIR_BRAKE;
+            break;
+        }
+
+        const double percentAbs = std::min(st.speed / 100.0, 1.0);
+
+        uint32_t duty = 0;
+        if (percentAbs > 0.01f)
+        {
+            duty = static_cast<uint32_t>(percentAbs * 400.0f);
+        }
+
+        SPDLOG_TRACE(
+            "SPI setMotorState port={} dir={} duty={}",
+            static_cast<int>(port),
+            static_cast<int>(dir),
+            duty);
+        set_motor(port, dir, duty);
+        st.backEmf = motors_[port].backEmf;
+        motors_[port] = st;
+        return Result<void>::success();
+    }
+
+    Result<void> SpiReal::setMotorVelocity(PortId port, int32_t velocity)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        set_motor_velocity(port, velocity);
+        motors_[port].controlMode = MotorControlMode::MoveAtVelocity;
+        return Result<void>::success();
+    }
+
+    Result<void> SpiReal::setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        set_motor_position(port, velocity, goalPosition);
+        motors_[port].controlMode = MotorControlMode::MoveToPosition;
+        return Result<void>::success();
+    }
+
+    Result<void> SpiReal::setMotorRelative(PortId port, int32_t velocity, int32_t deltaPosition)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        set_motor_relative(port, velocity, deltaPosition);
+        motors_[port].controlMode = MotorControlMode::MoveRelativePosition;
+        return Result<void>::success();
+    }
+
+    Result<int32_t> SpiReal::getMotorPosition(PortId port)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<int32_t>::failure("motor port out of range");
+        return Result<int32_t>::success(get_motor_position(port));
+    }
+
+    Result<uint8_t> SpiReal::getMotorDone()
+    {
+        return Result<uint8_t>::success(get_motor_done());
+    }
+
+    Result<MotorState> SpiReal::getMotorState(PortId port) const
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<MotorState>::failure("motor port out of range");
+        return Result<MotorState>::success(motors_[port]);
+    }
+
+    Result<void> SpiReal::setServoState(PortId port, const ServoState& st)
+    {
+        if (port >= MAX_SERVO_PORTS) return Result<void>::failure("servo port out of range");
+        ::ServoMode mode = SERVO_MODE_DISABLED;
+        switch (st.mode)
+        {
+        case ServoMode::Disabled: mode = SERVO_MODE_DISABLED;
+            break;
+        case ServoMode::Enabled: mode = SERVO_MODE_ENABLED;
+            break;
+        case ServoMode::FullyDisabled: mode = SERVO_MODE_FULLY_DISABLED;
+            break;
+        }
+        set_servo_mode(port, mode);
+        set_servo_pos(port, st.position);
+        servos_[port] = st;
+        return Result<void>::success();
+    }
+
+    Result<ServoState> SpiReal::getServoState(PortId port) const
+    {
+        if (port >= MAX_SERVO_PORTS) return Result<ServoState>::failure("servo port out of range");
+        return Result<ServoState>::success(servos_[port]);
+    }
+
+    Result<void> SpiReal::resetBemfSum(PortId port)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        const auto rawValue = motors_[port].backEmf + bemfOffsets_[port];
+        bemfOffsets_[port] = rawValue;
+        motors_[port].backEmf = 0;
+        return Result<void>::success();
+    }
+
+    Result<void> SpiReal::setMotorPid(PortId port, float kp, float ki, float kd)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        set_motor_pid(port, kp, ki, kd);
+        return Result<void>::success();
+    }
+
+    Result<void> SpiReal::setBemfScale(PortId port, float scale)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        set_bemf_scale(port, scale);
+        return Result<void>::success();
+    }
+
+    Result<void> SpiReal::setBemfOffset(PortId port, float offset)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        set_bemf_offset(port, offset);
+        return Result<void>::success();
+    }
+
+    Result<void> SpiReal::setBemfNominalVoltage(int16_t adcValue)
+    {
+        set_bemf_nominal_voltage(adcValue);
+        return Result<void>::success();
+    }
+
+    Result<void> SpiReal::setShutdown(bool enabled)
+    {
+        set_shutdown_flag(SHUTDOWN_MOTOR_FLAG, enabled);
+        set_shutdown_flag(SHUTDOWN_SERVO_FLAG, enabled);
+        if (logger_) logger_->info("SPI: Shutdown " + std::string(enabled ? "enabled" : "disabled"));
+        return Result<void>::success();
+    }
+}

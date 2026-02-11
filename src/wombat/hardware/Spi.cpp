@@ -36,8 +36,8 @@ typedef struct
 {
     int fd;
     struct spi_ioc_transfer tr;
-    RxBuffer tx;  // What we send to STM32 (commands)
-    TxBuffer rx;  // What we receive from STM32 (sensor data)
+    RxBuffer tx; // What we send to STM32 (commands)
+    TxBuffer rx; // What we receive from STM32 (sensor data)
     uint32_t speed_hz;
     uint64_t last_call_ms;
 } SpiCtx;
@@ -107,8 +107,24 @@ static bool spi_reopen(void)
 
 static bool spi_do_transfer(void)
 {
+    const uint32_t pending_updates = ctx.tx.updates;
+    struct timespec ts_before, ts_after;
+    if (pending_updates & PI_BUFFER_UPDATE_MOTOR_CMD)
+        clock_gettime(CLOCK_MONOTONIC, &ts_before);
+
     if (ioctl(ctx.fd, SPI_IOC_MESSAGE(1), &ctx.tr) < 0)
         return false;
+
+    if (pending_updates & PI_BUFFER_UPDATE_MOTOR_CMD)
+    {
+        clock_gettime(CLOCK_MONOTONIC, &ts_after);
+        const long elapsed_us = (ts_after.tv_sec - ts_before.tv_sec) * 1000000L
+            + (ts_after.tv_nsec - ts_before.tv_nsec) / 1000L;
+        const uint32_t stm_time = ctx.rx.updateTime;
+        SPDLOG_INFO("[TIMING] spi_ioctl motor_cmd elapsed_us={} stm32_update_us={}",
+                    elapsed_us, stm_time);
+    }
+
     // Clear update flags after transmission so subsequent sensor-only
     // transfers don't re-trigger actuator updates on the STM32
     ctx.tx.updates = 0;
@@ -118,7 +134,9 @@ static bool spi_do_transfer(void)
 bool spi_init(uint32_t speed_hz)
 {
     ctx.speed_hz = speed_hz;
+#if SPI_MINIMUM_UPDATE_DELAY_MS > 0
     ctx.last_call_ms = now_ms() - SPI_MINIMUM_UPDATE_DELAY_MS;
+#endif
     return spi_reopen();
 }
 
@@ -137,11 +155,12 @@ bool spi_update(void)
     if (ctx.fd < 0)
         return false;
 
+#if SPI_MINIMUM_UPDATE_DELAY_MS > 0
     uint64_t now = now_ms();
     if (now - ctx.last_call_ms < SPI_MINIMUM_UPDATE_DELAY_MS)
         return ctx.rx.transferVersion == TRANSFER_VERSION;
-
     ctx.last_call_ms = now;
+#endif
 
     const int max_tries = 3;
     for (int t = 0; t < max_tries; ++t)
