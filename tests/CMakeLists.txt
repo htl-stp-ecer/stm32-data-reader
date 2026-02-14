@@ -4,6 +4,7 @@ add_executable(wombat_tests
         DeviceControllerTest.cpp
         SpiMockTest.cpp
         DataPublisherTest.cpp
+        ${CMAKE_SOURCE_DIR}/${TEST_SPI_SOURCE}
 )
 
 target_include_directories(wombat_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

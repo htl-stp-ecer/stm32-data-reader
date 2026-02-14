@@ -71,6 +71,9 @@ else ()
     set(SPI_SOURCE src/wombat/hardware/Spi.cpp src/wombat/hardware/SpiReal.cpp)
 endif ()
 
+# SpiMock is always needed for tests
+set(TEST_SPI_SOURCE src/wombat/hardware/SpiMock.cpp)
+
 # ---------- Static library for tests ----------
 add_library(wombat_lib STATIC
         ${CORE_SOURCES}
