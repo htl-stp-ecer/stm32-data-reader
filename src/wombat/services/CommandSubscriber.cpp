@@ -18,7 +18,7 @@ namespace wombat
     Result<void> CommandSubscriber::subscribeForPorts(
         PortId maxPorts,
         std::function<std::string(PortId)> channelFn,
-        std::function<void(PortId, const MsgT&)> handler,
+        std::function<void(PortId, const MsgT &)> handler,
         const std::string& description)
     {
         for (PortId i = 0; i < maxPorts; ++i)
@@ -95,7 +95,8 @@ namespace wombat
         if (r.isFailure()) return r;
 
         // BEMF nominal voltage (single channel)
-        logger_->info("Subscribing to BEMF nominal voltage command channel: " + std::string(Channels::BEMF_NOMINAL_VOLTAGE_CMD));
+        logger_->info(
+            "Subscribing to BEMF nominal voltage command channel: " + std::string(Channels::BEMF_NOMINAL_VOLTAGE_CMD));
         auto nominalResult = broker_->subscribe<exlcm::scalar_i32_t>(
             Channels::BEMF_NOMINAL_VOLTAGE_CMD,
             [this](const exlcm::scalar_i32_t& cmd) { onBemfNominalVoltageCommand(cmd); }
@@ -200,20 +201,22 @@ namespace wombat
 
         const int32_t powerValue = command.value;
 
-        // When speed is 0, use active braking instead of coasting
-        MotorDirection direction;
-        if (powerValue == 0) {
-            direction = MotorDirection::Brake;
-        } else if (powerValue > 0) {
-            direction = MotorDirection::Clockwise;
-        } else {
-            direction = MotorDirection::CounterClockwise;
-        }
-        const auto speed = static_cast<MotorSpeed>(std::abs(powerValue));
-
         const auto preSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
-        const auto result = deviceController_->setMotorCommand(port, direction, speed);
+
+        Result<void> result = Result<void>::success();
+        if (powerValue == 0)
+        {
+            result = deviceController_->setMotorVelocity(port, 0);
+        }
+        else
+        {
+            const MotorDirection direction = (powerValue > 0)
+                                                 ? MotorDirection::Clockwise
+                                                 : MotorDirection::CounterClockwise;
+            const auto speed = static_cast<MotorSpeed>(std::abs(powerValue));
+            result = deviceController_->setMotorCommand(port, direction, speed);
+        }
         const auto postSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
 
@@ -372,7 +375,8 @@ namespace wombat
             return;
         }
 
-        logger_->info("Received servo position_cmd on port " + std::to_string(port) + ": " + std::to_string(command.value));
+        logger_->info(
+            "Received servo position_cmd on port " + std::to_string(port) + ": " + std::to_string(command.value));
     }
 
     void CommandSubscriber::onServoModeCommand(const PortId port, const exlcm::scalar_i8_t& command)

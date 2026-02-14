@@ -29,7 +29,6 @@
 #define SPI_DEVICE "/dev/spidev0.0"
 #endif
 
-#define SPI_MINIMUM_UPDATE_DELAY_MS 0u
 #define SERVO_MINIMUM_DUTYCYCLE 300u
 
 typedef struct
@@ -39,23 +38,14 @@ typedef struct
     RxBuffer tx; // What we send to STM32 (commands)
     TxBuffer rx; // What we receive from STM32 (sensor data)
     uint32_t speed_hz;
-    uint64_t last_call_ms;
 } SpiCtx;
 
 static SpiCtx ctx = {
     .fd = -1,
     .speed_hz = 20000000,
-    .last_call_ms = 0,
 };
 
 static bool allowUpdates = false;
-
-static inline uint64_t now_ms(void)
-{
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000ULL + ts.tv_nsec / 1000000ULL;
-}
 
 static void reset_stm(void)
 {
@@ -131,12 +121,14 @@ static bool spi_do_transfer(void)
     return ctx.rx.transferVersion == TRANSFER_VERSION;
 }
 
+const TxBuffer* get_rx_buffer(void)
+{
+    return &ctx.rx;
+}
+
 bool spi_init(uint32_t speed_hz)
 {
     ctx.speed_hz = speed_hz;
-#if SPI_MINIMUM_UPDATE_DELAY_MS > 0
-    ctx.last_call_ms = now_ms() - SPI_MINIMUM_UPDATE_DELAY_MS;
-#endif
     return spi_reopen();
 }
 
@@ -154,13 +146,6 @@ bool spi_update(void)
     }
     if (ctx.fd < 0)
         return false;
-
-#if SPI_MINIMUM_UPDATE_DELAY_MS > 0
-    uint64_t now = now_ms();
-    if (now - ctx.last_call_ms < SPI_MINIMUM_UPDATE_DELAY_MS)
-        return ctx.rx.transferVersion == TRANSFER_VERSION;
-    ctx.last_call_ms = now;
-#endif
 
     const int max_tries = 3;
     for (int t = 0; t < max_tries; ++t)
@@ -196,7 +181,6 @@ bool spi_update(void)
 
 bool spi_force_update(void)
 {
-    //usleep(SPI_MINIMUM_UPDATE_DELAY_MS * 1000);
     return spi_update();
 }
 
@@ -238,8 +222,6 @@ void set_motor(uint8_t port, MotorDir dir, uint32_t value)
         return;
     uint8_t newDir = (ctx.tx.motorDirection & ~(0b11u << (port * 2))) | ((uint8_t)dir << (port * 2));
     set_motor_control_mode(port, MOTOR_CTL_PWM);
-    if (ctx.tx.motorDirection == newDir && ctx.tx.motorTarget[port] == (int32_t)value)
-        return;
     ctx.tx.motorDirection = newDir;
     ctx.tx.motorTarget[port] = (int32_t)value;
     ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_CMD;
@@ -287,10 +269,7 @@ void set_servo_mode(uint8_t port, ServoMode mode)
     if (port > 3)
         return;
     uint8_t bitPos = port * 2;
-    uint8_t newServoMode = (ctx.tx.servoMode & ~(0b11u << bitPos)) | (((uint8_t)mode & 0b11u) << bitPos);
-    if (ctx.tx.servoMode == newServoMode)
-        return;
-    ctx.tx.servoMode = newServoMode;
+    ctx.tx.servoMode = (ctx.tx.servoMode & ~(0b11u << bitPos)) | (((uint8_t)mode & 0b11u) << bitPos);
     ctx.tx.updates |= PI_BUFFER_UPDATE_SERVO_CMD;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
@@ -315,8 +294,6 @@ void set_servo_pos(uint8_t port, uint16_t raw)
     if (port > 3)
         return;
     unsigned short val = 1500 + (unsigned short)round(1800.0 * ((double)raw / 2047.0)) - 900;
-    if (ctx.tx.servoPos[port] == val)
-        return;
     ctx.tx.servoPos[port] = val;
     ctx.tx.updates |= PI_BUFFER_UPDATE_SERVO_CMD;
     if (!spi_force_update())

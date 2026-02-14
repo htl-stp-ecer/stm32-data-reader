@@ -14,23 +14,27 @@
 #define PI_BUFFER_UPDATE_MOTOR_CMD 0x02
 #define PI_BUFFER_UPDATE_MOTOR_PID 0x04
 
-typedef struct __attribute__((packed))
+typedef struct __attribute__ ((packed))
 {
     /* --- { x, y, z } --- */
     float data[3];
     /* Accuracy of the measurement from 0 (least accurate) to 3 (most accurate). */
     int8_t accuracy;
-} SensorData;
+}
 
-typedef struct __attribute__((packed))
+SensorData;
+
+typedef struct __attribute__ ((packed))
 {
     /* --- { w, x, y, z } --- */
     float data[4];
     /* Accuracy of the measurement from 0 (least accurate) to 3 (most accurate). */
     int8_t accuracy;
-} QuaternionData;
+}
 
-typedef struct __attribute__((packed))
+QuaternionData;
+
+typedef struct __attribute__ ((packed))
 {
     SensorData gyro;
     SensorData accel;
@@ -38,9 +42,11 @@ typedef struct __attribute__((packed))
     SensorData linearAccel;
     QuaternionData quat;
     float temperature;
-} ImuData;
+}
 
-typedef struct __attribute__((packed))
+ImuData;
+
+typedef struct __attribute__ ((packed)) TxBuffer_tag
 {
     /* --- Version of SPI buffer --- */
     uint8_t transferVersion;
@@ -64,16 +70,20 @@ typedef struct __attribute__((packed))
 
     /* --- IMU DATA --- */
     ImuData imu;
-} TxBuffer;
+}
 
-typedef struct __attribute__((packed))
+TxBuffer;
+
+typedef struct __attribute__ ((packed))
 {
     float Kp;
     float Ki;
     float Kd;
-} BasicPidSettings;
+}
 
-typedef struct __attribute__((packed))
+BasicPidSettings;
+
+typedef struct __attribute__ ((packed))
 {
     //global PID settings
     float limMin;
@@ -84,9 +94,11 @@ typedef struct __attribute__((packed))
 
     //motor specific PID settings
     BasicPidSettings pids[4];
-} MotorPidSettings;
+}
 
-typedef struct __attribute__((packed))
+MotorPidSettings;
+
+typedef struct __attribute__ ((packed))
 {
     /* --- Version of SPI buffer --- */
     uint8_t transferVersion;
@@ -98,13 +110,13 @@ typedef struct __attribute__((packed))
     uint8_t systemShutdown;
 
     /* --- MOTOR DIRECTION --- */
-    uint8_t motorDirection;       // 2 bits per motor: OFF/CCW/CW/BRAKE
+    uint8_t motorDirection; // 2 bits per motor: OFF/CCW/CW/BRAKE
 
     /* --- MOTOR CONTROL MODE --- */
-    uint8_t motorControlMode;     // 2 bits per motor: PWM/MAV/MTP/MRP
+    uint8_t motorControlMode; // 2 bits per motor: PWM/MAV/MTP/MRP
 
     /* --- MOTOR TARGET --- */
-    int32_t motorTarget[4];       // PWM: duty (0-400), MAV: velocity goal, MTP/MRP: velocity setpoint
+    int32_t motorTarget[4]; // PWM: duty (0-400), MAV: velocity goal, MTP/MRP: velocity setpoint
 
     /* --- MOTOR GOAL POSITION (for MTP/MRP modes) --- */
     int32_t motorGoalPosition[4]; // target position in accumulated BEMF ticks
@@ -116,13 +128,15 @@ typedef struct __attribute__((packed))
     /* --- BEMF CALIBRATION (per motor) --- */
     // Formula: calibrated = (raw * batteryScale) * bemfScale + bemfOffset
     // Set bemfScale=1.0 and bemfOffset=0.0 for uncalibrated (default)
-    float bemfScale[4];      // Multiplier per motor (default: 1.0)
-    float bemfOffset[4];     // Offset per motor (default: 0.0)
+    float bemfScale[4]; // Multiplier per motor (default: 1.0)
+    float bemfOffset[4]; // Offset per motor (default: 0.0)
     int16_t nominalVoltageAdc; // Nominal battery voltage in ADC counts (default: 3000)
 
     /* --- MOTOR PID SETTINGS (configurable from Pi) --- */
     MotorPidSettings motorPidSettings;
-} RxBuffer;
+}
+
+RxBuffer;
 
 #define BUFFER_LENGTH_DUPLEX_COMMUNICATION ((sizeof(TxBuffer) < sizeof(RxBuffer)) ? sizeof(RxBuffer) : sizeof(TxBuffer))
 

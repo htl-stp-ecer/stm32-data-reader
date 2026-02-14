@@ -30,15 +30,15 @@ typedef enum
     MOTOR_DIR_OFF = 0,
     MOTOR_DIR_CCW = 1,
     MOTOR_DIR_CW = 2,
-    MOTOR_DIR_BRAKE = 3  /* Active braking - short-circuits motor windings */
+    MOTOR_DIR_BRAKE = 3 /* Active braking - short-circuits motor windings */
 } MotorDir;
 
 typedef enum
 {
-    MOTOR_CTL_PWM = 0,  /* Direct PWM, no PID */
-    MOTOR_CTL_MAV = 1,  /* Move At Velocity - PID velocity control */
-    MOTOR_CTL_MTP = 2,  /* Move To Position - PID position control (absolute) */
-    MOTOR_CTL_MRP = 3   /* Move Relative Position - converted to absolute on STM32 */
+    MOTOR_CTL_PWM = 0, /* Direct PWM, no PID */
+    MOTOR_CTL_MAV = 1, /* Move At Velocity - PID velocity control */
+    MOTOR_CTL_MTP = 2, /* Move To Position - PID position control (absolute) */
+    MOTOR_CTL_MRP = 3 /* Move Relative Position - converted to absolute on STM32 */
 } MotorControlMode;
 
 typedef enum
@@ -71,6 +71,11 @@ void set_motor_pid(uint8_t port, float kp, float ki, float kd);
 void set_bemf_scale(uint8_t port, float scale);
 void set_bemf_offset(uint8_t port, float offset);
 void set_bemf_nominal_voltage(int16_t adc_value);
+
+/* ---------------- bulk read (RX) -------------------- */
+/* Returns pointer to the internal RX buffer (last received data).
+ * Does NOT trigger an SPI transfer – call spi_update() first. */
+const struct TxBuffer_tag* get_rx_buffer(void);
 
 /* ---------------- getters (RX) ---------------------- */
 uint16_t get_servo_pos(uint8_t port);

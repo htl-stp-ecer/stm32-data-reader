@@ -5,6 +5,7 @@
 // C API
 extern "C" {
 #include "wombat/hardware/Spi.h"
+#include "spi/pi_buffer.h"
 }
 
 namespace wombat
@@ -39,84 +40,65 @@ namespace wombat
 
     Result<SensorData> SpiReal::readSensorData()
     {
-        SensorData d{};
+        // Single SPI transfer — read all sensor data at once
         if (!spi_update()) return Result<SensorData>::failure("spi_update() failed");
 
-        d.gyro.x = gyroX();
-        d.gyro.y = gyroY();
-        d.gyro.z = gyroZ();
-        if (logger_) logger_->debug(
-            "SPI: Read gyro -> x=" + std::to_string(d.gyro.x) + ", y=" + std::to_string(d.gyro.y) + ", z=" +
-            std::to_string(d.gyro.z));
+        const auto* rx = get_rx_buffer();
+        SensorData d{};
 
-        d.accelerometer.x = accelX();
-        d.accelerometer.y = accelY();
-        d.accelerometer.z = accelZ();
-        if (logger_) logger_->debug(
-            "SPI: Read accelerometer -> x=" + std::to_string(d.accelerometer.x) + ", y=" +
-            std::to_string(d.accelerometer.y) + ", z=" + std::to_string(d.accelerometer.z));
+        d.gyro.x = rx->imu.gyro.data[0];
+        d.gyro.y = rx->imu.gyro.data[1];
+        d.gyro.z = rx->imu.gyro.data[2];
 
-        d.magnetometer.x = magX();
-        d.magnetometer.y = magY();
-        d.magnetometer.z = magZ();
-        if (logger_) logger_->debug(
-            "SPI: Read magnetometer -> x=" + std::to_string(d.magnetometer.x) + ", y=" +
-            std::to_string(d.magnetometer.y) + ", z=" + std::to_string(d.magnetometer.z));
+        d.accelerometer.x = rx->imu.accel.data[0];
+        d.accelerometer.y = rx->imu.accel.data[1];
+        d.accelerometer.z = rx->imu.accel.data[2];
 
-        d.linearAcceleration.x = linearAccelX();
-        d.linearAcceleration.y = linearAccelY();
-        d.linearAcceleration.z = linearAccelZ();
-        if (logger_) logger_->debug(
-            "SPI: Read linear accel -> x=" + std::to_string(d.linearAcceleration.x) + ", y=" +
-            std::to_string(d.linearAcceleration.y) + ", z=" + std::to_string(d.linearAcceleration.z));
+        d.magnetometer.x = rx->imu.compass.data[0];
+        d.magnetometer.y = rx->imu.compass.data[1];
+        d.magnetometer.z = rx->imu.compass.data[2];
 
-        d.orientation.w = quatW();
-        d.orientation.x = quatX();
-        d.orientation.y = quatY();
-        d.orientation.z = quatZ();
-        if (logger_) logger_->debug(
-            "SPI: Read orientation quat -> w=" + std::to_string(d.orientation.w) + ", x=" +
-            std::to_string(d.orientation.x) + ", y=" + std::to_string(d.orientation.y) + ", z=" + std::to_string(
-                d.orientation.z));
+        d.linearAcceleration.x = rx->imu.linearAccel.data[0];
+        d.linearAcceleration.y = rx->imu.linearAccel.data[1];
+        d.linearAcceleration.z = rx->imu.linearAccel.data[2];
 
-        d.accuracy.gyro = gyro_accuracy();
-        d.accuracy.accelerometer = accel_accuracy();
-        d.accuracy.linearAcceleration = linear_accel_accuracy();
-        d.accuracy.compass = compass_accuracy();
-        d.accuracy.quaternion = quaternion_accuracy();
-        d.temperature = imuTemperature();
-        if (logger_) logger_->debug("SPI: Read IMU temperature -> " + std::to_string(d.temperature));
+        d.orientation.w = rx->imu.quat.data[0];
+        d.orientation.x = rx->imu.quat.data[1];
+        d.orientation.y = rx->imu.quat.data[2];
+        d.orientation.z = rx->imu.quat.data[3];
 
-        d.batteryVoltage = battery_voltage();
-        if (logger_) logger_->debug("SPI: Read battery voltage -> " + std::to_string(d.batteryVoltage));
+        d.accuracy.gyro = rx->imu.gyro.accuracy;
+        d.accuracy.accelerometer = rx->imu.accel.accuracy;
+        d.accuracy.linearAcceleration = rx->imu.linearAccel.accuracy;
+        d.accuracy.compass = rx->imu.compass.accuracy;
+        d.accuracy.quaternion = rx->imu.quat.accuracy;
+        d.temperature = rx->imu.temperature;
 
-        for (uint8_t i = 0; i < 6; ++i) d.analogValues[i] = analog_in(i);
-        if (logger_)
-        {
-            std::string analogStr = "";
-            for (uint8_t i = 0; i < 6; ++i)
-            {
-                analogStr += (i == 0 ? "" : ", ") + std::to_string(d.analogValues[i]);
-            }
-            logger_->debug("SPI: Read analog inputs -> [" + analogStr + "]");
-        }
+        // Battery voltage filtering
+        const float stmVoltage = 3.3f;
+        const float voltageDividerFactor = 11.0f;
+        const float adcResolution = 4096.0f;
+        const float rawVoltage = static_cast<float>(rx->batteryVoltage) * stmVoltage * voltageDividerFactor /
+            adcResolution;
+        constexpr float alpha = 0.0001f;
+        if (filteredBatteryVoltage_ == 0.0f)
+            filteredBatteryVoltage_ = rawVoltage;
+        else
+            filteredBatteryVoltage_ = filteredBatteryVoltage_ * (1.0f - alpha) + rawVoltage * alpha;
+        d.batteryVoltage = filteredBatteryVoltage_;
 
-        d.digitalBits = digital_raw();
-        if (logger_) logger_->debug("SPI: Read digital bits -> 0x" + std::to_string(d.digitalBits));
+        for (uint8_t i = 0; i < 6; ++i)
+            d.analogValues[i] = static_cast<uint16_t>(rx->analogSensor[i]);
 
-        d.lastUpdate = last_update_us();
-        if (logger_) logger_->debug("SPI: Read last update timestamp -> " + std::to_string(d.lastUpdate));
+        d.digitalBits = rx->digitalSensors;
+        d.lastUpdate = rx->updateTime;
 
-        const uint8_t doneFlags = get_motor_done();
+        const uint8_t doneFlags = rx->motorDone;
         for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
         {
-            const auto rawValue = bemf(i);
-            motors_[i].backEmf = rawValue - bemfOffsets_[i];
-            motors_[i].position = get_motor_position(i);
+            motors_[i].backEmf = rx->motorBemf[i] - bemfOffsets_[i];
+            motors_[i].position = rx->motorPosition[i];
             motors_[i].done = (doneFlags & (1u << i)) != 0;
-            if (logger_) logger_->debug(
-                "SPI: Read BEMF motor " + std::to_string(i) + " -> raw=" + std::to_string(rawValue) + ", offset=" +
-                std::to_string(bemfOffsets_[i]) + ", corrected=" + std::to_string(motors_[i].backEmf));
         }
         return Result<SensorData>::success(d);
     }
