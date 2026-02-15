@@ -117,6 +117,7 @@ namespace wombat
         Vector3f accelerometer{};
         Vector3f magnetometer{};
         Vector3f linearAcceleration{};
+        Vector3f accelVelocity{};
         Quaternionf orientation{};
         ImuAccuracy accuracy{};
         float temperature{0.0f};

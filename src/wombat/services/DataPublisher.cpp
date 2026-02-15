@@ -36,6 +36,12 @@ namespace wombat
             logger_->warn("Failed to publish linear acceleration data: " + linAccelResult.error());
         }
 
+        auto accelVelResult = broker_->publish(Channels::ACCEL_VELOCITY, toLcm(data.accelVelocity));
+        if (accelVelResult.isFailure())
+        {
+            logger_->warn("Failed to publish accel velocity data: " + accelVelResult.error());
+        }
+
         auto orientationResult = broker_->publish(Channels::ORIENTATION, toLcm(data.orientation));
         if (orientationResult.isFailure())
         {

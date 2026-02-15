@@ -72,6 +72,11 @@ namespace wombat
         d.linearAcceleration.y = d.accelerometer.y;
         d.linearAcceleration.z = d.accelerometer.z - 1.0f;
 
+        // Accel velocity (mock: small sinusoidal)
+        d.accelVelocity.x = 0.01f * sinf(w * t * 0.3f);
+        d.accelVelocity.y = 0.01f * cosf(w * t * 0.3f);
+        d.accelVelocity.z = 0.0f;
+
         // Orientation: smoothly varying quaternion from small Euler rotations
         const float roll = 0.12f * sinf(w * t * 0.8f);
         const float pitch = 0.10f * cosf(w * t * 0.6f);

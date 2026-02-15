@@ -62,6 +62,10 @@ namespace wombat
         d.linearAcceleration.y = rx->imu.linearAccel.data[1];
         d.linearAcceleration.z = rx->imu.linearAccel.data[2];
 
+        d.accelVelocity.x = rx->imu.accelVelocity.data[0];
+        d.accelVelocity.y = rx->imu.accelVelocity.data[1];
+        d.accelVelocity.z = rx->imu.accelVelocity.data[2];
+
         d.orientation.w = rx->imu.quat.data[0];
         d.orientation.x = rx->imu.quat.data[1];
         d.orientation.y = rx->imu.quat.data[2];

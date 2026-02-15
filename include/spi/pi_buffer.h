@@ -8,7 +8,7 @@
 
 #include <stdint.h>
 
-#define TRANSFER_VERSION 5
+#define TRANSFER_VERSION 6
 
 #define PI_BUFFER_UPDATE_SERVO_CMD 0x01
 #define PI_BUFFER_UPDATE_MOTOR_CMD 0x02
@@ -40,6 +40,7 @@ typedef struct __attribute__ ((packed))
     SensorData accel;
     SensorData compass;
     SensorData linearAccel;
+    SensorData accelVelocity;
     QuaternionData quat;
     float temperature;
 }
