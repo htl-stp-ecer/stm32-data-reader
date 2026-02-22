@@ -52,6 +52,12 @@ namespace wombat
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<exlcm::scalar_i32_t>(
+            MAX_MOTOR_PORTS, Channels::motorStopCommand,
+            [this](PortId p, const exlcm::scalar_i32_t& cmd) { onMotorStopCommand(p, cmd); },
+            "motor stop command");
+        if (r.isFailure()) return r;
+
+        r = subscribeForPorts<exlcm::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorVelocityCommand,
             [this](PortId p, const exlcm::scalar_i32_t& cmd) { onMotorVelocityCommand(p, cmd); },
             "motor velocity command");
@@ -64,24 +70,19 @@ namespace wombat
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<exlcm::vector3f_t>(
-            MAX_MOTOR_PORTS, Channels::motorRelativeCommand,
-            [this](PortId p, const exlcm::vector3f_t& cmd) { onMotorRelativeCommand(p, cmd); },
-            "motor relative command");
-        if (r.isFailure()) return r;
-
-        r = subscribeForPorts<exlcm::vector3f_t>(
             MAX_MOTOR_PORTS, Channels::motorPidCommand,
             [this](PortId p, const exlcm::vector3f_t& cmd) { onMotorPidCommand(p, cmd); },
             "motor PID command");
         if (r.isFailure()) return r;
 
-        // BEMF commands (per-port)
+        // Motor position reset (per-port)
         r = subscribeForPorts<exlcm::scalar_i32_t>(
-            MAX_MOTOR_PORTS, Channels::bemfResetCommand,
-            [this](PortId p, const exlcm::scalar_i32_t& cmd) { onBemfResetCommand(p, cmd); },
-            "BEMF reset command");
+            MAX_MOTOR_PORTS, Channels::motorPositionResetCommand,
+            [this](PortId p, const exlcm::scalar_i32_t& cmd) { onMotorPositionResetCommand(p, cmd); },
+            "motor position reset command");
         if (r.isFailure()) return r;
 
+        // BEMF commands (per-port)
         r = subscribeForPorts<exlcm::scalar_f_t>(
             MAX_MOTOR_PORTS, Channels::bemfScaleCommand,
             [this](PortId p, const exlcm::scalar_f_t& cmd) { onBemfScaleCommand(p, cmd); },
@@ -211,11 +212,11 @@ namespace wombat
         }
         else
         {
-            const MotorDirection direction = (powerValue > 0)
-                                                 ? MotorDirection::Clockwise
-                                                 : MotorDirection::CounterClockwise;
-            const auto speed = static_cast<MotorSpeed>(std::abs(powerValue));
-            result = deviceController_->setMotorCommand(port, direction, speed);
+            // Map percentage (1-100) to duty (1-400), preserving sign for direction
+            const int32_t duty = (powerValue > 0)
+                                     ? static_cast<int32_t>(std::min(powerValue, 100) * 4)
+                                     : static_cast<int32_t>(std::max(powerValue, -100) * 4);
+            result = deviceController_->setMotorPwm(port, duty);
         }
         const auto postSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
@@ -230,6 +231,38 @@ namespace wombat
             + " spi_done_epoch_us=" + std::to_string(postSpiUs)
             + " spi_round_trip_us=" + std::to_string(postSpiUs - preSpiUs)
             + " total_from_send_us=" + std::to_string(postSpiUs - command.timestamp));
+    }
+
+    void CommandSubscriber::onMotorStopCommand(const PortId port, const exlcm::scalar_i32_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received motor stop command while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::motorStopCommand(port), command.timestamp))
+            return;
+
+        // value == 0: coast (OFF), value != 0: passive brake
+        Result<void> result = Result<void>::success();
+        if (command.value == 0)
+        {
+            result = deviceController_->setMotorOff(port);
+        }
+        else
+        {
+            result = deviceController_->setMotorBrake(port);
+        }
+
+        if (result.isFailure())
+        {
+            logger_->error("Failed to stop motor: " + result.error());
+            return;
+        }
+
+        logger_->info("Motor " + std::to_string(port) + " stopped (mode=" +
+            (command.value == 0 ? "off" : "brake") + ")");
     }
 
     void CommandSubscriber::onMotorVelocityCommand(const PortId port, const exlcm::scalar_i32_t& command)
@@ -308,48 +341,6 @@ namespace wombat
         }
 
         logger_->info("[TIMING] position_cmd port=" + std::to_string(port)
-            + " spi_done_epoch_us=" + std::to_string(postSpiUs)
-            + " spi_round_trip_us=" + std::to_string(postSpiUs - preSpiUs)
-            + " total_from_send_us=" + std::to_string(postSpiUs - command.timestamp));
-    }
-
-    void CommandSubscriber::onMotorRelativeCommand(const PortId port, const exlcm::vector3f_t& command)
-    {
-        const auto nowUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-        const auto lcmLatencyUs = nowUs - command.timestamp;
-
-        if (!isInitialized_)
-        {
-            logger_->warn("Received motor relative command while not initialized");
-            return;
-        }
-
-        if (!isTimestampNewer(Channels::motorRelativeCommand(port), command.timestamp))
-            return;
-
-        const int32_t velocity = static_cast<int32_t>(command.x);
-        const int32_t deltaPosition = static_cast<int32_t>(command.y);
-
-        logger_->info("[TIMING] relative_cmd port=" + std::to_string(port)
-            + " velocity=" + std::to_string(velocity) + " delta=" + std::to_string(deltaPosition)
-            + " msg_ts_us=" + std::to_string(command.timestamp)
-            + " recv_epoch_us=" + std::to_string(nowUs)
-            + " lcm_latency_us=" + std::to_string(lcmLatencyUs));
-
-        const auto preSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-        const auto result = deviceController_->setMotorRelative(port, velocity, deltaPosition);
-        const auto postSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set motor relative: " + result.error());
-            return;
-        }
-
-        logger_->info("[TIMING] relative_cmd port=" + std::to_string(port)
             + " spi_done_epoch_us=" + std::to_string(postSpiUs)
             + " spi_round_trip_us=" + std::to_string(postSpiUs - preSpiUs)
             + " total_from_send_us=" + std::to_string(postSpiUs - command.timestamp));
@@ -444,31 +435,31 @@ namespace wombat
         logger_->info("Data dump completed");
     }
 
-    void CommandSubscriber::onBemfResetCommand(const PortId port, const exlcm::scalar_i32_t& command)
+    void CommandSubscriber::onMotorPositionResetCommand(const PortId port, const exlcm::scalar_i32_t& command)
     {
         if (!isInitialized_)
         {
-            logger_->warn("Received BEMF reset command while not initialized");
+            logger_->warn("Received motor position reset command while not initialized");
             return;
         }
 
-        if (!isTimestampNewer(Channels::bemfResetCommand(port), command.timestamp))
+        if (!isTimestampNewer(Channels::motorPositionResetCommand(port), command.timestamp))
             return;
 
         if (command.value == 0)
         {
-            logger_->debug("Ignoring BEMF reset command with zero value for motor " + std::to_string(port));
+            logger_->debug("Ignoring position reset command with zero value for motor " + std::to_string(port));
             return;
         }
 
-        const auto result = deviceController_->resetBemfSum(port);
+        const auto result = deviceController_->resetMotorPosition(port);
         if (result.isFailure())
         {
-            logger_->error("Failed to reset BEMF sum for motor " + std::to_string(port) + ": " + result.error());
+            logger_->error("Failed to reset position for motor " + std::to_string(port) + ": " + result.error());
             return;
         }
 
-        logger_->info("Reset BEMF sum for motor " + std::to_string(port));
+        logger_->info("Reset position for motor " + std::to_string(port));
     }
 
     void CommandSubscriber::onBemfScaleCommand(const PortId port, const exlcm::scalar_f_t& command)
@@ -595,8 +586,6 @@ namespace wombat
             logger_->error("Failed to set shutdown: " + result.error());
             return;
         }
-
-        // Shutdown flag is handled entirely by STM32 firmware - no need for Pi-side device update
 
         // Publish shutdown status so subscribers (like the UI) can react
         // Bitmask: bit 0 = servo shutdown, bit 1 = motor shutdown (both enabled/disabled together)

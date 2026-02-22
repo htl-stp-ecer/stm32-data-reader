@@ -45,11 +45,6 @@ namespace wombat
             return "libstp/bemf/" + std::to_string(port) + "/value";
         }
 
-        inline std::string bemfResetCommand(const PortId port)
-        {
-            return "libstp/bemf/" + std::to_string(port) + "/reset_cmd";
-        }
-
         inline std::string bemfScaleCommand(const PortId port)
         {
             return "libstp/bemf/" + std::to_string(port) + "/scale_cmd";
@@ -92,14 +87,14 @@ namespace wombat
             return "libstp/motor/" + std::to_string(port) + "/position_cmd";
         }
 
-        inline std::string motorRelativeCommand(const PortId port)
-        {
-            return "libstp/motor/" + std::to_string(port) + "/relative_cmd";
-        }
-
         inline std::string motorPidCommand(const PortId port)
         {
             return "libstp/motor/" + std::to_string(port) + "/pid_cmd";
+        }
+
+        inline std::string motorPositionResetCommand(const PortId port)
+        {
+            return "libstp/motor/" + std::to_string(port) + "/position_reset_cmd";
         }
 
         inline std::string motorPosition(const PortId port)

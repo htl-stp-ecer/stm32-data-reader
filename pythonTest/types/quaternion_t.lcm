@@ -1,9 +1,0 @@
-package exlcm;
-
-struct quaternion_t
-{
-    float w;
-    float x;
-    float y;
-    float z;
-}

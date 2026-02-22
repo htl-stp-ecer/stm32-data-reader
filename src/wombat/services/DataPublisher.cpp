@@ -89,8 +89,7 @@ namespace wombat
 
         auto valueResult = broker_->publish(
             Channels::motorPower(port),
-            toLcmScalarI32(
-                static_cast<int32_t>(state.speed * (state.direction == MotorDirection::CounterClockwise ? -1 : 1)))
+            toLcmScalarI32(state.target)
         );
         if (valueResult.isFailure())
         {

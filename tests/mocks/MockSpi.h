@@ -18,13 +18,15 @@ namespace wombat::test
         MOCK_METHOD(Result<SensorData>, readSensorData, (), (override)
         );
 
-        MOCK_METHOD(Result<void>, setMotorState, (PortId port, const MotorState& state), (override)
+        MOCK_METHOD(Result<void>, setMotorOff, (PortId port), (override)
+        );
+        MOCK_METHOD(Result<void>, setMotorBrake, (PortId port), (override)
+        );
+        MOCK_METHOD(Result<void>, setMotorPwm, (PortId port, int32_t duty), (override)
         );
         MOCK_METHOD(Result<void>, setMotorVelocity, (PortId port, int32_t velocity), (override)
         );
         MOCK_METHOD(Result<void>, setMotorPosition, (PortId port, int32_t velocity, int32_t goalPosition), (override)
-        );
-        MOCK_METHOD(Result<void>, setMotorRelative, (PortId port, int32_t velocity, int32_t deltaPosition), (override)
         );
         MOCK_METHOD(Result<int32_t>, getMotorPosition, (PortId port), (override)
         );
@@ -46,7 +48,7 @@ namespace wombat::test
         )
         );
 
-        MOCK_METHOD(Result<void>, resetBemfSum, (PortId port), (override)
+        MOCK_METHOD(Result<void>, resetMotorPosition, (PortId port), (override)
         );
         MOCK_METHOD(Result<void>, setMotorPid, (PortId port, float kp, float ki, float kd), (override)
         );

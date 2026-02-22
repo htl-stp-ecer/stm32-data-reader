@@ -106,9 +106,9 @@ TEST(ImuAccuracyTest, Inequality)
 TEST(MotorStateTest, DefaultValues)
 {
     MotorState m{};
-    EXPECT_EQ(m.direction, MotorDirection::Off);
-    EXPECT_EQ(m.controlMode, MotorControlMode::Pwm);
-    EXPECT_EQ(m.speed, 0u);
+    EXPECT_EQ(m.controlMode, MotorControlMode::Off);
+    EXPECT_EQ(m.target, 0);
+    EXPECT_EQ(m.goalPosition, 0);
     EXPECT_EQ(m.backEmf, 0);
     EXPECT_EQ(m.position, 0);
     EXPECT_FALSE(m.done);

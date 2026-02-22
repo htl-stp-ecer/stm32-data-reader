@@ -85,7 +85,7 @@ TEST_F(DataPublisherTest, PublishSensorDataWithSubscription)
 
 TEST_F(DataPublisherTest, PublishMotorStateSucceeds)
 {
-    MotorState state{MotorDirection::Clockwise, MotorControlMode::Pwm, 200, 50, 1000, false};
+    MotorState state{MotorControlMode::Pwm, 200, 0, 50, 1000, false};
 
     auto result = publisher_->publishMotorState(0, state);
     EXPECT_TRUE(result.isSuccess());
@@ -110,15 +110,15 @@ TEST_F(DataPublisherTest, PublishMotorStateWithSubscription)
                                                 receivedPower = true;
                                             });
 
-    MotorState state{MotorDirection::Clockwise, MotorControlMode::Pwm, 200, 50, 1000, false};
+    MotorState state{MotorControlMode::Pwm, 200, 0, 50, 1000, false};
     publisher_->publishMotorState(0, state);
     drainMessages(receivedPower);
 
     EXPECT_TRUE(receivedPower.load());
-    EXPECT_EQ(powerValue, 200); // CW direction, speed 200
+    EXPECT_EQ(powerValue, 200); // target value published directly
 }
 
-TEST_F(DataPublisherTest, PublishMotorStateCCWNegative)
+TEST_F(DataPublisherTest, PublishMotorStateNegativeTarget)
 {
     std::atomic<bool> receivedPower{false};
     int32_t powerValue = 0;
@@ -130,12 +130,12 @@ TEST_F(DataPublisherTest, PublishMotorStateCCWNegative)
                                                 receivedPower = true;
                                             });
 
-    MotorState state{MotorDirection::CounterClockwise, MotorControlMode::Pwm, 150, 0, 0, false};
+    MotorState state{MotorControlMode::Pwm, -150, 0, 0, 0, false};
     publisher_->publishMotorState(1, state);
     drainMessages(receivedPower);
 
     EXPECT_TRUE(receivedPower.load());
-    EXPECT_EQ(powerValue, -150); // CCW direction yields negative
+    EXPECT_EQ(powerValue, -150); // Negative target published directly
 }
 
 TEST_F(DataPublisherTest, PublishServoStateSucceeds)

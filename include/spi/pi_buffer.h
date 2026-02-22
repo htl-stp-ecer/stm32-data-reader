@@ -10,9 +10,23 @@
 
 #define TRANSFER_VERSION 6
 
-#define PI_BUFFER_UPDATE_SERVO_CMD 0x01
-#define PI_BUFFER_UPDATE_MOTOR_CMD 0x02
-#define PI_BUFFER_UPDATE_MOTOR_PID 0x04
+#define PI_BUFFER_UPDATE_MOTOR_PID_SPEED 0x01
+#define PI_BUFFER_UPDATE_MOTOR_PID_POS   0x02
+#define PI_BUFFER_UPDATE_PARITY_BIT      0x80
+
+#define SHUTDOWN_SERVO 0x01
+#define SHUTDOWN_MOTOR 0x02
+
+#define MOTOR_CONTR_MOD_LENGTH 3 // Bits per motor in motorControlMode
+
+enum MOTOR_CMD_MODE
+{
+    MOT_MODE_OFF = 0b000,
+    MOT_MODE_PASSIV_BRAKE = 0b001,
+    MOT_MODE_PWM = 0b010,
+    MOT_MODE_MAV = 0b011, // Move At Velocity - PID velocity control
+    MOT_MODE_MTP = 0b100, // Move To Position - PID position control (absolute)
+};
 
 typedef struct __attribute__ ((packed))
 {
@@ -47,6 +61,15 @@ typedef struct __attribute__ ((packed))
 
 ImuData;
 
+typedef struct __attribute__ ((packed))
+{
+    int32_t bemf[4]; // Instantaneous filtered BEMF reading per motor
+    int32_t position[4]; // Motor position (accumulated BEMF ticks)
+    uint8_t done; // Bit N set when motor N reached position goal
+}
+
+MotorData;
+
 typedef struct __attribute__ ((packed)) TxBuffer_tag
 {
     /* --- Version of SPI buffer --- */
@@ -54,14 +77,8 @@ typedef struct __attribute__ ((packed)) TxBuffer_tag
     /* -- last transfer --- */
     uint32_t updateTime;
 
-    /* --- Instantaneous filtered BEMF reading per motor (not accumulated) --- */
-    int32_t motorBemf[4];
-
-    /* --- MOTOR POSITION (accumulated BEMF ticks) --- */
-    int32_t motorPosition[4];
-
-    /* --- MOTOR DONE FLAGS (bit N set when motor N reached position goal) --- */
-    uint8_t motorDone;
+    /* --- MOTOR DATA --- */
+    MotorData motor;
 
     /* --- SENSOR PORTS / BATTERY VOLTAGE READING --- */
     int16_t analogSensor[6];
@@ -110,16 +127,13 @@ typedef struct __attribute__ ((packed))
     /* --- SHUTDOWN CMD / every bit represents a system that can be turned off --- */
     uint8_t systemShutdown;
 
-    /* --- MOTOR DIRECTION --- */
-    uint8_t motorDirection; // 2 bits per motor: OFF/CCW/CW/BRAKE
-
-    /* --- MOTOR CONTROL MODE --- */
-    uint8_t motorControlMode; // 2 bits per motor: PWM/MAV/MTP/MRP
+    /* --- MOTOR CONTROL MODE (3 bits per motor) --- */
+    uint16_t motorControlMode; // OFF/PASSIV_BRAKE/PWM/MAV/MTP
 
     /* --- MOTOR TARGET --- */
-    int32_t motorTarget[4]; // PWM: duty (0-400), MAV: velocity goal, MTP/MRP: velocity setpoint
+    int32_t motorTarget[4]; // PWM: duty (0-400), MAV: velocity goal, MTP: speed limit
 
-    /* --- MOTOR GOAL POSITION (for MTP/MRP modes) --- */
+    /* --- MOTOR GOAL POSITION (for MTP mode) --- */
     int32_t motorGoalPosition[4]; // target position in accumulated BEMF ticks
 
     /* --- SERVO MODE --- */

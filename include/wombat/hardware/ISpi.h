@@ -17,10 +17,11 @@ namespace wombat
 
         virtual Result<SensorData> readSensorData() = 0;
 
-        virtual Result<void> setMotorState(PortId port, const MotorState& state) = 0;
+        virtual Result<void> setMotorOff(PortId port) = 0;
+        virtual Result<void> setMotorBrake(PortId port) = 0;
+        virtual Result<void> setMotorPwm(PortId port, int32_t duty) = 0;
         virtual Result<void> setMotorVelocity(PortId port, int32_t velocity) = 0;
         virtual Result<void> setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition) = 0;
-        virtual Result<void> setMotorRelative(PortId port, int32_t velocity, int32_t deltaPosition) = 0;
         virtual Result<int32_t> getMotorPosition(PortId port) = 0;
         virtual Result<uint8_t> getMotorDone() = 0;
         virtual Result<MotorState> getMotorState(PortId port) const = 0;
@@ -28,7 +29,7 @@ namespace wombat
         virtual Result<void> setServoState(PortId port, const ServoState& state) = 0;
         virtual Result<ServoState> getServoState(PortId port) const = 0;
 
-        virtual Result<void> resetBemfSum(PortId port) = 0;
+        virtual Result<void> resetMotorPosition(PortId port) = 0;
         virtual Result<void> setMotorPid(PortId port, float kp, float ki, float kd) = 0;
         virtual Result<void> setBemfScale(PortId port, float scale) = 0;
         virtual Result<void> setBemfOffset(PortId port, float offset) = 0;

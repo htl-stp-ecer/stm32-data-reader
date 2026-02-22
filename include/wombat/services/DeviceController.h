@@ -23,15 +23,16 @@ namespace wombat
         Result<void> shutdown();
         Result<void> processUpdate();
 
-        Result<void> setMotorCommand(PortId port, MotorDirection direction, MotorSpeed speed);
+        Result<void> setMotorOff(PortId port);
+        Result<void> setMotorBrake(PortId port);
+        Result<void> setMotorPwm(PortId port, int32_t duty);
         Result<void> setMotorVelocity(PortId port, int32_t velocity);
         Result<void> setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition);
-        Result<void> setMotorRelative(PortId port, int32_t velocity, int32_t deltaPosition);
         Result<int32_t> getMotorPosition(PortId port) const;
         Result<uint8_t> getMotorDone() const;
         Result<void> setServoCommand(PortId port, ServoPosition position);
         Result<void> setServoMode(PortId port, ServoMode mode);
-        Result<void> resetBemfSum(PortId port);
+        Result<void> resetMotorPosition(PortId port);
         Result<void> setBemfScale(PortId port, float scale);
         Result<void> setBemfOffset(PortId port, float offset);
         Result<void> setBemfNominalVoltage(int16_t adcValue);
@@ -48,7 +49,7 @@ namespace wombat
         std::unique_ptr<ISpi> spi_;
         std::shared_ptr<Logger> logger_;
 
-        std::array<std::atomic<MotorSpeed>, MAX_MOTOR_PORTS> motorCommands_{};
+        std::array<std::atomic<int32_t>, MAX_MOTOR_PORTS> motorCommands_{};
         std::array<std::atomic<ServoPosition>, MAX_SERVO_PORTS> servoCommands_{};
 
         SensorData lastSensorData_{};

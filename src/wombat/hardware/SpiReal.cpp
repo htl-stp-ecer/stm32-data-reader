@@ -97,48 +97,41 @@ namespace wombat
         d.digitalBits = rx->digitalSensors;
         d.lastUpdate = rx->updateTime;
 
-        const uint8_t doneFlags = rx->motorDone;
+        const uint8_t doneFlags = rx->motor.done;
         for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
         {
-            motors_[i].backEmf = rx->motorBemf[i] - bemfOffsets_[i];
-            motors_[i].position = rx->motorPosition[i];
+            motors_[i].backEmf = rx->motor.bemf[i];
+            motors_[i].position = rx->motor.position[i] - positionOffsets_[i];
             motors_[i].done = (doneFlags & (1u << i)) != 0;
         }
         return Result<SensorData>::success(d);
     }
 
-    Result<void> SpiReal::setMotorState(PortId port, const MotorState& st)
+    Result<void> SpiReal::setMotorOff(PortId port)
     {
         if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        MotorDir dir = MOTOR_DIR_OFF;
-        switch (st.direction)
-        {
-        case MotorDirection::Off: dir = MOTOR_DIR_OFF;
-            break;
-        case MotorDirection::CounterClockwise: dir = MOTOR_DIR_CCW;
-            break;
-        case MotorDirection::Clockwise: dir = MOTOR_DIR_CW;
-            break;
-        case MotorDirection::Brake: dir = MOTOR_DIR_BRAKE;
-            break;
-        }
+        set_motor_off(port);
+        motors_[port].controlMode = MotorControlMode::Off;
+        motors_[port].target = 0;
+        return Result<void>::success();
+    }
 
-        const double percentAbs = std::min(st.speed / 100.0, 1.0);
+    Result<void> SpiReal::setMotorBrake(PortId port)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        set_motor_brake(port);
+        motors_[port].controlMode = MotorControlMode::PassiveBrake;
+        motors_[port].target = 0;
+        return Result<void>::success();
+    }
 
-        uint32_t duty = 0;
-        if (percentAbs > 0.01f)
-        {
-            duty = static_cast<uint32_t>(percentAbs * 400.0f);
-        }
-
-        SPDLOG_TRACE(
-            "SPI setMotorState port={} dir={} duty={}",
-            static_cast<int>(port),
-            static_cast<int>(dir),
-            duty);
-        set_motor(port, dir, duty);
-        st.backEmf = motors_[port].backEmf;
-        motors_[port] = st;
+    Result<void> SpiReal::setMotorPwm(PortId port, int32_t duty)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        SPDLOG_TRACE("SPI setMotorPwm port={} duty={}", static_cast<int>(port), duty);
+        set_motor_pwm(port, duty);
+        motors_[port].controlMode = MotorControlMode::Pwm;
+        motors_[port].target = duty;
         return Result<void>::success();
     }
 
@@ -147,6 +140,7 @@ namespace wombat
         if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
         set_motor_velocity(port, velocity);
         motors_[port].controlMode = MotorControlMode::MoveAtVelocity;
+        motors_[port].target = velocity;
         return Result<void>::success();
     }
 
@@ -155,14 +149,8 @@ namespace wombat
         if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
         set_motor_position(port, velocity, goalPosition);
         motors_[port].controlMode = MotorControlMode::MoveToPosition;
-        return Result<void>::success();
-    }
-
-    Result<void> SpiReal::setMotorRelative(PortId port, int32_t velocity, int32_t deltaPosition)
-    {
-        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        set_motor_relative(port, velocity, deltaPosition);
-        motors_[port].controlMode = MotorControlMode::MoveRelativePosition;
+        motors_[port].target = velocity;
+        motors_[port].goalPosition = goalPosition;
         return Result<void>::success();
     }
 
@@ -208,12 +196,12 @@ namespace wombat
         return Result<ServoState>::success(servos_[port]);
     }
 
-    Result<void> SpiReal::resetBemfSum(PortId port)
+    Result<void> SpiReal::resetMotorPosition(PortId port)
     {
         if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        const auto rawValue = motors_[port].backEmf + bemfOffsets_[port];
-        bemfOffsets_[port] = rawValue;
-        motors_[port].backEmf = 0;
+        const auto rawValue = motors_[port].position + positionOffsets_[port];
+        positionOffsets_[port] = rawValue;
+        motors_[port].position = 0;
         return Result<void>::success();
     }
 

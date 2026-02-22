@@ -1,8 +1,8 @@
 /* spi.c – Pure-C port of the original C++ Spi wrapper
  * ---------------------------------------------------
  * Maintainer: Tobias <tobias.madlberger@gmail.com>
- * Last update: 2026-01-03
- * Updated to use struct-based protocol format
+ * Last update: 2026-02-19
+ * Updated to match firmware commit 96b7b69 motor control mode changes
  */
 
 #include "wombat/hardware/Spi.h"
@@ -97,23 +97,8 @@ static bool spi_reopen(void)
 
 static bool spi_do_transfer(void)
 {
-    const uint32_t pending_updates = ctx.tx.updates;
-    struct timespec ts_before, ts_after;
-    if (pending_updates & PI_BUFFER_UPDATE_MOTOR_CMD)
-        clock_gettime(CLOCK_MONOTONIC, &ts_before);
-
     if (ioctl(ctx.fd, SPI_IOC_MESSAGE(1), &ctx.tr) < 0)
         return false;
-
-    if (pending_updates & PI_BUFFER_UPDATE_MOTOR_CMD)
-    {
-        clock_gettime(CLOCK_MONOTONIC, &ts_after);
-        const long elapsed_us = (ts_after.tv_sec - ts_before.tv_sec) * 1000000L
-            + (ts_after.tv_nsec - ts_before.tv_nsec) / 1000L;
-        const uint32_t stm_time = ctx.rx.updateTime;
-        SPDLOG_INFO("[TIMING] spi_ioctl motor_cmd elapsed_us={} stm32_update_us={}",
-                    elapsed_us, stm_time);
-    }
 
     // Clear update flags after transmission so subsequent sensor-only
     // transfers don't re-trigger actuator updates on the STM32
@@ -204,27 +189,43 @@ void set_shutdown_flag(uint8_t bit, bool value)
     if (ctx.tx.systemShutdown == prev)
         return;
 
-    // Shutdown affects both servo and motor processing on the firmware side
-    ctx.tx.updates |= PI_BUFFER_UPDATE_SERVO_CMD | PI_BUFFER_UPDATE_MOTOR_CMD;
     if (!spi_update())
         exit(EXIT_FAILURE);
 }
 
-static void set_motor_control_mode(uint8_t port, MotorControlMode mode)
+static void set_motor_control_mode(uint8_t port, uint8_t mode)
 {
-    uint8_t newCtlMode = (ctx.tx.motorControlMode & ~(0b11u << (port * 2))) | ((uint8_t)mode << (port * 2));
-    ctx.tx.motorControlMode = newCtlMode;
+    uint16_t mask = (uint16_t)((1u << MOTOR_CONTR_MOD_LENGTH) - 1) << (port * MOTOR_CONTR_MOD_LENGTH);
+    ctx.tx.motorControlMode = (ctx.tx.motorControlMode & ~mask)
+        | ((uint16_t)mode << (port * MOTOR_CONTR_MOD_LENGTH));
 }
 
-void set_motor(uint8_t port, MotorDir dir, uint32_t value)
+void set_motor_off(uint8_t port)
 {
     if (port > 3)
         return;
-    uint8_t newDir = (ctx.tx.motorDirection & ~(0b11u << (port * 2))) | ((uint8_t)dir << (port * 2));
-    set_motor_control_mode(port, MOTOR_CTL_PWM);
-    ctx.tx.motorDirection = newDir;
-    ctx.tx.motorTarget[port] = (int32_t)value;
-    ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_CMD;
+    set_motor_control_mode(port, MOT_MODE_OFF);
+    ctx.tx.motorTarget[port] = 0;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}
+
+void set_motor_brake(uint8_t port)
+{
+    if (port > 3)
+        return;
+    set_motor_control_mode(port, MOT_MODE_PASSIV_BRAKE);
+    ctx.tx.motorTarget[port] = 0;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}
+
+void set_motor_pwm(uint8_t port, int32_t duty)
+{
+    if (port > 3)
+        return;
+    set_motor_control_mode(port, MOT_MODE_PWM);
+    ctx.tx.motorTarget[port] = duty;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }
@@ -233,9 +234,8 @@ void set_motor_velocity(uint8_t port, int32_t velocity)
 {
     if (port > 3)
         return;
-    set_motor_control_mode(port, MOTOR_CTL_MAV);
+    set_motor_control_mode(port, MOT_MODE_MAV);
     ctx.tx.motorTarget[port] = velocity;
-    ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_CMD;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }
@@ -244,22 +244,9 @@ void set_motor_position(uint8_t port, int32_t velocity, int32_t goal_position)
 {
     if (port > 3)
         return;
-    set_motor_control_mode(port, MOTOR_CTL_MTP);
+    set_motor_control_mode(port, MOT_MODE_MTP);
     ctx.tx.motorTarget[port] = velocity;
     ctx.tx.motorGoalPosition[port] = goal_position;
-    ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_CMD;
-    if (!spi_force_update())
-        exit(EXIT_FAILURE);
-}
-
-void set_motor_relative(uint8_t port, int32_t velocity, int32_t delta_position)
-{
-    if (port > 3)
-        return;
-    set_motor_control_mode(port, MOTOR_CTL_MRP);
-    ctx.tx.motorTarget[port] = velocity;
-    ctx.tx.motorGoalPosition[port] = delta_position;
-    ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_CMD;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }
@@ -270,7 +257,6 @@ void set_servo_mode(uint8_t port, ServoMode mode)
         return;
     uint8_t bitPos = port * 2;
     ctx.tx.servoMode = (ctx.tx.servoMode & ~(0b11u << bitPos)) | (((uint8_t)mode & 0b11u) << bitPos);
-    ctx.tx.updates |= PI_BUFFER_UPDATE_SERVO_CMD;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }
@@ -295,7 +281,6 @@ void set_servo_pos(uint8_t port, uint16_t raw)
         return;
     unsigned short val = 1500 + (unsigned short)round(1800.0 * ((double)raw / 2047.0)) - 900;
     ctx.tx.servoPos[port] = val;
-    ctx.tx.updates |= PI_BUFFER_UPDATE_SERVO_CMD;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }
@@ -442,7 +427,7 @@ int32_t bemf(uint8_t mot)
         return 0;
     if (!spi_update())
         exit(EXIT_FAILURE);
-    return ctx.rx.motorBemf[mot];
+    return ctx.rx.motor.bemf[mot];
 }
 
 int32_t get_motor_position(uint8_t port)
@@ -451,14 +436,14 @@ int32_t get_motor_position(uint8_t port)
         return 0;
     if (!spi_update())
         exit(EXIT_FAILURE);
-    return ctx.rx.motorPosition[port];
+    return ctx.rx.motor.position[port];
 }
 
 uint8_t get_motor_done(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    return ctx.rx.motorDone;
+    return ctx.rx.motor.done;
 }
 
 uint16_t analog_in(uint8_t idx)
@@ -545,7 +530,7 @@ void set_motor_pid(uint8_t port, float kp, float ki, float kd)
     ctx.tx.motorPidSettings.pids[port].Kp = kp;
     ctx.tx.motorPidSettings.pids[port].Ki = ki;
     ctx.tx.motorPidSettings.pids[port].Kd = kd;
-    ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_PID;
+    ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_PID_SPEED;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }

@@ -131,18 +131,18 @@ namespace wombat
         // Update motor BEMF and position from mock state
         for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
         {
-            // Back EMF: toy model proportional to motor speed
             int32_t rawBemf = 0;
-            if (motors_[i].direction != MotorDirection::Off)
+            if (motors_[i].controlMode == MotorControlMode::Pwm ||
+                motors_[i].controlMode == MotorControlMode::MoveAtVelocity ||
+                motors_[i].controlMode == MotorControlMode::MoveToPosition)
             {
-                int sign = (motors_[i].direction == MotorDirection::CounterClockwise) ? -1 : 1;
-                rawBemf = sign * static_cast<int32_t>(motors_[i].speed / 4u);
+                // Back EMF: toy model proportional to target magnitude
+                rawBemf = motors_[i].target / 4;
             }
-            motors_[i].backEmf = rawBemf - bemfOffsets_[i];
+            motors_[i].backEmf = rawBemf;
 
-            // Position: simple mock based on speed and direction
-            int32_t posSign = (motors_[i].direction == MotorDirection::CounterClockwise) ? -1 : 1;
-            motors_[i].position = static_cast<int32_t>(motors_[i].speed) * posSign;
+            // Position: simple mock based on target
+            motors_[i].position = motors_[i].target - positionOffsets_[i];
 
             // All motors report done in mock mode
             motors_[i].done = true;
@@ -151,11 +151,27 @@ namespace wombat
         return Result<SensorData>::success(d);
     }
 
-    Result<void> SpiMock::setMotorState(PortId port, const MotorState& st)
+    Result<void> SpiMock::setMotorOff(PortId port)
     {
         if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        st.backEmf = motors_[port].backEmf;
-        motors_[port] = st;
+        motors_[port].controlMode = MotorControlMode::Off;
+        motors_[port].target = 0;
+        return Result<void>::success();
+    }
+
+    Result<void> SpiMock::setMotorBrake(PortId port)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        motors_[port].controlMode = MotorControlMode::PassiveBrake;
+        motors_[port].target = 0;
+        return Result<void>::success();
+    }
+
+    Result<void> SpiMock::setMotorPwm(PortId port, int32_t duty)
+    {
+        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
+        motors_[port].controlMode = MotorControlMode::Pwm;
+        motors_[port].target = duty;
         return Result<void>::success();
     }
 
@@ -163,26 +179,16 @@ namespace wombat
     {
         if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
         motors_[port].controlMode = MotorControlMode::MoveAtVelocity;
-        motors_[port].direction = (velocity >= 0) ? MotorDirection::Clockwise : MotorDirection::CounterClockwise;
-        motors_[port].speed = static_cast<MotorSpeed>(std::abs(velocity));
+        motors_[port].target = velocity;
         return Result<void>::success();
     }
 
-    Result<void> SpiMock::setMotorPosition(PortId port, int32_t velocity, int32_t /*goalPosition*/)
+    Result<void> SpiMock::setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition)
     {
         if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
         motors_[port].controlMode = MotorControlMode::MoveToPosition;
-        motors_[port].direction = (velocity >= 0) ? MotorDirection::Clockwise : MotorDirection::CounterClockwise;
-        motors_[port].speed = static_cast<MotorSpeed>(std::abs(velocity));
-        return Result<void>::success();
-    }
-
-    Result<void> SpiMock::setMotorRelative(PortId port, int32_t velocity, int32_t /*deltaPosition*/)
-    {
-        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        motors_[port].controlMode = MotorControlMode::MoveRelativePosition;
-        motors_[port].direction = (velocity >= 0) ? MotorDirection::Clockwise : MotorDirection::CounterClockwise;
-        motors_[port].speed = static_cast<MotorSpeed>(std::abs(velocity));
+        motors_[port].target = velocity;
+        motors_[port].goalPosition = goalPosition;
         return Result<void>::success();
     }
 
@@ -216,12 +222,12 @@ namespace wombat
         return Result<ServoState>::success(servos_[port]);
     }
 
-    Result<void> SpiMock::resetBemfSum(PortId port)
+    Result<void> SpiMock::resetMotorPosition(PortId port)
     {
         if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        const auto rawValue = motors_[port].backEmf + bemfOffsets_[port];
-        bemfOffsets_[port] = rawValue;
-        motors_[port].backEmf = 0;
+        const auto rawValue = motors_[port].position + positionOffsets_[port];
+        positionOffsets_[port] = rawValue;
+        motors_[port].position = 0;
         return Result<void>::success();
     }
 

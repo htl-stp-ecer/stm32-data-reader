@@ -30,8 +30,7 @@ namespace wombat
         for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
         {
             motorCommands_[port] = 0;
-            MotorState motorState{MotorDirection::Off, MotorControlMode::Pwm, 0};
-            auto setResult = spi_->setMotorState(port, motorState);
+            auto setResult = spi_->setMotorOff(port);
             if (setResult.isFailure())
             {
                 logger_->warn("Failed to initialize motor " + std::to_string(port) + ": " + setResult.error());
@@ -95,7 +94,7 @@ namespace wombat
         return Result<void>::success();
     }
 
-    Result<void> DeviceController::setMotorCommand(PortId port, MotorDirection direction, MotorSpeed speed)
+    Result<void> DeviceController::setMotorOff(PortId port)
     {
         auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
         if (validationResult.isFailure())
@@ -103,18 +102,58 @@ namespace wombat
             return validationResult;
         }
 
-        motorCommands_[port] = speed;
+        motorCommands_[port] = 0;
 
-        const MotorState state{direction, MotorControlMode::Pwm, speed};
-        auto result = spi_->setMotorState(port, state);
+        auto result = spi_->setMotorOff(port);
         if (result.isFailure())
         {
-            logger_->error("Failed to set motor " + std::to_string(port) + " command: " + result.error());
+            logger_->error("Failed to set motor " + std::to_string(port) + " off: " + result.error());
             return result;
         }
 
-        logger_->debug("Motor " + std::to_string(port) + " command set: direction=" +
-            std::to_string(static_cast<int>(direction)) + ", speed=" + std::to_string(speed));
+        logger_->debug("Motor " + std::to_string(port) + " set to OFF");
+        return Result<void>::success();
+    }
+
+    Result<void> DeviceController::setMotorBrake(PortId port)
+    {
+        auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
+        if (validationResult.isFailure())
+        {
+            return validationResult;
+        }
+
+        motorCommands_[port] = 0;
+
+        auto result = spi_->setMotorBrake(port);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set motor " + std::to_string(port) + " brake: " + result.error());
+            return result;
+        }
+
+        logger_->debug("Motor " + std::to_string(port) + " set to PASSIVE BRAKE");
+        return Result<void>::success();
+    }
+
+    Result<void> DeviceController::setMotorPwm(PortId port, int32_t duty)
+    {
+        auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
+        if (validationResult.isFailure())
+        {
+            return validationResult;
+        }
+
+        motorCommands_[port] = duty;
+
+        auto result = spi_->setMotorPwm(port, duty);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set motor " + std::to_string(port) + " PWM: " + result.error());
+            return result;
+        }
+
+        logger_->debug("Motor " + std::to_string(port) + " PWM set: duty=" + std::to_string(duty));
         return Result<void>::success();
     }
 
@@ -154,26 +193,6 @@ namespace wombat
 
         logger_->debug("Motor " + std::to_string(port) + " position set: velocity=" +
             std::to_string(velocity) + ", goal=" + std::to_string(goalPosition));
-        return Result<void>::success();
-    }
-
-    Result<void> DeviceController::setMotorRelative(PortId port, int32_t velocity, int32_t deltaPosition)
-    {
-        auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
-        if (validationResult.isFailure())
-        {
-            return validationResult;
-        }
-
-        auto result = spi_->setMotorRelative(port, velocity, deltaPosition);
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set motor " + std::to_string(port) + " relative: " + result.error());
-            return result;
-        }
-
-        logger_->debug("Motor " + std::to_string(port) + " relative set: velocity=" +
-            std::to_string(velocity) + ", delta=" + std::to_string(deltaPosition));
         return Result<void>::success();
     }
 
@@ -245,7 +264,7 @@ namespace wombat
         return Result<void>::success();
     }
 
-    Result<void> DeviceController::resetBemfSum(PortId port)
+    Result<void> DeviceController::resetMotorPosition(PortId port)
     {
         if (!isInitialized_)
         {
@@ -258,14 +277,14 @@ namespace wombat
             return validationResult;
         }
 
-        auto result = spi_->resetBemfSum(port);
+        auto result = spi_->resetMotorPosition(port);
         if (result.isFailure())
         {
-            logger_->error("Failed to reset BEMF sum for motor " + std::to_string(port) + ": " + result.error());
+            logger_->error("Failed to reset position for motor " + std::to_string(port) + ": " + result.error());
             return result;
         }
 
-        logger_->info("BEMF sum reset for motor " + std::to_string(port));
+        logger_->info("Position reset for motor " + std::to_string(port));
         return Result<void>::success();
     }
 

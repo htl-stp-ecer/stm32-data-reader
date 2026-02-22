@@ -97,25 +97,50 @@ TEST_F(SpiMockTest, QuaternionIsNormalized)
     EXPECT_NEAR(norm, 1.0f, 0.01f);
 }
 
-// --- Motor state tracking ---
+// --- Motor mode tracking ---
 
-TEST_F(SpiMockTest, SetMotorStateSuccess)
+TEST_F(SpiMockTest, SetMotorPwmSuccess)
 {
     initializeSpi();
 
-    MotorState state{MotorDirection::Clockwise, MotorControlMode::Pwm, 200};
-    auto result = spiMock_->setMotorState(0, state);
+    auto result = spiMock_->setMotorPwm(0, 200);
     EXPECT_TRUE(result.isSuccess());
 
     auto getResult = spiMock_->getMotorState(0);
     ASSERT_TRUE(getResult.isSuccess());
-    EXPECT_EQ(getResult.value().direction, MotorDirection::Clockwise);
-    EXPECT_EQ(getResult.value().speed, 200u);
+    EXPECT_EQ(getResult.value().controlMode, MotorControlMode::Pwm);
+    EXPECT_EQ(getResult.value().target, 200);
 }
 
-TEST_F(SpiMockTest, SetMotorStateInvalidPort)
+TEST_F(SpiMockTest, SetMotorOffSuccess)
 {
-    auto result = spiMock_->setMotorState(MAX_MOTOR_PORTS, MotorState{});
+    initializeSpi();
+
+    spiMock_->setMotorPwm(0, 200);
+    auto result = spiMock_->setMotorOff(0);
+    EXPECT_TRUE(result.isSuccess());
+
+    auto getResult = spiMock_->getMotorState(0);
+    ASSERT_TRUE(getResult.isSuccess());
+    EXPECT_EQ(getResult.value().controlMode, MotorControlMode::Off);
+    EXPECT_EQ(getResult.value().target, 0);
+}
+
+TEST_F(SpiMockTest, SetMotorBrakeSuccess)
+{
+    initializeSpi();
+
+    auto result = spiMock_->setMotorBrake(0);
+    EXPECT_TRUE(result.isSuccess());
+
+    auto getResult = spiMock_->getMotorState(0);
+    ASSERT_TRUE(getResult.isSuccess());
+    EXPECT_EQ(getResult.value().controlMode, MotorControlMode::PassiveBrake);
+}
+
+TEST_F(SpiMockTest, SetMotorPwmInvalidPort)
+{
+    auto result = spiMock_->setMotorPwm(MAX_MOTOR_PORTS, 100);
     EXPECT_TRUE(result.isFailure());
 }
 
@@ -129,8 +154,7 @@ TEST_F(SpiMockTest, SetMotorVelocitySetsControlMode)
     auto getResult = spiMock_->getMotorState(1);
     ASSERT_TRUE(getResult.isSuccess());
     EXPECT_EQ(getResult.value().controlMode, MotorControlMode::MoveAtVelocity);
-    EXPECT_EQ(getResult.value().direction, MotorDirection::CounterClockwise);
-    EXPECT_EQ(getResult.value().speed, 300u);
+    EXPECT_EQ(getResult.value().target, -300);
 }
 
 TEST_F(SpiMockTest, SetMotorPositionSetsControlMode)
@@ -143,19 +167,8 @@ TEST_F(SpiMockTest, SetMotorPositionSetsControlMode)
     auto getResult = spiMock_->getMotorState(2);
     ASSERT_TRUE(getResult.isSuccess());
     EXPECT_EQ(getResult.value().controlMode, MotorControlMode::MoveToPosition);
-}
-
-TEST_F(SpiMockTest, SetMotorRelativeSetsControlMode)
-{
-    initializeSpi();
-
-    auto result = spiMock_->setMotorRelative(0, -50, 1000);
-    EXPECT_TRUE(result.isSuccess());
-
-    auto getResult = spiMock_->getMotorState(0);
-    ASSERT_TRUE(getResult.isSuccess());
-    EXPECT_EQ(getResult.value().controlMode, MotorControlMode::MoveRelativePosition);
-    EXPECT_EQ(getResult.value().direction, MotorDirection::CounterClockwise);
+    EXPECT_EQ(getResult.value().target, 100);
+    EXPECT_EQ(getResult.value().goalPosition, 5000);
 }
 
 TEST_F(SpiMockTest, GetMotorDoneAllDone)
@@ -191,37 +204,35 @@ TEST_F(SpiMockTest, SetServoStateInvalidPort)
 
 // --- BEMF ---
 
-TEST_F(SpiMockTest, BemfProportionalToSpeed)
+TEST_F(SpiMockTest, BemfProportionalToTarget)
 {
     initializeSpi();
 
-    MotorState state{MotorDirection::Clockwise, MotorControlMode::Pwm, 400};
-    spiMock_->setMotorState(0, state);
+    spiMock_->setMotorPwm(0, 400);
 
     // Trigger a sensor read to update BEMF values
     spiMock_->readSensorData();
 
     auto getResult = spiMock_->getMotorState(0);
     ASSERT_TRUE(getResult.isSuccess());
-    // BEMF should be speed/4 = 100 for CW direction
+    // BEMF should be target/4 = 100
     EXPECT_EQ(getResult.value().backEmf, 100);
 }
 
-TEST_F(SpiMockTest, ResetBemfSum)
+TEST_F(SpiMockTest, ResetMotorPosition)
 {
     initializeSpi();
 
-    MotorState state{MotorDirection::Clockwise, MotorControlMode::Pwm, 400};
-    spiMock_->setMotorState(0, state);
+    spiMock_->setMotorPwm(0, 400);
     spiMock_->readSensorData();
 
-    auto result = spiMock_->resetBemfSum(0);
+    auto result = spiMock_->resetMotorPosition(0);
     EXPECT_TRUE(result.isSuccess());
 
-    // After reset, BEMF should be 0
+    // After reset, position should be 0
     auto getResult = spiMock_->getMotorState(0);
     ASSERT_TRUE(getResult.isSuccess());
-    EXPECT_EQ(getResult.value().backEmf, 0);
+    EXPECT_EQ(getResult.value().position, 0);
 }
 
 TEST_F(SpiMockTest, ForceUpdateSuccess)
@@ -253,9 +264,9 @@ TEST_F(SpiMockTest, SetMotorVelocityInvalidPort)
     EXPECT_TRUE(result.isFailure());
 }
 
-TEST_F(SpiMockTest, ResetBemfSumInvalidPort)
+TEST_F(SpiMockTest, ResetMotorPositionInvalidPort)
 {
-    auto result = spiMock_->resetBemfSum(MAX_MOTOR_PORTS);
+    auto result = spiMock_->resetMotorPosition(MAX_MOTOR_PORTS);
     EXPECT_TRUE(result.isFailure());
 }
 

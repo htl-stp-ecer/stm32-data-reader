@@ -23,7 +23,7 @@ protected:
         ON_CALL(*mockSpi_, initialize()).WillByDefault(Return(Result<void>::success()));
         ON_CALL(*mockSpi_, shutdown()).WillByDefault(Return(Result<void>::success()));
         ON_CALL(*mockSpi_, setShutdown(_)).WillByDefault(Return(Result<void>::success()));
-        ON_CALL(*mockSpi_, setMotorState(_, _)).WillByDefault(Return(Result<void>::success()));
+        ON_CALL(*mockSpi_, setMotorOff(_)).WillByDefault(Return(Result<void>::success()));
         ON_CALL(*mockSpi_, setServoState(_, _)).WillByDefault(Return(Result<void>::success()));
 
         controller_ = std::make_unique<DeviceController>(std::move(mockSpi), logger_);
@@ -33,7 +33,7 @@ protected:
     {
         EXPECT_CALL(*mockSpi_, initialize())
             .WillOnce(Return(Result<void>::success()));
-        EXPECT_CALL(*mockSpi_, setMotorState(_, _))
+        EXPECT_CALL(*mockSpi_, setMotorOff(_))
             .Times(MAX_MOTOR_PORTS)
             .WillRepeatedly(Return(Result<void>::success()));
         EXPECT_CALL(*mockSpi_, setServoState(_, _))
@@ -134,23 +134,45 @@ TEST_F(DeviceControllerTest, ProcessUpdateSpiFailure)
 
 // --- Motor commands ---
 
-TEST_F(DeviceControllerTest, SetMotorCommandSuccess)
+TEST_F(DeviceControllerTest, SetMotorPwmSuccess)
 {
     initializeController();
 
-    EXPECT_CALL(*mockSpi_, setMotorState(0, _))
+    EXPECT_CALL(*mockSpi_, setMotorPwm(0, 400))
         .WillOnce(Return(Result<void>::success()));
 
-    auto result = controller_->setMotorCommand(0, MotorDirection::Clockwise, 100);
+    auto result = controller_->setMotorPwm(0, 400);
     EXPECT_TRUE(result.isSuccess());
 }
 
-TEST_F(DeviceControllerTest, SetMotorCommandInvalidPort)
+TEST_F(DeviceControllerTest, SetMotorPwmInvalidPort)
 {
     initializeController();
 
-    auto result = controller_->setMotorCommand(MAX_MOTOR_PORTS, MotorDirection::Clockwise, 100);
+    auto result = controller_->setMotorPwm(MAX_MOTOR_PORTS, 400);
     EXPECT_TRUE(result.isFailure());
+}
+
+TEST_F(DeviceControllerTest, SetMotorOffSuccess)
+{
+    initializeController();
+
+    EXPECT_CALL(*mockSpi_, setMotorOff(0))
+        .WillOnce(Return(Result<void>::success()));
+
+    auto result = controller_->setMotorOff(0);
+    EXPECT_TRUE(result.isSuccess());
+}
+
+TEST_F(DeviceControllerTest, SetMotorBrakeSuccess)
+{
+    initializeController();
+
+    EXPECT_CALL(*mockSpi_, setMotorBrake(1))
+        .WillOnce(Return(Result<void>::success()));
+
+    auto result = controller_->setMotorBrake(1);
+    EXPECT_TRUE(result.isSuccess());
 }
 
 TEST_F(DeviceControllerTest, SetMotorVelocitySuccess)
@@ -172,17 +194,6 @@ TEST_F(DeviceControllerTest, SetMotorPositionSuccess)
         .WillOnce(Return(Result<void>::success()));
 
     auto result = controller_->setMotorPosition(2, 100, 5000);
-    EXPECT_TRUE(result.isSuccess());
-}
-
-TEST_F(DeviceControllerTest, SetMotorRelativeSuccess)
-{
-    initializeController();
-
-    EXPECT_CALL(*mockSpi_, setMotorRelative(3, 200, -1000))
-        .WillOnce(Return(Result<void>::success()));
-
-    auto result = controller_->setMotorRelative(3, 200, -1000);
     EXPECT_TRUE(result.isSuccess());
 }
 
@@ -261,30 +272,30 @@ TEST_F(DeviceControllerTest, GetMotorDoneWhenNotInitialized)
     EXPECT_TRUE(result.isFailure());
 }
 
-// --- BEMF operations require initialization ---
+// --- Position reset operations require initialization ---
 
-TEST_F(DeviceControllerTest, ResetBemfSumWhenNotInitialized)
+TEST_F(DeviceControllerTest, ResetMotorPositionWhenNotInitialized)
 {
-    auto result = controller_->resetBemfSum(0);
+    auto result = controller_->resetMotorPosition(0);
     EXPECT_TRUE(result.isFailure());
 }
 
-TEST_F(DeviceControllerTest, ResetBemfSumSuccess)
+TEST_F(DeviceControllerTest, ResetMotorPositionSuccess)
 {
     initializeController();
 
-    EXPECT_CALL(*mockSpi_, resetBemfSum(0))
+    EXPECT_CALL(*mockSpi_, resetMotorPosition(0))
         .WillOnce(Return(Result<void>::success()));
 
-    auto result = controller_->resetBemfSum(0);
+    auto result = controller_->resetMotorPosition(0);
     EXPECT_TRUE(result.isSuccess());
 }
 
-TEST_F(DeviceControllerTest, ResetBemfSumInvalidPort)
+TEST_F(DeviceControllerTest, ResetMotorPositionInvalidPort)
 {
     initializeController();
 
-    auto result = controller_->resetBemfSum(MAX_MOTOR_PORTS);
+    auto result = controller_->resetMotorPosition(MAX_MOTOR_PORTS);
     EXPECT_TRUE(result.isFailure());
 }
 

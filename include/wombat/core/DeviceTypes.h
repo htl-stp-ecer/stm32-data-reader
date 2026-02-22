@@ -12,7 +12,6 @@ namespace wombat
 {
     using PortId = uint8_t;
     using AnalogValue = uint16_t;
-    using MotorSpeed = uint32_t;
     using ServoPosition = uint16_t;
     using Timestamp = uint32_t;
     using DigitalValue = uint16_t;
@@ -22,20 +21,13 @@ namespace wombat
     constexpr PortId MAX_ANALOG_PORTS = 6;
     constexpr PortId MAX_DIGITAL_BITS = 16;
 
-    enum class MotorDirection : uint8_t
-    {
-        Off = 0b00,
-        CounterClockwise = 0b01,
-        Clockwise = 0b10,
-        Brake = 0b11 // Active braking - short-circuits motor windings for fast stopping
-    };
-
     enum class MotorControlMode : uint8_t
     {
-        Pwm = 0, // Direct PWM, no PID
-        MoveAtVelocity = 1, // PID velocity control
-        MoveToPosition = 2, // PID position control (absolute)
-        MoveRelativePosition = 3 // PID position control (relative, converted to absolute on STM32)
+        Off = 0, // Motor off, coasting
+        PassiveBrake = 1, // Active braking - short-circuits motor windings
+        Pwm = 2, // Direct PWM, no PID
+        MoveAtVelocity = 3, // PID velocity control
+        MoveToPosition = 4, // PID position control (absolute)
     };
 
     enum class ServoMode : uint8_t
@@ -97,9 +89,9 @@ namespace wombat
 
     struct MotorState
     {
-        MotorDirection direction{MotorDirection::Off};
-        MotorControlMode controlMode{MotorControlMode::Pwm};
-        MotorSpeed speed{0};
+        MotorControlMode controlMode{MotorControlMode::Off};
+        int32_t target{0}; // PWM: signed duty (-400..400), MAV: velocity, MTP: speed limit
+        int32_t goalPosition{0}; // Target position for MTP mode (BEMF ticks)
         mutable int32_t backEmf{0};
         int32_t position{0};
         bool done{false};
