@@ -87,13 +87,13 @@ namespace wombat
             return Result<void>::failure("Invalid motor port: " + std::to_string(port));
         }
 
-        auto valueResult = broker_->publish(
+        auto powerResult = broker_->publish(
             Channels::motorPower(port),
             toLcmScalarI32(state.target)
         );
-        if (valueResult.isFailure())
+        if (powerResult.isFailure())
         {
-            logger_->warn("Failed to publish motor value: " + valueResult.error());
+            logger_->warn("Failed to publish motor power: " + powerResult.error());
         }
 
         auto bemfResult = broker_->publish(

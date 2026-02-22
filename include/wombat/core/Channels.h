@@ -25,11 +25,6 @@ namespace wombat
         constexpr auto QUATERNION_ACCURACY = "libstp/imu/quaternion_accuracy";
         constexpr auto CPU_TEMPERATURE = "libstp/cpu/temp/value"; // Raspberry Pi CPU temperature
 
-        inline std::string motorPower(const PortId port)
-        {
-            return "libstp/motor/" + std::to_string(port) + "/value";
-        }
-
         inline std::string servoMode(const PortId port)
         {
             return "libstp/servo/" + std::to_string(port) + "/mode";
@@ -95,6 +90,11 @@ namespace wombat
         inline std::string motorPositionResetCommand(const PortId port)
         {
             return "libstp/motor/" + std::to_string(port) + "/position_reset_cmd";
+        }
+
+        inline std::string motorPower(const PortId port)
+        {
+            return "libstp/motor/" + std::to_string(port) + "/power";
         }
 
         inline std::string motorPosition(const PortId port)
