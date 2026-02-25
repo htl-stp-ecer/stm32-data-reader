@@ -57,6 +57,10 @@ void set_bemf_scale(uint8_t port, float scale);
 void set_bemf_offset(uint8_t port, float offset);
 void set_bemf_nominal_voltage(int16_t adc_value);
 
+/* IMU orientation matrices */
+void set_imu_gyro_orientation(const int8_t matrix[9]);
+void set_imu_compass_orientation(const int8_t matrix[9]);
+
 /* ---------------- bulk read (RX) -------------------- */
 /* Returns pointer to the internal RX buffer (last received data).
  * Does NOT trigger an SPI transfer – call spi_update() first. */

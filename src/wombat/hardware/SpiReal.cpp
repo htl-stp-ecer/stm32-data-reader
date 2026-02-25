@@ -239,4 +239,16 @@ namespace wombat
         if (logger_) logger_->info("SPI: Shutdown " + std::string(enabled ? "enabled" : "disabled"));
         return Result<void>::success();
     }
+
+    Result<void> SpiReal::setImuGyroOrientation(const int8_t matrix[9])
+    {
+        set_imu_gyro_orientation(matrix);
+        return Result<void>::success();
+    }
+
+    Result<void> SpiReal::setImuCompassOrientation(const int8_t matrix[9])
+    {
+        set_imu_compass_orientation(matrix);
+        return Result<void>::success();
+    }
 }

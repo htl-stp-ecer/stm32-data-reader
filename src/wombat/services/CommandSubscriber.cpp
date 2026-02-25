@@ -1,4 +1,5 @@
 #include "wombat/services/CommandSubscriber.h"
+#include "exlcm/orientation_matrix_t.hpp"
 #include <chrono>
 
 namespace wombat
@@ -140,6 +141,32 @@ namespace wombat
         if (shutdownResult.isFailure())
         {
             return Result<void>::failure("Failed to subscribe to shutdown command: " + shutdownResult.error());
+        }
+
+        // IMU orientation matrix commands
+        logger_->info(
+            "Subscribing to IMU gyro orientation command channel: " + std::string(Channels::IMU_GYRO_ORIENTATION_CMD));
+        auto gyroOrientResult = broker_->subscribe<exlcm::orientation_matrix_t>(
+            Channels::IMU_GYRO_ORIENTATION_CMD,
+            [this](const exlcm::orientation_matrix_t& cmd) { onImuGyroOrientationCommand(cmd); }
+        );
+        if (gyroOrientResult.isFailure())
+        {
+            return Result<void>::failure(
+                "Failed to subscribe to IMU gyro orientation command: " + gyroOrientResult.error());
+        }
+
+        logger_->info(
+            "Subscribing to IMU compass orientation command channel: " + std::string(
+                Channels::IMU_COMPASS_ORIENTATION_CMD));
+        auto compassOrientResult = broker_->subscribe<exlcm::orientation_matrix_t>(
+            Channels::IMU_COMPASS_ORIENTATION_CMD,
+            [this](const exlcm::orientation_matrix_t& cmd) { onImuCompassOrientationCommand(cmd); }
+        );
+        if (compassOrientResult.isFailure())
+        {
+            return Result<void>::failure(
+                "Failed to subscribe to IMU compass orientation command: " + compassOrientResult.error());
         }
 
         isInitialized_ = true;
@@ -593,5 +620,47 @@ namespace wombat
         dataPublisher_->publishShutdownStatus(shutdownFlags);
 
         logger_->info("Shutdown " + std::string(enabled ? "enabled" : "disabled"));
+    }
+
+    void CommandSubscriber::onImuGyroOrientationCommand(const exlcm::orientation_matrix_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received IMU gyro orientation command while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::IMU_GYRO_ORIENTATION_CMD, command.timestamp))
+            return;
+
+        const auto result = deviceController_->setImuGyroOrientation(command.m);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set IMU gyro orientation: " + result.error());
+            return;
+        }
+
+        logger_->info("IMU gyro orientation matrix set");
+    }
+
+    void CommandSubscriber::onImuCompassOrientationCommand(const exlcm::orientation_matrix_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received IMU compass orientation command while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::IMU_COMPASS_ORIENTATION_CMD, command.timestamp))
+            return;
+
+        const auto result = deviceController_->setImuCompassOrientation(command.m);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set IMU compass orientation: " + result.error());
+            return;
+        }
+
+        logger_->info("IMU compass orientation matrix set");
     }
 } // namespace wombat

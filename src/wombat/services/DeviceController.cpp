@@ -425,6 +425,42 @@ namespace wombat
         return Result<void>::success();
     }
 
+    Result<void> DeviceController::setImuGyroOrientation(const int8_t matrix[9])
+    {
+        if (!isInitialized_)
+        {
+            return Result<void>::failure("Device controller not initialized");
+        }
+
+        auto result = spi_->setImuGyroOrientation(matrix);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set IMU gyro orientation: " + result.error());
+            return result;
+        }
+
+        logger_->info("IMU gyro orientation matrix updated");
+        return Result<void>::success();
+    }
+
+    Result<void> DeviceController::setImuCompassOrientation(const int8_t matrix[9])
+    {
+        if (!isInitialized_)
+        {
+            return Result<void>::failure("Device controller not initialized");
+        }
+
+        auto result = spi_->setImuCompassOrientation(matrix);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set IMU compass orientation: " + result.error());
+            return result;
+        }
+
+        logger_->info("IMU compass orientation matrix updated");
+        return Result<void>::success();
+    }
+
     Result<void> DeviceController::validatePortId(PortId port, PortId maxPort) const
     {
         if (port >= maxPort)

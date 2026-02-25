@@ -25,6 +25,10 @@ namespace wombat
         constexpr auto QUATERNION_ACCURACY = "libstp/imu/quaternion_accuracy";
         constexpr auto CPU_TEMPERATURE = "libstp/cpu/temp/value"; // Raspberry Pi CPU temperature
 
+        // IMU orientation matrix commands
+        constexpr auto IMU_GYRO_ORIENTATION_CMD = "libstp/imu/gyro_orientation_cmd";
+        constexpr auto IMU_COMPASS_ORIENTATION_CMD = "libstp/imu/compass_orientation_cmd";
+
         inline std::string servoMode(const PortId port)
         {
             return "libstp/servo/" + std::to_string(port) + "/mode";

@@ -36,5 +36,8 @@ namespace wombat
         virtual Result<void> setBemfNominalVoltage(int16_t adcValue) = 0;
 
         virtual Result<void> setShutdown(bool enabled) = 0;
+
+        virtual Result<void> setImuGyroOrientation(const int8_t matrix[9]) = 0;
+        virtual Result<void> setImuCompassOrientation(const int8_t matrix[9]) = 0;
     };
 }

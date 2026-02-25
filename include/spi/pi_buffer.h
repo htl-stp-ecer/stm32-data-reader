@@ -8,10 +8,11 @@
 
 #include <stdint.h>
 
-#define TRANSFER_VERSION 6
+#define TRANSFER_VERSION 7
 
 #define PI_BUFFER_UPDATE_MOTOR_PID_SPEED 0x01
 #define PI_BUFFER_UPDATE_MOTOR_PID_POS   0x02
+#define PI_BUFFER_UPDATE_IMU_ORIENTATION 0x04
 #define PI_BUFFER_UPDATE_PARITY_BIT      0x80
 
 #define SHUTDOWN_SERVO 0x01
@@ -149,6 +150,11 @@ typedef struct __attribute__ ((packed))
 
     /* --- MOTOR PID SETTINGS (configurable from Pi) --- */
     MotorPidSettings motorPidSettings;
+
+    /* --- IMU ORIENTATION MATRICES (configurable from Pi) --- */
+    // Row-major 3x3 signed char matrices, each element is -1, 0, or 1
+    int8_t imuGyroOrientation[9]; // Gyro/accel chip-to-board mapping
+    int8_t imuCompassOrientation[9]; // Compass chip-to-board mapping
 }
 
 RxBuffer;

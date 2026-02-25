@@ -12,6 +12,7 @@
 #include "exlcm/scalar_i32_t.hpp"
 #include "exlcm/scalar_i8_t.hpp"
 #include "exlcm/string_t.hpp"
+#include "exlcm/orientation_matrix_t.hpp"
 #include <memory>
 #include <functional>
 

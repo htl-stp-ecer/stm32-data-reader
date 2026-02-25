@@ -6,6 +6,7 @@
 #include "exlcm/scalar_f_t.hpp"
 #include "exlcm/scalar_i32_t.hpp"
 #include "exlcm/scalar_i8_t.hpp"
+#include "exlcm/orientation_matrix_t.hpp"
 #include <chrono>
 
 namespace wombat
@@ -58,6 +59,14 @@ namespace wombat
         exlcm::scalar_i8_t msg{};
         msg.timestamp = currentTimestampUsec();
         msg.dir = value;
+        return msg;
+    }
+
+    inline exlcm::orientation_matrix_t toLcmOrientationMatrix(const int8_t m[9])
+    {
+        exlcm::orientation_matrix_t msg{};
+        msg.timestamp = currentTimestampUsec();
+        for (int i = 0; i < 9; ++i) msg.m[i] = m[i];
         return msg;
     }
 }

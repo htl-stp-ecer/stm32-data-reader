@@ -39,6 +39,9 @@ namespace wombat
 
         Result<void> setShutdown(bool enabled) override;
 
+        Result<void> setImuGyroOrientation(const int8_t matrix[9]) override;
+        Result<void> setImuCompassOrientation(const int8_t matrix[9]) override;
+
     private:
         Configuration::Spi cfg_;
         std::shared_ptr<Logger> logger_;

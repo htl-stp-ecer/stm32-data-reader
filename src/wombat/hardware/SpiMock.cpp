@@ -260,4 +260,16 @@ namespace wombat
         if (logger_) logger_->info("SPI Mock: Shutdown " + std::string(enabled ? "enabled" : "disabled"));
         return Result<void>::success();
     }
+
+    Result<void> SpiMock::setImuGyroOrientation(const int8_t /*matrix*/[9])
+    {
+        if (logger_) logger_->info("SPI Mock: IMU gyro orientation set");
+        return Result<void>::success();
+    }
+
+    Result<void> SpiMock::setImuCompassOrientation(const int8_t /*matrix*/[9])
+    {
+        if (logger_) logger_->info("SPI Mock: IMU compass orientation set");
+        return Result<void>::success();
+    }
 }

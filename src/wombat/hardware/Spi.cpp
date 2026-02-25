@@ -559,3 +559,19 @@ void set_bemf_nominal_voltage(int16_t adc_value)
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }
+
+void set_imu_gyro_orientation(const int8_t matrix[9])
+{
+    memcpy(ctx.tx.imuGyroOrientation, matrix, 9);
+    ctx.tx.updates |= PI_BUFFER_UPDATE_IMU_ORIENTATION;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}
+
+void set_imu_compass_orientation(const int8_t matrix[9])
+{
+    memcpy(ctx.tx.imuCompassOrientation, matrix, 9);
+    ctx.tx.updates |= PI_BUFFER_UPDATE_IMU_ORIENTATION;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}

@@ -45,6 +45,9 @@ namespace wombat
         // STM32 shutdown flag - disables motors and servos at firmware level
         Result<void> setShutdown(bool enabled);
 
+        Result<void> setImuGyroOrientation(const int8_t matrix[9]);
+        Result<void> setImuCompassOrientation(const int8_t matrix[9]);
+
     private:
         std::unique_ptr<ISpi> spi_;
         std::shared_ptr<Logger> logger_;

@@ -9,6 +9,7 @@
 #include "wombat/core/Logger.h"
 #include "wombat/messaging/LcmBroker.h"
 #include "wombat/messaging/LcmConcepts.h"
+#include "exlcm/orientation_matrix_t.hpp"
 #include "wombat/services/DeviceController.h"
 #include "wombat/services/DataPublisher.h"
 #include <memory>
@@ -48,6 +49,8 @@ namespace wombat
         void onBemfNominalVoltageCommand(const exlcm::scalar_i32_t& command);
         void onMotorPidCommand(PortId port, const exlcm::vector3f_t& command);
         void onShutdownCommand(const exlcm::scalar_i32_t& command);
+        void onImuGyroOrientationCommand(const exlcm::orientation_matrix_t& command);
+        void onImuCompassOrientationCommand(const exlcm::orientation_matrix_t& command);
 
         bool isTimestampNewer(const std::string& channel, int64_t timestamp);
 
