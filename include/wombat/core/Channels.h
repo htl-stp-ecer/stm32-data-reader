@@ -29,6 +29,9 @@ namespace wombat
         constexpr auto IMU_GYRO_ORIENTATION_CMD = "libstp/imu/gyro_orientation_cmd";
         constexpr auto IMU_COMPASS_ORIENTATION_CMD = "libstp/imu/compass_orientation_cmd";
 
+        // Body-to-world axis remap command (3x3 int8 permutation matrix)
+        constexpr auto AXIS_REMAP_CMD = "libstp/imu/axis_remap_cmd";
+
         inline std::string servoMode(const PortId port)
         {
             return "libstp/servo/" + std::to_string(port) + "/mode";

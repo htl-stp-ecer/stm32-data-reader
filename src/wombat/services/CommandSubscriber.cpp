@@ -169,6 +169,19 @@ namespace wombat
                 "Failed to subscribe to IMU compass orientation command: " + compassOrientResult.error());
         }
 
+        // Body-to-world axis remap command
+        logger_->info(
+            "Subscribing to axis remap command channel: " + std::string(Channels::AXIS_REMAP_CMD));
+        auto axisRemapResult = broker_->subscribe<exlcm::orientation_matrix_t>(
+            Channels::AXIS_REMAP_CMD,
+            [this](const exlcm::orientation_matrix_t& cmd) { onAxisRemapCommand(cmd); }
+        );
+        if (axisRemapResult.isFailure())
+        {
+            return Result<void>::failure(
+                "Failed to subscribe to axis remap command: " + axisRemapResult.error());
+        }
+
         isInitialized_ = true;
         logger_->info("Command subscriber initialized successfully");
         return Result<void>::success();
@@ -662,5 +675,20 @@ namespace wombat
         }
 
         logger_->info("IMU compass orientation matrix set");
+    }
+
+    void CommandSubscriber::onAxisRemapCommand(const exlcm::orientation_matrix_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received axis remap command while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::AXIS_REMAP_CMD, command.timestamp))
+            return;
+
+        dataPublisher_->setAxisRemap(command.m);
+        logger_->info("Body-to-world axis remap applied");
     }
 } // namespace wombat

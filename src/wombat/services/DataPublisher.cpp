@@ -10,39 +10,53 @@ namespace wombat
     {
     }
 
+    void DataPublisher::setAxisRemap(const int8_t matrix[9])
+    {
+        remap_.setFromMatrix(matrix);
+        logger_->info("Axis remap set: identity=" + std::string(remap_.identity ? "true" : "false"));
+    }
+
     Result<void> DataPublisher::publishSensorData(const SensorData& data)
     {
-        auto gyroResult = broker_->publish(Channels::GYRO, toLcm(data.gyro));
+        // Apply body-to-world axis remap to all IMU data before publishing
+        const auto gyro = remap_.remapVector(data.gyro);
+        const auto accel = remap_.remapVector(data.accelerometer);
+        const auto mag = remap_.remapVector(data.magnetometer);
+        const auto linAccel = remap_.remapVector(data.linearAcceleration);
+        const auto accelVel = remap_.remapVector(data.accelVelocity);
+        const auto orientation = remap_.remapQuaternion(data.orientation);
+
+        auto gyroResult = broker_->publish(Channels::GYRO, toLcm(gyro));
         if (gyroResult.isFailure())
         {
             logger_->warn("Failed to publish gyro data: " + gyroResult.error());
         }
 
-        auto accelResult = broker_->publish(Channels::ACCELEROMETER, toLcm(data.accelerometer));
+        auto accelResult = broker_->publish(Channels::ACCELEROMETER, toLcm(accel));
         if (accelResult.isFailure())
         {
             logger_->warn("Failed to publish accelerometer data: " + accelResult.error());
         }
 
-        auto magResult = broker_->publish(Channels::MAGNETOMETER, toLcm(data.magnetometer));
+        auto magResult = broker_->publish(Channels::MAGNETOMETER, toLcm(mag));
         if (magResult.isFailure())
         {
             logger_->warn("Failed to publish magnetometer data: " + magResult.error());
         }
 
-        auto linAccelResult = broker_->publish(Channels::LINEAR_ACCELERATION, toLcm(data.linearAcceleration));
+        auto linAccelResult = broker_->publish(Channels::LINEAR_ACCELERATION, toLcm(linAccel));
         if (linAccelResult.isFailure())
         {
             logger_->warn("Failed to publish linear acceleration data: " + linAccelResult.error());
         }
 
-        auto accelVelResult = broker_->publish(Channels::ACCEL_VELOCITY, toLcm(data.accelVelocity));
+        auto accelVelResult = broker_->publish(Channels::ACCEL_VELOCITY, toLcm(accelVel));
         if (accelVelResult.isFailure())
         {
             logger_->warn("Failed to publish accel velocity data: " + accelVelResult.error());
         }
 
-        auto orientationResult = broker_->publish(Channels::ORIENTATION, toLcm(data.orientation));
+        auto orientationResult = broker_->publish(Channels::ORIENTATION, toLcm(orientation));
         if (orientationResult.isFailure())
         {
             logger_->warn("Failed to publish orientation data: " + orientationResult.error());

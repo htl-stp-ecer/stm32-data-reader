@@ -8,6 +8,7 @@
 #include "wombat/core/Channels.h"
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
+#include "wombat/core/AxisRemap.h"
 #include "wombat/messaging/LcmBroker.h"
 #include <memory>
 #include <chrono>
@@ -20,6 +21,7 @@ namespace wombat
     public:
         DataPublisher(std::shared_ptr<LcmBroker> broker, std::shared_ptr<Logger> logger);
 
+        void setAxisRemap(const int8_t matrix[9]);
         Result<void> publishSensorData(const SensorData& data);
         Result<void> publishMotorState(PortId port, const MotorState& state);
         Result<void> publishMotorPosition(PortId port, int32_t position);
@@ -30,6 +32,7 @@ namespace wombat
     private:
         std::shared_ptr<LcmBroker> broker_;
         std::shared_ptr<Logger> logger_;
+        AxisRemap remap_;
 
         // Accuracy throttling and change detection
         std::optional<ImuAccuracy> lastAccuracy_;

@@ -51,6 +51,7 @@ namespace wombat
         void onShutdownCommand(const exlcm::scalar_i32_t& command);
         void onImuGyroOrientationCommand(const exlcm::orientation_matrix_t& command);
         void onImuCompassOrientationCommand(const exlcm::orientation_matrix_t& command);
+        void onAxisRemapCommand(const exlcm::orientation_matrix_t& command);
 
         bool isTimestampNewer(const std::string& channel, int64_t timestamp);
 
