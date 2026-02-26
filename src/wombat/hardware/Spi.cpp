@@ -37,8 +37,14 @@ typedef struct
     struct spi_ioc_transfer tr;
     RxBuffer tx; // What we send to STM32 (commands)
     TxBuffer rx; // What we receive from STM32 (sensor data)
+    // Raw SPI frames are always BUFFER_LENGTH_DUPLEX_COMMUNICATION bytes.
+    uint8_t tx_frame[BUFFER_LENGTH_DUPLEX_COMMUNICATION];
+    uint8_t rx_frame[BUFFER_LENGTH_DUPLEX_COMMUNICATION];
     uint32_t speed_hz;
 } SpiCtx;
+
+static_assert(sizeof(RxBuffer) <= BUFFER_LENGTH_DUPLEX_COMMUNICATION, "RxBuffer exceeds wire frame size");
+static_assert(sizeof(TxBuffer) <= BUFFER_LENGTH_DUPLEX_COMMUNICATION, "TxBuffer exceeds wire frame size");
 
 static SpiCtx ctx = {
     .fd = -1,
@@ -86,8 +92,8 @@ static bool spi_reopen(void)
 
     ctx.tx.transferVersion = TRANSFER_VERSION;
     memset(&ctx.tr, 0, sizeof(ctx.tr));
-    ctx.tr.tx_buf = (unsigned long)&ctx.tx;
-    ctx.tr.rx_buf = (unsigned long)&ctx.rx;
+    ctx.tr.tx_buf = (unsigned long)ctx.tx_frame;
+    ctx.tr.rx_buf = (unsigned long)ctx.rx_frame;
     ctx.tr.len = BUFFER_LENGTH_DUPLEX_COMMUNICATION;
     ctx.tr.speed_hz = ctx.speed_hz;
     ctx.tr.bits_per_word = bits;
@@ -97,8 +103,13 @@ static bool spi_reopen(void)
 
 static bool spi_do_transfer(void)
 {
+    memset(ctx.tx_frame, 0, sizeof(ctx.tx_frame));
+    memcpy(ctx.tx_frame, &ctx.tx, sizeof(ctx.tx));
+
     if (ioctl(ctx.fd, SPI_IOC_MESSAGE(1), &ctx.tr) < 0)
         return false;
+
+    memcpy(&ctx.rx, ctx.rx_frame, sizeof(ctx.rx));
 
     // Clear update flags after transmission so subsequent sensor-only
     // transfers don't re-trigger actuator updates on the STM32

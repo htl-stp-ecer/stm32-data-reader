@@ -33,6 +33,7 @@ namespace wombat::test
         MOCK_METHOD(Result<uint8_t>, getMotorDone, (), (override)
         );
         MOCK_METHOD(Result<MotorState>, getMotorState, (PortId port), (
+        
         const
         ,
         override
@@ -42,6 +43,7 @@ namespace wombat::test
         MOCK_METHOD(Result<void>, setServoState, (PortId port, const ServoState& state), (override)
         );
         MOCK_METHOD(Result<ServoState>, getServoState, (PortId port), (
+        
         const
         ,
         override
@@ -60,6 +62,10 @@ namespace wombat::test
         );
 
         MOCK_METHOD(Result<void>, setShutdown, (bool enabled), (override)
+        );
+        MOCK_METHOD(Result<void>, setImuGyroOrientation, (const int8_t* matrix), (override)
+        );
+        MOCK_METHOD(Result<void>, setImuCompassOrientation, (const int8_t* matrix), (override)
         );
     };
 }
