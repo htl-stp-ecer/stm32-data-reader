@@ -8,7 +8,7 @@
 
 #include <stdint.h>
 
-#define TRANSFER_VERSION 7
+#define TRANSFER_VERSION 8
 
 #define PI_BUFFER_UPDATE_MOTOR_PID_SPEED 0x01
 #define PI_BUFFER_UPDATE_MOTOR_PID_POS   0x02
@@ -57,6 +57,7 @@ typedef struct __attribute__ ((packed))
     SensorData linearAccel;
     SensorData accelVelocity;
     QuaternionData quat;
+    float heading;
     float temperature;
 }
 

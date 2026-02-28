@@ -111,6 +111,7 @@ namespace wombat
         Vector3f linearAcceleration{};
         Vector3f accelVelocity{};
         Quaternionf orientation{};
+        float heading{0.0f};
         ImuAccuracy accuracy{};
         float temperature{0.0f};
         float batteryVoltage{0.0f};

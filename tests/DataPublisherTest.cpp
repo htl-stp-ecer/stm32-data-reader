@@ -83,6 +83,30 @@ TEST_F(DataPublisherTest, PublishSensorDataWithSubscription)
     EXPECT_FLOAT_EQ(receivedMsg.z, 3.5f);
 }
 
+TEST_F(DataPublisherTest, PublishHeadingWithSubscription)
+{
+    std::atomic<bool> received{false};
+    exlcm::scalar_f_t receivedMsg{};
+
+    broker_->subscribe<exlcm::scalar_f_t>(Channels::HEADING,
+                                          [&](const exlcm::scalar_f_t& msg)
+                                          {
+                                              receivedMsg = msg;
+                                              received = true;
+                                          });
+
+    SensorData data{};
+    data.heading = 123.5f;
+
+    auto result = publisher_->publishSensorData(data);
+    EXPECT_TRUE(result.isSuccess());
+
+    drainMessages(received);
+
+    EXPECT_TRUE(received.load());
+    EXPECT_FLOAT_EQ(receivedMsg.value, 123.5f);
+}
+
 TEST_F(DataPublisherTest, PublishMotorStateSucceeds)
 {
     MotorState state{MotorControlMode::Pwm, 200, 0, 50, 1000, false};

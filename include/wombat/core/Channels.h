@@ -17,6 +17,7 @@ namespace wombat
         constexpr auto ACCEL_VELOCITY = "libstp/accel_velocity/value";
         constexpr auto MAGNETOMETER = "libstp/mag/value";
         constexpr auto ORIENTATION = "libstp/imu/quaternion";
+        constexpr auto HEADING = "libstp/imu/heading";
         constexpr auto TEMPERATURE = "libstp/imu/temp/value"; // IMU temperature from sensor
         constexpr auto BATTERY_VOLTAGE = "libstp/battery/voltage";
         constexpr auto GYRO_ACCURACY = "libstp/gyro/accuracy";

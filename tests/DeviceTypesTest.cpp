@@ -131,6 +131,7 @@ TEST(SensorDataTest, DefaultValues)
     EXPECT_EQ(d.gyro, Vector3f{});
     EXPECT_EQ(d.accelerometer, Vector3f{});
     EXPECT_EQ(d.orientation, Quaternionf{});
+    EXPECT_FLOAT_EQ(d.heading, 0.0f);
     EXPECT_FLOAT_EQ(d.temperature, 0.0f);
     EXPECT_FLOAT_EQ(d.batteryVoltage, 0.0f);
     EXPECT_EQ(d.digitalBits, 0u);

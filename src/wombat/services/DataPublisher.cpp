@@ -62,6 +62,12 @@ namespace wombat
             logger_->warn("Failed to publish orientation data: " + orientationResult.error());
         }
 
+        auto headingResult = broker_->publish(Channels::HEADING, toLcmScalarF(data.heading));
+        if (headingResult.isFailure())
+        {
+            logger_->warn("Failed to publish heading data: " + headingResult.error());
+        }
+
         // Publish IMU accuracy (throttled)
         publishAccuracy(data.accuracy);
 
