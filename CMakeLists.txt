@@ -34,23 +34,12 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-# ---------- LCM ----------
-set(LCM_ENABLE_JAVA OFF CACHE BOOL "" FORCE)
-set(LCM_ENABLE_PYTHON OFF CACHE BOOL "" FORCE)
-set(LCM_ENABLE_DOCS OFF CACHE BOOL "" FORCE)
-set(LCM_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+# ---------- raccoon-transport (brings LCM + message types) ----------
 FetchContent_Declare(
-        lcm
-        GIT_REPOSITORY https://github.com/lcm-proj/lcm.git
-        GIT_TAG v1.5.0
+        raccoon_transport
+        SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../raccoon-transport
 )
-FetchContent_MakeAvailable(lcm)
-
-# lcm_wrap_types is defined in lcmUtilities.cmake; include it explicitly
-# since we disable LCM_ENABLE_TESTS (which would otherwise include it)
-include(${lcm_SOURCE_DIR}/lcm-cmake/lcmUtilities.cmake)
-
-add_subdirectory(lcm-messages)
+FetchContent_MakeAvailable(raccoon_transport)
 
 set(CORE_SOURCES
         src/wombat/core/Logger.cpp
@@ -82,8 +71,7 @@ add_library(wombat_lib STATIC
 
 target_link_libraries(wombat_lib PUBLIC
         spdlog::spdlog_header_only
-        messages-cpp
-        ${LCM_NAMESPACE}lcm
+        raccoon::transport
 )
 
 if (USE_SPI_MOCK)

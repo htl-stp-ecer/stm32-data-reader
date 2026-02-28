@@ -11,7 +11,6 @@
 #include "wombat/core/AxisRemap.h"
 #include "wombat/messaging/LcmBroker.h"
 #include <memory>
-#include <chrono>
 #include <optional>
 
 namespace wombat
@@ -34,10 +33,8 @@ namespace wombat
         std::shared_ptr<Logger> logger_;
         AxisRemap remap_;
 
-        // Accuracy throttling and change detection
+        // Accuracy change detection
         std::optional<ImuAccuracy> lastAccuracy_;
-        std::chrono::steady_clock::time_point lastAccuracyPublishTime_{};
-        static constexpr std::chrono::seconds accuracyPublishInterval_{15};
 
         Result<void> publishAnalogValues(const std::array<AnalogValue, MAX_ANALOG_PORTS>& values);
         Result<void> publishDigitalBits(DigitalValue digitalBits);

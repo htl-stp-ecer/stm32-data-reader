@@ -1,5 +1,13 @@
 #include "wombat/messaging/LcmBroker.h"
-#include <lcm/lcm-cpp.hpp>
+#include <raccoon/Transport.h>
+#include <raccoon/Options.h>
+#include <exlcm/vector3f_t.hpp>
+#include <exlcm/quaternion_t.hpp>
+#include <exlcm/scalar_f_t.hpp>
+#include <exlcm/scalar_i32_t.hpp>
+#include <exlcm/scalar_i8_t.hpp>
+#include <exlcm/string_t.hpp>
+#include <exlcm/orientation_matrix_t.hpp>
 #include <unordered_map>
 #include <vector>
 #include <cstring>
@@ -72,36 +80,35 @@ namespace wombat
 
         Result<void> initialize()
         {
-            lcm_ = std::make_unique<lcm::LCM>();
+            transport_ = std::make_unique<raccoon::Transport>(raccoon::Transport::create());
 
-            if (!lcm_->good())
-            {
-                return Result<void>::failure("Failed to initialize LCM");
-            }
-
-            logger_->info("LCM message broker initialized successfully");
+            logger_->info("LCM message broker initialized successfully (via raccoon::Transport)");
             return Result<void>::success();
         }
 
         Result<void> shutdown()
         {
-            lcm_.reset();
+            if (transport_)
+            {
+                transport_->stop();
+                transport_.reset();
+            }
             logger_->info("LCM message broker shut down");
             return Result<void>::success();
         }
 
         Result<void> processMessages()
         {
-            if (!lcm_ || !lcm_->good())
+            if (!transport_)
             {
-                return Result<void>::failure("LCM not initialized or unhealthy");
+                return Result<void>::failure("Transport not initialized");
             }
 
             // Drain all pending messages instead of just one
             int messagesProcessed = 0;
             while (true)
             {
-                const int result = lcm_->handleTimeout(0);
+                const int result = transport_->spinOnce(0);
                 if (result < 0)
                 {
                     return Result<void>::failure("Failed to process LCM messages");
@@ -153,15 +160,16 @@ namespace wombat
 
         bool isHealthy() const
         {
-            return lcm_ && lcm_->good();
+            return transport_ != nullptr;
         }
 
         template <typename MessageType>
-        Result<void> publishIfChanged(const std::string& channel, const MessageType& message)
+        Result<void> publishIfChanged(const std::string& channel, const MessageType& message,
+                                       const raccoon::PublishOptions& options = {})
         {
-            if (!lcm_ || !lcm_->good())
+            if (!transport_)
             {
-                return Result<void>::failure("LCM not initialized or unhealthy");
+                return Result<void>::failure("Transport not initialized");
             }
 
             if (!hasMessageChanged(channel, message))
@@ -169,8 +177,7 @@ namespace wombat
                 return Result<void>::success(); // No change, skip publishing
             }
 
-            const int result = lcm_->publish(channel, &message);
-            if (result != 0)
+            if (!transport_->publish(channel, message, options))
             {
                 return Result<void>::failure("Failed to publish message on channel: " + channel);
             }
@@ -179,15 +186,15 @@ namespace wombat
         }
 
         template <typename MessageType>
-        Result<void> publishForce(const std::string& channel, const MessageType& message)
+        Result<void> publishForce(const std::string& channel, const MessageType& message,
+                                   const raccoon::PublishOptions& options = {})
         {
-            if (!lcm_ || !lcm_->good())
+            if (!transport_)
             {
-                return Result<void>::failure("LCM not initialized or unhealthy");
+                return Result<void>::failure("Transport not initialized");
             }
 
-            const int result = lcm_->publish(channel, &message);
-            if (result != 0)
+            if (!transport_->publish(channel, message, options))
             {
                 return Result<void>::failure("Failed to publish message on channel: " + channel);
             }
@@ -199,21 +206,15 @@ namespace wombat
         Result<void> subscribe(const std::string& channel,
                                std::function<void(const T &)> handler)
         {
-            if (!lcm_ || !lcm_->good())
+            if (!transport_)
             {
-                return Result<void>::failure("LCM not initialized or unhealthy");
+                return Result<void>::failure("Transport not initialized");
             }
 
-            std::function < void(const lcm::ReceiveBuffer *, const std::string &, const T *) > lcmHandler =
-                [handler, this](const lcm::ReceiveBuffer*, const std::string&, const T* msg)
-                {
-                    if (msg)
-                    {
-                        latencyStats_.record(nowUsec() - msg->timestamp);
-                        handler(*msg);
-                    }
-                };
-            lcm_->subscribe<T>(channel, lcmHandler);
+            transport_->subscribe<T>(channel, [handler, this](const T& msg) {
+                latencyStats_.record(nowUsec() - msg.timestamp);
+                handler(msg);
+            });
 
             logger_->debug("Subscribed to " + std::string(T::getTypeName()) + " channel: " + channel);
             return Result<void>::success();
@@ -221,7 +222,7 @@ namespace wombat
 
     private:
         std::shared_ptr<Logger> logger_;
-        std::unique_ptr<lcm::LCM> lcm_;
+        std::unique_ptr<raccoon::Transport> transport_;
         std::unordered_map<std::string, std::vector<uint8_t>> messageCache_;
         std::chrono::steady_clock::time_point lastProcessTime_{};
         uint64_t processCallCount_{0};
@@ -275,7 +276,7 @@ namespace wombat
         return impl_->isHealthy();
     }
 
-    // Explicit template instantiations — publish
+    // Explicit template instantiations — publish (change-detected, plain)
     template <>
     Result<void> LcmBroker::publish<exlcm::vector3f_t>(const std::string& ch, const exlcm::vector3f_t& m)
     {
@@ -312,7 +313,7 @@ namespace wombat
         return impl_->publishIfChanged(ch, m);
     }
 
-    // Explicit template instantiations — publishForce
+    // Explicit template instantiations — publishForce (plain, no change detection)
     template <>
     Result<void> LcmBroker::publishForce<exlcm::scalar_i8_t>(const std::string& ch, const exlcm::scalar_i8_t& m)
     {
@@ -323,6 +324,21 @@ namespace wombat
     Result<void> LcmBroker::publishForce<exlcm::scalar_i32_t>(const std::string& ch, const exlcm::scalar_i32_t& m)
     {
         return impl_->publishForce(ch, m);
+    }
+
+    // Explicit template instantiations — publishRetained (change-detected + retained flag)
+    static const raccoon::PublishOptions retainedOpts{.retained = true};
+
+    template <>
+    Result<void> LcmBroker::publishRetained<exlcm::scalar_i8_t>(const std::string& ch, const exlcm::scalar_i8_t& m)
+    {
+        return impl_->publishIfChanged(ch, m, retainedOpts);
+    }
+
+    template <>
+    Result<void> LcmBroker::publishRetained<exlcm::scalar_i32_t>(const std::string& ch, const exlcm::scalar_i32_t& m)
+    {
+        return impl_->publishIfChanged(ch, m, retainedOpts);
     }
 
     // Explicit template instantiations — subscribe

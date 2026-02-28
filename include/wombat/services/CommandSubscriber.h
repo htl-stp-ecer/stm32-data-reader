@@ -9,7 +9,11 @@
 #include "wombat/core/Logger.h"
 #include "wombat/messaging/LcmBroker.h"
 #include "wombat/messaging/LcmConcepts.h"
-#include "exlcm/orientation_matrix_t.hpp"
+#include <exlcm/vector3f_t.hpp>
+#include <exlcm/scalar_f_t.hpp>
+#include <exlcm/scalar_i32_t.hpp>
+#include <exlcm/scalar_i8_t.hpp>
+#include <exlcm/orientation_matrix_t.hpp>
 #include "wombat/services/DeviceController.h"
 #include "wombat/services/DataPublisher.h"
 #include <memory>

@@ -1,18 +1,8 @@
-//
-// Created by tobias on 9/14/25.
-//
 #pragma once
 
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
 #include "wombat/messaging/LcmConcepts.h"
-#include "exlcm/vector3f_t.hpp"
-#include "exlcm/quaternion_t.hpp"
-#include "exlcm/scalar_f_t.hpp"
-#include "exlcm/scalar_i32_t.hpp"
-#include "exlcm/scalar_i8_t.hpp"
-#include "exlcm/string_t.hpp"
-#include "exlcm/orientation_matrix_t.hpp"
 #include <memory>
 #include <functional>
 
@@ -34,6 +24,9 @@ namespace wombat
 
         template <LcmMessage T>
         Result<void> publishForce(const std::string& channel, const T& message);
+
+        template <LcmMessage T>
+        Result<void> publishRetained(const std::string& channel, const T& message);
 
         template <LcmMessage T>
         Result<void> subscribe(const std::string& channel, std::function<void(const T &)> handler);

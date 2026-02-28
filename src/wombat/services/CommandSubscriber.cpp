@@ -1,5 +1,5 @@
 #include "wombat/services/CommandSubscriber.h"
-#include "exlcm/orientation_matrix_t.hpp"
+#include <exlcm/orientation_matrix_t.hpp>
 #include <chrono>
 
 namespace wombat

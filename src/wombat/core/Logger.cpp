@@ -4,7 +4,7 @@
 #include "wombat/core/Logger.h"
 #include "wombat/core/Channels.h"
 #include "wombat/messaging/LcmBroker.h"
-#include "exlcm/string_t.hpp"
+#include <exlcm/string_t.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
 

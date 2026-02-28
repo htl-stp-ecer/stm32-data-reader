@@ -1,5 +1,6 @@
 #include "wombat/services/DataPublisher.h"
 #include "wombat/messaging/LcmBroker.h"
+#include "wombat/messaging/LcmConversions.h"
 #include "wombat/core/Channels.h"
 #include "mocks/MockLogger.h"
 #include <gtest/gtest.h>

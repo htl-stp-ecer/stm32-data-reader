@@ -1,7 +1,6 @@
 #include "wombat/services/DataPublisher.h"
 #include "wombat/messaging/LcmConversions.h"
 #include <string>
-#include <chrono>
 
 namespace wombat
 {
@@ -107,7 +106,7 @@ namespace wombat
             return Result<void>::failure("Invalid motor port: " + std::to_string(port));
         }
 
-        auto powerResult = broker_->publish(
+        auto powerResult = broker_->publishRetained(
             Channels::motorPower(port),
             toLcmScalarI32(state.target)
         );
@@ -116,7 +115,7 @@ namespace wombat
             logger_->warn("Failed to publish motor power: " + powerResult.error());
         }
 
-        auto bemfResult = broker_->publish(
+        auto bemfResult = broker_->publishRetained(
             Channels::backEmf(port),
             toLcmScalarI32(state.backEmf)
         );
@@ -125,7 +124,7 @@ namespace wombat
             logger_->warn("Failed to publish back EMF: " + bemfResult.error());
         }
 
-        auto posResult = broker_->publish(
+        auto posResult = broker_->publishRetained(
             Channels::motorPosition(port),
             toLcmScalarI32(state.position)
         );
@@ -134,7 +133,7 @@ namespace wombat
             logger_->warn("Failed to publish motor position: " + posResult.error());
         }
 
-        auto doneResult = broker_->publish(
+        auto doneResult = broker_->publishRetained(
             Channels::motorDone(port),
             toLcmScalarI32(state.done ? 1 : 0)
         );
@@ -191,7 +190,7 @@ namespace wombat
             return Result<void>::failure("Invalid servo port: " + std::to_string(port));
         }
 
-        auto modeResult = broker_->publish(
+        auto modeResult = broker_->publishRetained(
             Channels::servoMode(port),
             toLcmScalarI8(static_cast<uint8_t>(state.mode))
         );
@@ -200,7 +199,7 @@ namespace wombat
             logger_->warn("Failed to publish servo mode: " + modeResult.error());
         }
 
-        auto positionResult = broker_->publish(
+        auto positionResult = broker_->publishRetained(
             Channels::servoPosition(port),
             toLcmScalarI32(static_cast<int32_t>(state.position))
         );
@@ -247,12 +246,10 @@ namespace wombat
 
     Result<void> DataPublisher::publishAccuracy(const ImuAccuracy& accuracy)
     {
-        const auto now = std::chrono::steady_clock::now();
         const bool isFirstTime = !lastAccuracy_.has_value();
         const bool hasChanged = lastAccuracy_.has_value() && !(accuracy == lastAccuracy_.value());
-        const bool intervalElapsed = (now - lastAccuracyPublishTime_) >= accuracyPublishInterval_;
 
-        if (!isFirstTime && !hasChanged && !intervalElapsed)
+        if (!isFirstTime && !hasChanged)
         {
             return Result<void>::success();
         }
@@ -265,7 +262,7 @@ namespace wombat
                 ", compass=" + std::to_string(accuracy.compass) +
                 ", quat=" + std::to_string(accuracy.quaternion));
         }
-        else if (hasChanged)
+        else
         {
             logger_->info("IMU accuracy changed: gyro=" + std::to_string(accuracy.gyro) +
                 ", accel=" + std::to_string(accuracy.accelerometer) +
@@ -273,22 +270,14 @@ namespace wombat
                 ", compass=" + std::to_string(accuracy.compass) +
                 ", quat=" + std::to_string(accuracy.quaternion));
         }
-        else if (intervalElapsed)
-        {
-            logger_->info("IMU accuracy (periodic): gyro=" + std::to_string(accuracy.gyro) +
-                ", accel=" + std::to_string(accuracy.accelerometer) +
-                ", lin_accel=" + std::to_string(accuracy.linearAcceleration) +
-                ", compass=" + std::to_string(accuracy.compass) +
-                ", quat=" + std::to_string(accuracy.quaternion));
-        }
 
-        broker_->publishForce(Channels::GYRO_ACCURACY, toLcmScalarI8(accuracy.gyro));
-        broker_->publishForce(Channels::ACCEL_ACCURACY, toLcmScalarI8(accuracy.accelerometer));
-        broker_->publishForce(Channels::COMPASS_ACCURACY, toLcmScalarI8(accuracy.compass));
-        broker_->publishForce(Channels::QUATERNION_ACCURACY, toLcmScalarI8(accuracy.quaternion));
+        // Publish with retained flag — new subscribers get cached value immediately
+        broker_->publishRetained(Channels::GYRO_ACCURACY, toLcmScalarI8(accuracy.gyro));
+        broker_->publishRetained(Channels::ACCEL_ACCURACY, toLcmScalarI8(accuracy.accelerometer));
+        broker_->publishRetained(Channels::COMPASS_ACCURACY, toLcmScalarI8(accuracy.compass));
+        broker_->publishRetained(Channels::QUATERNION_ACCURACY, toLcmScalarI8(accuracy.quaternion));
 
         lastAccuracy_ = accuracy;
-        lastAccuracyPublishTime_ = now;
 
         return Result<void>::success();
     }
@@ -297,7 +286,7 @@ namespace wombat
     {
         auto message = toLcmScalarI32(static_cast<int32_t>(shutdownFlags));
 
-        auto result = broker_->publishForce(Channels::SHUTDOWN_STATUS, message);
+        auto result = broker_->publishRetained(Channels::SHUTDOWN_STATUS, message);
         if (result.isFailure())
         {
             return Result<void>::failure("Failed to publish shutdown status: " + result.error());
