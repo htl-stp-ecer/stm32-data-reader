@@ -11,6 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(USE_SPI_MOCK "Use mock SPI implementation for testing" ON)
 
 include_directories(include)
+include_directories(shared)
 include(FetchContent)
 
 # ---------- spdlog ----------

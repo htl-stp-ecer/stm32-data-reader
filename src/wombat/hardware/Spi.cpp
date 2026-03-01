@@ -55,7 +55,7 @@ static bool allowUpdates = false;
 
 static void reset_stm(void)
 {
-    int rc = system("bash ~/flashFiles/wallaby_reset_coproc");
+    int rc = system("bash ~/flashFiles/reset_coprocessor.sh");
     if (rc != 0)
     {
         fprintf(stderr, "[spi] STM reset script failed (%d).  Power-cycle the Wombat.\n", rc);

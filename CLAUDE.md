@@ -73,10 +73,11 @@ All channels follow pattern `libstp/<device>/<property>` defined in `wombat::Cha
 
 ### SPI Protocol
 
-Binary protocol defined in `include/spi/pi_buffer.h`:
+Binary protocol defined in `shared/spi/pi_buffer.h` (single source of truth, used by both reader and firmware):
 - `TxBuffer` - Data from STM32 (sensors, BEMF readings)
 - `RxBuffer` - Commands to STM32 (motor/servo control, calibration)
 - Protocol version handshake ensures compatibility
+- Has `extern "C"` guards for C/C++ compatibility
 
 ## Key Configuration
 
@@ -90,6 +91,38 @@ Located in `wombat::Configuration` struct:
 Fetched via CMake FetchContent:
 - **LCM** (v1.5.0) - Multicast messaging
 - **spdlog** (v1.15.3) - Logging
+
+## Firmware (STM32)
+
+The STM32 firmware lives in `firmware/` (merged from Firmware-Stp). It shares the SPI protocol header at
+`shared/spi/pi_buffer.h`.
+
+### Firmware build (requires Docker or gcc-arm-none-eabi):
+
+```bash
+cd firmware && bash build.sh              # Builds wombat.bin via Docker
+```
+
+### Firmware build (native, no Docker):
+
+```bash
+cd firmware && mkdir -p build && cd build
+cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=../CMake/GNU-ARM-Toolchain.cmake ..
+cmake --build . -- -j$(nproc)
+```
+
+### Combined build (reader + firmware):
+
+```bash
+./build.sh                                # Builds both; firmware artifacts in build/
+SKIP_FIRMWARE=1 ./build.sh                # Skip firmware, reader only
+```
+
+### Deploy both to Pi:
+
+```bash
+./deploy.sh                               # Builds both, uploads, flashes firmware, starts reader
+```
 
 ## Systemd Services
 

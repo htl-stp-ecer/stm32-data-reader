@@ -90,7 +90,7 @@ else
 fi
 
 echo "• Building with Ninja (-j $NINJA_JOBS)"
-docker_exec "cmake --build /src/$BUILD_DIR -j$NINJA_JOBS"
+docker_exec "cmake --build /src/$BUILD_DIR -j$NINJA_JOBS && chown $(id -u):$(id -g) /src/$BUILD_DIR/$PROJECT_NAME"
 
 BIN="${BUILD_DIR}/${PROJECT_NAME}"
 if [[ ! -f "$BIN" ]]; then
@@ -101,3 +101,19 @@ fi
 chmod +x "$BIN" || true
 echo "✓ Built $(basename "$BIN") → $BIN"
 file "$BIN" || true
+
+# -------- Firmware build --------
+SKIP_FIRMWARE="${SKIP_FIRMWARE:-0}"
+if [[ "$SKIP_FIRMWARE" != "1" ]]; then
+  echo ""
+  echo "▶ Building firmware"
+  (cd firmware && bash build.sh)
+  FW_BIN="firmware/build/Firmware/wombat.bin"
+  if [[ -f "$FW_BIN" ]]; then
+    cp "$FW_BIN" "$BUILD_DIR/"
+    cp firmware/flashFiles/* "$BUILD_DIR/"
+    echo "✓ Firmware → $BUILD_DIR/wombat.bin"
+  else
+    echo "⚠ Firmware build did not produce wombat.bin (skipping)"
+  fi
+fi

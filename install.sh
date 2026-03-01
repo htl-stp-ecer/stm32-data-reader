@@ -10,6 +10,11 @@
 #   stm32_data_reader                      (ARM64 binary)
 #   stm32_data_reader.service              (systemd unit)
 #   lcm-loopback-multicast.service         (systemd unit)
+# Optional firmware files (if present, firmware will be flashed):
+#   wombat.bin                             (STM32 firmware binary)
+#   flash_wombat.sh                        (flash script)
+#   reset_coprocessor.sh                   (reset script)
+#   init_gpio.sh                           (GPIO init script)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,6 +27,7 @@ LCM_SERVICE_FILE="${SCRIPT_DIR}/lcm-loopback-multicast.service"
 REMOTE_USER="${RPI_USER:-pi}"
 REMOTE_HOST="${RPI_HOST:-10.101.156.14}"
 REMOTE_DIR="/home/pi/stm32_data_reader"
+REMOTE_FLASH_DIR="/home/pi/flashFiles"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 
@@ -38,7 +44,16 @@ if [[ ${#missing[@]} -gt 0 ]]; then
   exit 1
 fi
 
+# Check if firmware files are present
+HAS_FIRMWARE=false
+if [[ -f "${SCRIPT_DIR}/wombat.bin" && -f "${SCRIPT_DIR}/flash_wombat.sh" ]]; then
+  HAS_FIRMWARE=true
+fi
+
 echo -e "${GREEN}Installing ${PROJECT_NAME} to ${REMOTE_USER}@${REMOTE_HOST}${NC}"
+if $HAS_FIRMWARE; then
+  echo -e "${GREEN}Firmware files found — will flash STM32${NC}"
+fi
 
 # --- SSH connectivity ---
 echo -e "${BLUE}Testing SSH connection...${NC}"
@@ -54,11 +69,24 @@ REMOTE="${REMOTE_USER}@${REMOTE_HOST}"
 echo -e "${BLUE}Stopping ${PROJECT_NAME} service...${NC}"
 ssh "$REMOTE" "sudo systemctl stop ${PROJECT_NAME}" 2>/dev/null || true
 
-# --- Upload files ---
-echo -e "${BLUE}Uploading files...${NC}"
+# --- Upload reader binary ---
+echo -e "${BLUE}Uploading reader binary...${NC}"
 ssh "$REMOTE" "mkdir -p '${REMOTE_DIR}'"
 scp "$BINARY" "$REMOTE:${REMOTE_DIR}/${PROJECT_NAME}"
 ssh "$REMOTE" "chmod +x '${REMOTE_DIR}/${PROJECT_NAME}'"
+
+# --- Flash firmware (if available) ---
+if $HAS_FIRMWARE; then
+  echo -e "${BLUE}Uploading firmware files...${NC}"
+  ssh "$REMOTE" "mkdir -p '${REMOTE_FLASH_DIR}'"
+  scp "${SCRIPT_DIR}/wombat.bin" "$REMOTE:${REMOTE_FLASH_DIR}/wombat.bin"
+  scp "${SCRIPT_DIR}/flash_wombat.sh" "$REMOTE:${REMOTE_FLASH_DIR}/flash_wombat.sh"
+  scp "${SCRIPT_DIR}/reset_coprocessor.sh" "$REMOTE:${REMOTE_FLASH_DIR}/reset_coprocessor.sh"
+  scp "${SCRIPT_DIR}/init_gpio.sh" "$REMOTE:${REMOTE_FLASH_DIR}/init_gpio.sh"
+
+  echo -e "${BLUE}Flashing STM32 firmware...${NC}"
+  ssh "$REMOTE" "cd '${REMOTE_FLASH_DIR}' && bash ./flash_wombat.sh"
+fi
 
 # --- Install systemd units ---
 echo -e "${BLUE}Installing systemd services...${NC}"

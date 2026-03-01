@@ -13,5 +13,7 @@ cp "${SCRIPT_DIR}/systemd/stm32_data_reader.service" "${SCRIPT_DIR}/build/"
 cp "${SCRIPT_DIR}/systemd/lcm-loopback-multicast.service" "${SCRIPT_DIR}/build/"
 cp "${SCRIPT_DIR}/install.sh" "${SCRIPT_DIR}/build/"
 
+# Firmware artifacts are already copied by build.sh (wombat.bin + flash scripts)
+
 echo "Installing to Pi..."
 bash "${SCRIPT_DIR}/build/install.sh"

@@ -5,7 +5,31 @@ on:
     branches: [ main ]
 
 jobs:
-  build-and-release:
+  build-firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ARM toolchain
+        run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
+
+      - name: Build firmware
+        run: |
+          cd firmware
+          mkdir -p build && cd build
+          cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=../CMake/GNU-ARM-Toolchain.cmake ..
+          cmake --build . -- -j$(nproc)
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: |
+            firmware/build/Firmware/wombat.bin
+            firmware/flashFiles/*
+
+  build-reader:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -38,20 +62,50 @@ jobs:
         with:
           path: |
             .ccache
-          key: ccache-${{ hashFiles('CMakeLists.txt', 'src/**', 'include/**') }}
+          key: ccache-${{ hashFiles('CMakeLists.txt', 'src/**', 'include/**', 'shared/**') }}
           restore-keys: ccache-
 
       - name: Build ARM64 binary
         run: |
-          BUILD_NUMBER=${{ github.run_number }} bash ./build.sh
+          SKIP_FIRMWARE=1 BUILD_NUMBER=${{ github.run_number }} bash ./build.sh
         env:
           FORCE_RECONFIGURE: "1"
           CCACHE_HOST_DIR: ${{ github.workspace }}/.ccache
 
+      - name: Upload reader artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: reader
+          path: build/stm32_data_reader
+
+  release:
+    needs: [ build-firmware, build-reader ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download firmware artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          path: artifacts/firmware
+
+      - name: Download reader artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: reader
+          path: artifacts/reader
+
       - name: Bundle release files
         run: |
           mkdir -p release
-          cp build/stm32_data_reader release/
+          cp artifacts/reader/stm32_data_reader release/
+          cp artifacts/firmware/firmware/build/Firmware/wombat.bin release/ 2>/dev/null || true
+          cp artifacts/firmware/firmware/flashFiles/* release/ 2>/dev/null || true
           cp install.sh release/
           cp systemd/stm32_data_reader.service release/
           cp systemd/lcm-loopback-multicast.service release/
