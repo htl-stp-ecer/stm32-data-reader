@@ -11,15 +11,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install ARM toolchain
-        run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache firmware Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./firmware
+          load: true
+          tags: wombat-firmware:latest
+          cache-from: type=gha,scope=firmware
+          cache-to: type=gha,scope=firmware,mode=max
 
       - name: Build firmware
-        run: |
-          cd firmware
-          mkdir -p build && cd build
-          cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=../CMake/GNU-ARM-Toolchain.cmake ..
-          cmake --build . -- -j$(nproc)
+        run: cd firmware && docker compose up --build --exit-code-from build-wombat-firmware
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4

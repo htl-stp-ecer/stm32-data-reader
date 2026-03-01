@@ -269,7 +269,7 @@ void update_motor(const uint8_t channel, const int16_t bemf_filtered)
             motor_setDutycycle(channel, 0);
         }
         break;
-    case MOT_MODE_PASSIV_BREAK:
+    case MOT_MODE_PASSIV_BRAKE:
         {
             motor_setDirection(channel, SHORT_BREAK);
             motor_setDutycycle(channel, 0);

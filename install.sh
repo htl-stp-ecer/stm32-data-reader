@@ -69,12 +69,6 @@ REMOTE="${REMOTE_USER}@${REMOTE_HOST}"
 echo -e "${BLUE}Stopping ${PROJECT_NAME} service...${NC}"
 ssh "$REMOTE" "sudo systemctl stop ${PROJECT_NAME}" 2>/dev/null || true
 
-# --- Upload reader binary ---
-echo -e "${BLUE}Uploading reader binary...${NC}"
-ssh "$REMOTE" "mkdir -p '${REMOTE_DIR}'"
-scp "$BINARY" "$REMOTE:${REMOTE_DIR}/${PROJECT_NAME}"
-ssh "$REMOTE" "chmod +x '${REMOTE_DIR}/${PROJECT_NAME}'"
-
 # --- Flash firmware (if available) ---
 if $HAS_FIRMWARE; then
   echo -e "${BLUE}Uploading firmware files...${NC}"
@@ -85,8 +79,17 @@ if $HAS_FIRMWARE; then
   scp "${SCRIPT_DIR}/init_gpio.sh" "$REMOTE:${REMOTE_FLASH_DIR}/init_gpio.sh"
 
   echo -e "${BLUE}Flashing STM32 firmware...${NC}"
-  ssh "$REMOTE" "cd '${REMOTE_FLASH_DIR}' && bash ./flash_wombat.sh"
+  if ! ssh "$REMOTE" "cd '${REMOTE_FLASH_DIR}' && bash ./flash_wombat.sh"; then
+    echo -e "${RED}STM32 flash failed!${NC}"
+    exit 1
+  fi
 fi
+
+# --- Upload reader binary ---
+echo -e "${BLUE}Uploading reader binary...${NC}"
+ssh "$REMOTE" "mkdir -p '${REMOTE_DIR}'"
+scp "$BINARY" "$REMOTE:${REMOTE_DIR}/${PROJECT_NAME}"
+ssh "$REMOTE" "chmod +x '${REMOTE_DIR}/${PROJECT_NAME}'"
 
 # --- Install systemd units ---
 echo -e "${BLUE}Installing systemd services...${NC}"

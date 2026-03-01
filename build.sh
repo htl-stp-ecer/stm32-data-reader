@@ -106,14 +106,14 @@ file "$BIN" || true
 SKIP_FIRMWARE="${SKIP_FIRMWARE:-0}"
 if [[ "$SKIP_FIRMWARE" != "1" ]]; then
   echo ""
-  echo "▶ Building firmware"
-  (cd firmware && bash build.sh)
+  echo "▶ Building firmware (via Docker)"
+  (cd firmware && docker compose up --build --exit-code-from build-wombat-firmware)
   FW_BIN="firmware/build/Firmware/wombat.bin"
-  if [[ -f "$FW_BIN" ]]; then
-    cp "$FW_BIN" "$BUILD_DIR/"
-    cp firmware/flashFiles/* "$BUILD_DIR/"
-    echo "✓ Firmware → $BUILD_DIR/wombat.bin"
-  else
-    echo "⚠ Firmware build did not produce wombat.bin (skipping)"
+  if [[ ! -f "$FW_BIN" ]]; then
+    echo "✖ Firmware build did not produce wombat.bin"
+    exit 1
   fi
+  cp "$FW_BIN" "$BUILD_DIR/"
+  cp firmware/flashFiles/* "$BUILD_DIR/"
+  echo "✓ Firmware → $BUILD_DIR/wombat.bin"
 fi
