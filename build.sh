@@ -8,6 +8,7 @@ PLATFORM="${PLATFORM:-linux/arm64/v8}"
 IMAGE_NAME="${IMAGE_NAME:-stm32-dev:arm64}"
 CCACHE_VOL="${CCACHE_VOL:-stm32-ccache}"
 CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
+BUILD_NUMBER="${BUILD_NUMBER:-0}"
 # Portable CPU count default
 if command -v nproc >/dev/null 2>&1; then
   _cpu="$(nproc)"
@@ -19,7 +20,7 @@ FORCE_RECONFIGURE="${FORCE_RECONFIGURE:-0}"
 REBUILD_IMAGE="${REBUILD_IMAGE:-0}"
 CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-3G}"
 
-echo "▶ Building $PROJECT_NAME for $PLATFORM into ./$BUILD_DIR using $IMAGE_NAME"
+echo "▶ Building $PROJECT_NAME v1.0.$BUILD_NUMBER for $PLATFORM into ./$BUILD_DIR using $IMAGE_NAME"
 mkdir -p "$BUILD_DIR"
 
 need_builder() {
@@ -73,6 +74,7 @@ if [[ "$FORCE_RECONFIGURE" == "1" || ! -f "$BUILD_DIR/CMakeCache.txt" ]]; then
   docker_exec "cmake -S /src -B /src/$BUILD_DIR -G Ninja \
     -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
     -DUSE_SPI_MOCK=OFF \
+    -DBUILD_NUMBER=$BUILD_NUMBER \
     -DCMAKE_C_COMPILER_LAUNCHER=ccache \
     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 else

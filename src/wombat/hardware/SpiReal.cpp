@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <string>
 
+#include "spdlog/spdlog.h"
+
 // C API
 extern "C" {
 #include "wombat/hardware/Spi.h"
@@ -213,43 +215,11 @@ namespace wombat
         return Result<void>::success();
     }
 
-    Result<void> SpiReal::setBemfScale(PortId port, float scale)
-    {
-        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        set_bemf_scale(port, scale);
-        return Result<void>::success();
-    }
-
-    Result<void> SpiReal::setBemfOffset(PortId port, float offset)
-    {
-        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        set_bemf_offset(port, offset);
-        return Result<void>::success();
-    }
-
-    Result<void> SpiReal::setBemfNominalVoltage(int16_t adcValue)
-    {
-        set_bemf_nominal_voltage(adcValue);
-        return Result<void>::success();
-    }
-
     Result<void> SpiReal::setShutdown(bool enabled)
     {
         set_shutdown_flag(SHUTDOWN_MOTOR_FLAG, enabled);
         set_shutdown_flag(SHUTDOWN_SERVO_FLAG, enabled);
         if (logger_) logger_->info("SPI: Shutdown " + std::string(enabled ? "enabled" : "disabled"));
-        return Result<void>::success();
-    }
-
-    Result<void> SpiReal::setImuGyroOrientation(const int8_t matrix[9])
-    {
-        set_imu_gyro_orientation(matrix);
-        return Result<void>::success();
-    }
-
-    Result<void> SpiReal::setImuCompassOrientation(const int8_t matrix[9])
-    {
-        set_imu_compass_orientation(matrix);
         return Result<void>::success();
     }
 }

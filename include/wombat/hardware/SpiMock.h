@@ -33,15 +33,8 @@ namespace wombat
 
         Result<void> resetMotorPosition(PortId port) override;
         Result<void> setMotorPid(PortId port, float kp, float ki, float kd) override;
-        Result<void> setBemfScale(PortId port, float scale) override;
-        Result<void> setBemfOffset(PortId port, float offset) override;
-        Result<void> setBemfNominalVoltage(int16_t adcValue) override;
 
         Result<void> setShutdown(bool enabled) override;
-
-        Result<void> setImuGyroOrientation(const int8_t matrix[9]) override;
-        Result<void> setImuCompassOrientation(const int8_t matrix[9]) override;
-
     private:
         Configuration::Spi cfg_;
         std::shared_ptr<Logger> logger_;

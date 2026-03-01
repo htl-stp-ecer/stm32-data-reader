@@ -33,9 +33,6 @@ namespace wombat
         Result<void> setServoCommand(PortId port, ServoPosition position);
         Result<void> setServoMode(PortId port, ServoMode mode);
         Result<void> resetMotorPosition(PortId port);
-        Result<void> setBemfScale(PortId port, float scale);
-        Result<void> setBemfOffset(PortId port, float offset);
-        Result<void> setBemfNominalVoltage(int16_t adcValue);
         Result<void> setMotorPid(PortId port, float kp, float ki, float kd);
 
         Result<SensorData> getCurrentSensorData() const;
@@ -44,10 +41,6 @@ namespace wombat
 
         // STM32 shutdown flag - disables motors and servos at firmware level
         Result<void> setShutdown(bool enabled);
-
-        Result<void> setImuGyroOrientation(const int8_t matrix[9]);
-        Result<void> setImuCompassOrientation(const int8_t matrix[9]);
-
     private:
         std::unique_ptr<ISpi> spi_;
         std::shared_ptr<Logger> logger_;

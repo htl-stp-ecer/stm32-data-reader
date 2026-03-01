@@ -19,7 +19,7 @@ namespace wombat
     constexpr PortId MAX_MOTOR_PORTS = 4;
     constexpr PortId MAX_SERVO_PORTS = 4;
     constexpr PortId MAX_ANALOG_PORTS = 6;
-    constexpr PortId MAX_DIGITAL_BITS = 16;
+    constexpr PortId MAX_DIGITAL_BITS = 10;
 
     enum class MotorControlMode : uint8_t
     {

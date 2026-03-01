@@ -1,0 +1,47 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ARM64 binary
+        run: |
+          BUILD_NUMBER=${{ github.run_number }} bash ./build.sh
+        env:
+          FORCE_RECONFIGURE: "1"
+
+      - name: Bundle release files
+        run: |
+          mkdir -p release
+          cp build/stm32_data_reader release/
+          cp install.sh release/
+          cp systemd/stm32_data_reader.service release/
+          cp systemd/lcm-loopback-multicast.service release/
+          cd release && tar czf ../stm32_data_reader-v1.0.${{ github.run_number }}.tar.gz *
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: v1.0.${{ github.run_number }}
+          generate_release_notes: true
+          files: stm32_data_reader-v1.0.${{ github.run_number }}.tar.gz

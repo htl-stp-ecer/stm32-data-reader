@@ -51,14 +51,8 @@ namespace wombat
         void onServoModeCommand(PortId port, const raccoon::scalar_i8_t& command);
         void onDataDumpRequest(const raccoon::scalar_i32_t& command) const;
         void onMotorPositionResetCommand(PortId port, const raccoon::scalar_i32_t& command);
-        void onBemfScaleCommand(PortId port, const raccoon::scalar_f_t& command);
-        void onBemfOffsetCommand(PortId port, const raccoon::scalar_f_t& command);
-        void onBemfNominalVoltageCommand(const raccoon::scalar_i32_t& command);
         void onMotorPidCommand(PortId port, const raccoon::vector3f_t& command);
         void onShutdownCommand(const raccoon::scalar_i32_t& command);
-        void onImuGyroOrientationCommand(const raccoon::orientation_matrix_t& command);
-        void onImuCompassOrientationCommand(const raccoon::orientation_matrix_t& command);
-        void onAxisRemapCommand(const raccoon::orientation_matrix_t& command);
 
         bool isTimestampNewer(const std::string& channel, int64_t timestamp);
 

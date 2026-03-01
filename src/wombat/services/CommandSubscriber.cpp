@@ -83,32 +83,6 @@ namespace wombat
             "motor position reset command");
         if (r.isFailure()) return r;
 
-        // BEMF commands (per-port)
-        r = subscribeForPorts<raccoon::scalar_f_t>(
-            MAX_MOTOR_PORTS, Channels::bemfScaleCommand,
-            [this](PortId p, const raccoon::scalar_f_t& cmd) { onBemfScaleCommand(p, cmd); },
-            "BEMF scale command");
-        if (r.isFailure()) return r;
-
-        r = subscribeForPorts<raccoon::scalar_f_t>(
-            MAX_MOTOR_PORTS, Channels::bemfOffsetCommand,
-            [this](PortId p, const raccoon::scalar_f_t& cmd) { onBemfOffsetCommand(p, cmd); },
-            "BEMF offset command");
-        if (r.isFailure()) return r;
-
-        // BEMF nominal voltage (single channel)
-        logger_->info(
-            "Subscribing to BEMF nominal voltage command channel: " + std::string(Channels::BEMF_NOMINAL_VOLTAGE_CMD));
-        auto nominalResult = broker_->subscribe<raccoon::scalar_i32_t>(
-            Channels::BEMF_NOMINAL_VOLTAGE_CMD,
-            [this](const raccoon::scalar_i32_t& cmd) { onBemfNominalVoltageCommand(cmd); }
-        );
-        if (nominalResult.isFailure())
-        {
-            return Result<void>::failure(
-                "Failed to subscribe to BEMF nominal voltage command: " + nominalResult.error());
-        }
-
         // Servo commands (per-port)
         r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_SERVO_PORTS, Channels::servoPositionCommand,
@@ -141,45 +115,6 @@ namespace wombat
         if (shutdownResult.isFailure())
         {
             return Result<void>::failure("Failed to subscribe to shutdown command: " + shutdownResult.error());
-        }
-
-        // IMU orientation matrix commands
-        logger_->info(
-            "Subscribing to IMU gyro orientation command channel: " + std::string(Channels::IMU_GYRO_ORIENTATION_CMD));
-        auto gyroOrientResult = broker_->subscribe<raccoon::orientation_matrix_t>(
-            Channels::IMU_GYRO_ORIENTATION_CMD,
-            [this](const raccoon::orientation_matrix_t& cmd) { onImuGyroOrientationCommand(cmd); }
-        );
-        if (gyroOrientResult.isFailure())
-        {
-            return Result<void>::failure(
-                "Failed to subscribe to IMU gyro orientation command: " + gyroOrientResult.error());
-        }
-
-        logger_->info(
-            "Subscribing to IMU compass orientation command channel: " + std::string(
-                Channels::IMU_COMPASS_ORIENTATION_CMD));
-        auto compassOrientResult = broker_->subscribe<raccoon::orientation_matrix_t>(
-            Channels::IMU_COMPASS_ORIENTATION_CMD,
-            [this](const raccoon::orientation_matrix_t& cmd) { onImuCompassOrientationCommand(cmd); }
-        );
-        if (compassOrientResult.isFailure())
-        {
-            return Result<void>::failure(
-                "Failed to subscribe to IMU compass orientation command: " + compassOrientResult.error());
-        }
-
-        // Body-to-world axis remap command
-        logger_->info(
-            "Subscribing to axis remap command channel: " + std::string(Channels::AXIS_REMAP_CMD));
-        auto axisRemapResult = broker_->subscribe<raccoon::orientation_matrix_t>(
-            Channels::AXIS_REMAP_CMD,
-            [this](const raccoon::orientation_matrix_t& cmd) { onAxisRemapCommand(cmd); }
-        );
-        if (axisRemapResult.isFailure())
-        {
-            return Result<void>::failure(
-                "Failed to subscribe to axis remap command: " + axisRemapResult.error());
         }
 
         isInitialized_ = true;
@@ -502,69 +437,6 @@ namespace wombat
         logger_->info("Reset position for motor " + std::to_string(port));
     }
 
-    void CommandSubscriber::onBemfScaleCommand(const PortId port, const raccoon::scalar_f_t& command)
-    {
-        if (!isInitialized_)
-        {
-            logger_->warn("Received BEMF scale command while not initialized");
-            return;
-        }
-
-        if (!isTimestampNewer(Channels::bemfScaleCommand(port), command.timestamp))
-            return;
-
-        const auto result = deviceController_->setBemfScale(port, command.value);
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set BEMF scale for motor " + std::to_string(port) + ": " + result.error());
-            return;
-        }
-
-        logger_->info("Set BEMF scale for motor " + std::to_string(port) + " to " + std::to_string(command.value));
-    }
-
-    void CommandSubscriber::onBemfOffsetCommand(const PortId port, const raccoon::scalar_f_t& command)
-    {
-        if (!isInitialized_)
-        {
-            logger_->warn("Received BEMF offset command while not initialized");
-            return;
-        }
-
-        if (!isTimestampNewer(Channels::bemfOffsetCommand(port), command.timestamp))
-            return;
-
-        const auto result = deviceController_->setBemfOffset(port, command.value);
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set BEMF offset for motor " + std::to_string(port) + ": " + result.error());
-            return;
-        }
-
-        logger_->info("Set BEMF offset for motor " + std::to_string(port) + " to " + std::to_string(command.value));
-    }
-
-    void CommandSubscriber::onBemfNominalVoltageCommand(const raccoon::scalar_i32_t& command)
-    {
-        if (!isInitialized_)
-        {
-            logger_->warn("Received BEMF nominal voltage command while not initialized");
-            return;
-        }
-
-        if (!isTimestampNewer(Channels::BEMF_NOMINAL_VOLTAGE_CMD, command.timestamp))
-            return;
-
-        const auto result = deviceController_->setBemfNominalVoltage(static_cast<int16_t>(command.value));
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set BEMF nominal voltage: " + result.error());
-            return;
-        }
-
-        logger_->info("Set BEMF nominal voltage ADC to " + std::to_string(command.value));
-    }
-
     void CommandSubscriber::onMotorPidCommand(const PortId port, const raccoon::vector3f_t& command)
     {
         const auto nowUs = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -633,62 +505,5 @@ namespace wombat
         dataPublisher_->publishShutdownStatus(shutdownFlags);
 
         logger_->info("Shutdown " + std::string(enabled ? "enabled" : "disabled"));
-    }
-
-    void CommandSubscriber::onImuGyroOrientationCommand(const raccoon::orientation_matrix_t& command)
-    {
-        if (!isInitialized_)
-        {
-            logger_->warn("Received IMU gyro orientation command while not initialized");
-            return;
-        }
-
-        if (!isTimestampNewer(Channels::IMU_GYRO_ORIENTATION_CMD, command.timestamp))
-            return;
-
-        const auto result = deviceController_->setImuGyroOrientation(command.m);
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set IMU gyro orientation: " + result.error());
-            return;
-        }
-
-        logger_->info("IMU gyro orientation matrix set");
-    }
-
-    void CommandSubscriber::onImuCompassOrientationCommand(const raccoon::orientation_matrix_t& command)
-    {
-        if (!isInitialized_)
-        {
-            logger_->warn("Received IMU compass orientation command while not initialized");
-            return;
-        }
-
-        if (!isTimestampNewer(Channels::IMU_COMPASS_ORIENTATION_CMD, command.timestamp))
-            return;
-
-        const auto result = deviceController_->setImuCompassOrientation(command.m);
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set IMU compass orientation: " + result.error());
-            return;
-        }
-
-        logger_->info("IMU compass orientation matrix set");
-    }
-
-    void CommandSubscriber::onAxisRemapCommand(const raccoon::orientation_matrix_t& command)
-    {
-        if (!isInitialized_)
-        {
-            logger_->warn("Received axis remap command while not initialized");
-            return;
-        }
-
-        if (!isTimestampNewer(Channels::AXIS_REMAP_CMD, command.timestamp))
-            return;
-
-        dataPublisher_->setAxisRemap(command.m);
-        logger_->info("Body-to-world axis remap applied");
     }
 } // namespace wombat

@@ -9,21 +9,15 @@ namespace wombat
     {
     }
 
-    void DataPublisher::setAxisRemap(const int8_t matrix[9])
-    {
-        remap_.setFromMatrix(matrix);
-        logger_->info("Axis remap set: identity=" + std::string(remap_.identity ? "true" : "false"));
-    }
-
     Result<void> DataPublisher::publishSensorData(const SensorData& data)
     {
         // Apply body-to-world axis remap to all IMU data before publishing
-        const auto gyro = remap_.remapVector(data.gyro);
-        const auto accel = remap_.remapVector(data.accelerometer);
-        const auto mag = remap_.remapVector(data.magnetometer);
-        const auto linAccel = remap_.remapVector(data.linearAcceleration);
-        const auto accelVel = remap_.remapVector(data.accelVelocity);
-        const auto orientation = remap_.remapQuaternion(data.orientation);
+        const auto gyro = data.gyro;
+        const auto accel = data.accelerometer;
+        const auto mag = data.magnetometer;
+        const auto linAccel = data.linearAcceleration;
+        const auto accelVel = data.accelVelocity;
+        const auto orientation = data.orientation;
 
         auto gyroResult = broker_->publish(Channels::GYRO, toLcm(gyro));
         if (gyroResult.isFailure())

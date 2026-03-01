@@ -8,7 +8,6 @@
 #include <raccoon/Channels.h>
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
-#include "wombat/core/AxisRemap.h"
 #include "wombat/messaging/LcmBroker.h"
 #include <memory>
 #include <optional>
@@ -33,7 +32,6 @@ namespace wombat
     private:
         std::shared_ptr<LcmBroker> broker_;
         std::shared_ptr<Logger> logger_;
-        AxisRemap remap_;
 
         // Accuracy change detection
         std::optional<ImuAccuracy> lastAccuracy_;

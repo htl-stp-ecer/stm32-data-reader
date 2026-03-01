@@ -288,72 +288,6 @@ namespace wombat
         return Result<void>::success();
     }
 
-    Result<void> DeviceController::setBemfScale(PortId port, float scale)
-    {
-        if (!isInitialized_)
-        {
-            return Result<void>::failure("Device controller not initialized");
-        }
-
-        auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
-        if (validationResult.isFailure())
-        {
-            return validationResult;
-        }
-
-        auto result = spi_->setBemfScale(port, scale);
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set BEMF scale for motor " + std::to_string(port) + ": " + result.error());
-            return result;
-        }
-
-        logger_->info("BEMF scale set for motor " + std::to_string(port) + " to " + std::to_string(scale));
-        return Result<void>::success();
-    }
-
-    Result<void> DeviceController::setBemfOffset(PortId port, float offset)
-    {
-        if (!isInitialized_)
-        {
-            return Result<void>::failure("Device controller not initialized");
-        }
-
-        auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
-        if (validationResult.isFailure())
-        {
-            return validationResult;
-        }
-
-        auto result = spi_->setBemfOffset(port, offset);
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set BEMF offset for motor " + std::to_string(port) + ": " + result.error());
-            return result;
-        }
-
-        logger_->info("BEMF offset set for motor " + std::to_string(port) + " to " + std::to_string(offset));
-        return Result<void>::success();
-    }
-
-    Result<void> DeviceController::setBemfNominalVoltage(int16_t adcValue)
-    {
-        if (!isInitialized_)
-        {
-            return Result<void>::failure("Device controller not initialized");
-        }
-
-        auto result = spi_->setBemfNominalVoltage(adcValue);
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set BEMF nominal voltage: " + result.error());
-            return result;
-        }
-
-        logger_->info("BEMF nominal voltage ADC set to " + std::to_string(adcValue));
-        return Result<void>::success();
-    }
-
     Result<void> DeviceController::setMotorPid(PortId port, float kp, float ki, float kd)
     {
         if (!isInitialized_)
@@ -422,42 +356,6 @@ namespace wombat
         }
 
         logger_->info("Shutdown " + std::string(enabled ? "enabled" : "disabled"));
-        return Result<void>::success();
-    }
-
-    Result<void> DeviceController::setImuGyroOrientation(const int8_t matrix[9])
-    {
-        if (!isInitialized_)
-        {
-            return Result<void>::failure("Device controller not initialized");
-        }
-
-        auto result = spi_->setImuGyroOrientation(matrix);
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set IMU gyro orientation: " + result.error());
-            return result;
-        }
-
-        logger_->info("IMU gyro orientation matrix updated");
-        return Result<void>::success();
-    }
-
-    Result<void> DeviceController::setImuCompassOrientation(const int8_t matrix[9])
-    {
-        if (!isInitialized_)
-        {
-            return Result<void>::failure("Device controller not initialized");
-        }
-
-        auto result = spi_->setImuCompassOrientation(matrix);
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set IMU compass orientation: " + result.error());
-            return result;
-        }
-
-        logger_->info("IMU compass orientation matrix updated");
         return Result<void>::success();
     }
 

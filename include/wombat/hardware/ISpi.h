@@ -31,13 +31,6 @@ namespace wombat
 
         virtual Result<void> resetMotorPosition(PortId port) = 0;
         virtual Result<void> setMotorPid(PortId port, float kp, float ki, float kd) = 0;
-        virtual Result<void> setBemfScale(PortId port, float scale) = 0;
-        virtual Result<void> setBemfOffset(PortId port, float offset) = 0;
-        virtual Result<void> setBemfNominalVoltage(int16_t adcValue) = 0;
-
         virtual Result<void> setShutdown(bool enabled) = 0;
-
-        virtual Result<void> setImuGyroOrientation(const int8_t matrix[9]) = 0;
-        virtual Result<void> setImuCompassOrientation(const int8_t matrix[9]) = 0;
     };
 }

@@ -238,38 +238,9 @@ namespace wombat
         return Result<void>::success();
     }
 
-    Result<void> SpiMock::setBemfScale(PortId port, float /*scale*/)
-    {
-        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        return Result<void>::success();
-    }
-
-    Result<void> SpiMock::setBemfOffset(PortId port, float /*offset*/)
-    {
-        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        return Result<void>::success();
-    }
-
-    Result<void> SpiMock::setBemfNominalVoltage(int16_t /*adcValue*/)
-    {
-        return Result<void>::success();
-    }
-
     Result<void> SpiMock::setShutdown(bool enabled)
     {
         if (logger_) logger_->info("SPI Mock: Shutdown " + std::string(enabled ? "enabled" : "disabled"));
-        return Result<void>::success();
-    }
-
-    Result<void> SpiMock::setImuGyroOrientation(const int8_t /*matrix*/[9])
-    {
-        if (logger_) logger_->info("SPI Mock: IMU gyro orientation set");
-        return Result<void>::success();
-    }
-
-    Result<void> SpiMock::setImuCompassOrientation(const int8_t /*matrix*/[9])
-    {
-        if (logger_) logger_->info("SPI Mock: IMU compass orientation set");
         return Result<void>::success();
     }
 }
