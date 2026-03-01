@@ -14,7 +14,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libglib2.0-dev libpcre2-dev zlib1g-dev \
       libfmt-dev libspdlog-dev \
-      liblcm-dev \
     && rm -rf /var/lib/apt/lists/*
 
 ENV CCACHE_DIR=/ccache \

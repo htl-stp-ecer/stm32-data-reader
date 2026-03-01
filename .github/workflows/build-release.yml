@@ -26,13 +26,17 @@ jobs:
       - name: Build firmware
         run: cd firmware && docker compose up --build --exit-code-from build-wombat-firmware
 
+      - name: Stage firmware artifacts
+        run: |
+          mkdir -p firmware-out
+          cp firmware/build/Firmware/wombat.bin firmware-out/
+          cp firmware/flashFiles/* firmware-out/
+
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
           name: firmware
-          path: |
-            firmware/build/Firmware/wombat.bin
-            firmware/flashFiles/*
+          path: firmware-out/*
 
   build-reader:
     runs-on: ubuntu-latest
@@ -109,11 +113,14 @@ jobs:
         run: |
           mkdir -p release
           cp artifacts/reader/stm32_data_reader release/
-          cp artifacts/firmware/firmware/build/Firmware/wombat.bin release/ 2>/dev/null || true
-          cp artifacts/firmware/firmware/flashFiles/* release/ 2>/dev/null || true
+          cp artifacts/firmware/wombat.bin release/
+          cp artifacts/firmware/flash_wombat.sh release/
+          cp artifacts/firmware/reset_coprocessor.sh release/
+          cp artifacts/firmware/init_gpio.sh release/
           cp install.sh release/
           cp systemd/stm32_data_reader.service release/
           cp systemd/lcm-loopback-multicast.service release/
+          echo "Release contents:" && ls -la release/
           cd release && tar czf ../stm32_data_reader-v1.0.${{ github.run_number }}.tar.gz *
 
       - name: Create GitHub Release
