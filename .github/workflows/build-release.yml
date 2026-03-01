@@ -23,11 +23,30 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Build and cache toolchain image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64/v8
+          load: true
+          tags: stm32-dev:arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Restore build caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            .ccache
+          key: ccache-${{ hashFiles('CMakeLists.txt', 'src/**', 'include/**') }}
+          restore-keys: ccache-
+
       - name: Build ARM64 binary
         run: |
           BUILD_NUMBER=${{ github.run_number }} bash ./build.sh
         env:
           FORCE_RECONFIGURE: "1"
+          CCACHE_HOST_DIR: ${{ github.workspace }}/.ccache
 
       - name: Bundle release files
         run: |

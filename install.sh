@@ -73,5 +73,10 @@ echo -e "${BLUE}Enabling and starting services...${NC}"
 ssh "$REMOTE" "sudo systemctl enable --now lcm-loopback-multicast.service"
 ssh "$REMOTE" "sudo systemctl enable --now ${PROJECT_NAME}.service"
 
+# -- Restart services
+echo -e "${BLUE}Restarting services...${NC}"
+ssh "$REMOTE" "sudo systemctl restart lcm-loopback-multicast.service"
+ssh "$REMOTE" "sudo systemctl restart ${PROJECT_NAME}.service"
+
 echo -e "${GREEN}Done! ${PROJECT_NAME} is running on ${REMOTE_HOST}.${NC}"
 echo -e "${YELLOW}Check status: ssh ${REMOTE} 'sudo systemctl status ${PROJECT_NAME}'${NC}"

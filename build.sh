@@ -7,6 +7,7 @@ BUILD_DIR="${BUILD_DIR:-build}"
 PLATFORM="${PLATFORM:-linux/arm64/v8}"
 IMAGE_NAME="${IMAGE_NAME:-stm32-dev:arm64}"
 CCACHE_VOL="${CCACHE_VOL:-stm32-ccache}"
+CCACHE_HOST_DIR="${CCACHE_HOST_DIR:-}"  # set to a host path to use bind mount instead of docker volume
 CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
 BUILD_NUMBER="${BUILD_NUMBER:-0}"
 # Portable CPU count default
@@ -53,9 +54,16 @@ ensure_image() {
 }
 
 docker_exec() {
+  local ccache_mount
+  if [[ -n "$CCACHE_HOST_DIR" ]]; then
+    mkdir -p "$CCACHE_HOST_DIR"
+    ccache_mount="$CCACHE_HOST_DIR"
+  else
+    ccache_mount="$CCACHE_VOL"
+  fi
   docker run --rm --platform="$PLATFORM" \
     -v "$PWD":/src \
-    -v "$CCACHE_VOL":/ccache \
+    -v "$ccache_mount":/ccache \
     -e CCACHE_DIR=/ccache \
     -e CCACHE_MAXSIZE="$CCACHE_MAXSIZE" \
     -e CCACHE_COMPRESS=1 \

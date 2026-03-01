@@ -54,18 +54,7 @@ namespace wombat::test
         );
         MOCK_METHOD(Result<void>, setMotorPid, (PortId port, float kp, float ki, float kd), (override)
         );
-        MOCK_METHOD(Result<void>, setBemfScale, (PortId port, float scale), (override)
-        );
-        MOCK_METHOD(Result<void>, setBemfOffset, (PortId port, float offset), (override)
-        );
-        MOCK_METHOD(Result<void>, setBemfNominalVoltage, (int16_t adcValue), (override)
-        );
-
         MOCK_METHOD(Result<void>, setShutdown, (bool enabled), (override)
-        );
-        MOCK_METHOD(Result<void>, setImuGyroOrientation, (const int8_t* matrix), (override)
-        );
-        MOCK_METHOD(Result<void>, setImuCompassOrientation, (const int8_t* matrix), (override)
         );
     };
 }
