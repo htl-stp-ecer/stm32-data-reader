@@ -4,16 +4,16 @@
 #pragma once
 
 #include "wombat/core/DeviceTypes.h"
-#include "wombat/core/Channels.h"
+#include <raccoon/Channels.h>
+#include <raccoon/Concepts.h>
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
 #include "wombat/messaging/LcmBroker.h"
-#include "wombat/messaging/LcmConcepts.h"
-#include <exlcm/vector3f_t.hpp>
-#include <exlcm/scalar_f_t.hpp>
-#include <exlcm/scalar_i32_t.hpp>
-#include <exlcm/scalar_i8_t.hpp>
-#include <exlcm/orientation_matrix_t.hpp>
+#include <raccoon/vector3f_t.hpp>
+#include <raccoon/scalar_f_t.hpp>
+#include <raccoon/scalar_i32_t.hpp>
+#include <raccoon/scalar_i8_t.hpp>
+#include <raccoon/orientation_matrix_t.hpp>
 #include "wombat/services/DeviceController.h"
 #include "wombat/services/DataPublisher.h"
 #include <memory>
@@ -23,6 +23,9 @@
 
 namespace wombat
 {
+    namespace Channels = raccoon::Channels;
+    using raccoon::LcmMessage;
+
     class CommandSubscriber
     {
     public:
@@ -40,22 +43,22 @@ namespace wombat
         std::shared_ptr<DataPublisher> dataPublisher_;
         std::shared_ptr<Logger> logger_;
 
-        void onMotorPowerCommand(PortId port, const exlcm::scalar_i32_t& command);
-        void onMotorStopCommand(PortId port, const exlcm::scalar_i32_t& command);
-        void onMotorVelocityCommand(PortId port, const exlcm::scalar_i32_t& command);
-        void onMotorPositionCommand(PortId port, const exlcm::vector3f_t& command);
-        void onServoPositionCommand(PortId port, const exlcm::scalar_i32_t& command);
-        void onServoModeCommand(PortId port, const exlcm::scalar_i8_t& command);
-        void onDataDumpRequest(const exlcm::scalar_i32_t& command) const;
-        void onMotorPositionResetCommand(PortId port, const exlcm::scalar_i32_t& command);
-        void onBemfScaleCommand(PortId port, const exlcm::scalar_f_t& command);
-        void onBemfOffsetCommand(PortId port, const exlcm::scalar_f_t& command);
-        void onBemfNominalVoltageCommand(const exlcm::scalar_i32_t& command);
-        void onMotorPidCommand(PortId port, const exlcm::vector3f_t& command);
-        void onShutdownCommand(const exlcm::scalar_i32_t& command);
-        void onImuGyroOrientationCommand(const exlcm::orientation_matrix_t& command);
-        void onImuCompassOrientationCommand(const exlcm::orientation_matrix_t& command);
-        void onAxisRemapCommand(const exlcm::orientation_matrix_t& command);
+        void onMotorPowerCommand(PortId port, const raccoon::scalar_i32_t& command);
+        void onMotorStopCommand(PortId port, const raccoon::scalar_i32_t& command);
+        void onMotorVelocityCommand(PortId port, const raccoon::scalar_i32_t& command);
+        void onMotorPositionCommand(PortId port, const raccoon::vector3f_t& command);
+        void onServoPositionCommand(PortId port, const raccoon::scalar_i32_t& command);
+        void onServoModeCommand(PortId port, const raccoon::scalar_i8_t& command);
+        void onDataDumpRequest(const raccoon::scalar_i32_t& command) const;
+        void onMotorPositionResetCommand(PortId port, const raccoon::scalar_i32_t& command);
+        void onBemfScaleCommand(PortId port, const raccoon::scalar_f_t& command);
+        void onBemfOffsetCommand(PortId port, const raccoon::scalar_f_t& command);
+        void onBemfNominalVoltageCommand(const raccoon::scalar_i32_t& command);
+        void onMotorPidCommand(PortId port, const raccoon::vector3f_t& command);
+        void onShutdownCommand(const raccoon::scalar_i32_t& command);
+        void onImuGyroOrientationCommand(const raccoon::orientation_matrix_t& command);
+        void onImuCompassOrientationCommand(const raccoon::orientation_matrix_t& command);
+        void onAxisRemapCommand(const raccoon::orientation_matrix_t& command);
 
         bool isTimestampNewer(const std::string& channel, int64_t timestamp);
 

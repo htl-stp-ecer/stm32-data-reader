@@ -1,75 +1,17 @@
 #include "wombat/messaging/LcmBroker.h"
 #include <raccoon/Transport.h>
 #include <raccoon/Options.h>
-#include <exlcm/vector3f_t.hpp>
-#include <exlcm/quaternion_t.hpp>
-#include <exlcm/scalar_f_t.hpp>
-#include <exlcm/scalar_i32_t.hpp>
-#include <exlcm/scalar_i8_t.hpp>
-#include <exlcm/string_t.hpp>
-#include <exlcm/orientation_matrix_t.hpp>
-#include <unordered_map>
-#include <vector>
-#include <cstring>
+#include <raccoon/vector3f_t.hpp>
+#include <raccoon/quaternion_t.hpp>
+#include <raccoon/scalar_f_t.hpp>
+#include <raccoon/scalar_i32_t.hpp>
+#include <raccoon/scalar_i8_t.hpp>
+#include <raccoon/string_t.hpp>
+#include <raccoon/orientation_matrix_t.hpp>
 #include <chrono>
-#include <algorithm>
-#include <limits>
-#include <mutex>
 
 namespace wombat
 {
-    namespace
-    {
-        int64_t nowUsec()
-        {
-            return std::chrono::duration_cast<std::chrono::microseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count();
-        }
-
-        struct LatencyStats
-        {
-            std::mutex mtx;
-            int64_t minUs{std::numeric_limits<int64_t>::max()};
-            int64_t maxUs{0};
-            int64_t sumUs{0};
-            uint64_t count{0};
-
-            void record(int64_t latencyUs)
-            {
-                std::lock_guard<std::mutex> lock(mtx);
-                if (latencyUs < 0) return; // clock skew, ignore
-                minUs = std::min(minUs, latencyUs);
-                maxUs = std::max(maxUs, latencyUs);
-                sumUs += latencyUs;
-                ++count;
-            }
-
-            struct Snapshot
-            {
-                int64_t minUs, maxUs, avgUs;
-                uint64_t count;
-            };
-
-            Snapshot resetAndSnapshot()
-            {
-                std::lock_guard<std::mutex> lock(mtx);
-                Snapshot s{};
-                s.count = count;
-                if (count > 0)
-                {
-                    s.minUs = minUs;
-                    s.maxUs = maxUs;
-                    s.avgUs = static_cast<int64_t>(sumUs / count);
-                }
-                minUs = std::numeric_limits<int64_t>::max();
-                maxUs = 0;
-                sumUs = 0;
-                count = 0;
-                return s;
-            }
-        };
-    } // anonymous namespace
-
     class LcmBroker::Impl
     {
     public:
@@ -134,20 +76,26 @@ namespace wombat
                 if (processCallCount_ % 100 == 0)
                 {
                     const double avgMsgsPerCall = static_cast<double>(intervalMessagesProcessed_) / 100.0;
-                    const auto latency = latencyStats_.resetAndSnapshot();
+                    const auto stats = transport_->getAndResetStats();
                     std::string latencyStr = "no msgs";
-                    if (latency.count > 0)
+                    if (stats.latency.count > 0)
                     {
-                        latencyStr = "min=" + std::to_string(latency.minUs / 1000) + "ms"
-                            + " avg=" + std::to_string(latency.avgUs / 1000) + "ms"
-                            + " max=" + std::to_string(latency.maxUs / 1000) + "ms"
-                            + " (n=" + std::to_string(latency.count) + ")";
+                        latencyStr = "min=" + std::to_string(stats.latency.minUs / 1000) + "ms"
+                            + " avg=" + std::to_string(stats.latency.avgUs / 1000) + "ms"
+                            + " max=" + std::to_string(stats.latency.maxUs / 1000) + "ms"
+                            + " (n=" + std::to_string(stats.latency.count) + ")";
+                    }
+                    std::string dedupStr;
+                    if (stats.publishesDeduplicated > 0)
+                    {
+                        dedupStr = ", dedup=" + std::to_string(stats.publishesDeduplicated);
                     }
                     logger_->info("LCM processMessages: avg=" + std::to_string(avgMsgsPerCall).substr(0, 5)
                         + " msgs/call, rate=" + std::to_string(hz).substr(0, 5) + "Hz"
                         + ", total calls=" + std::to_string(processCallCount_)
                         + ", total msgs=" + std::to_string(totalMessagesProcessed_ + messagesProcessed)
-                        + ", latency: " + latencyStr);
+                        + ", latency: " + latencyStr
+                        + dedupStr);
                     intervalMessagesProcessed_ = 0;
                 }
             }
@@ -165,17 +113,15 @@ namespace wombat
 
         template <typename MessageType>
         Result<void> publishIfChanged(const std::string& channel, const MessageType& message,
-                                       const raccoon::PublishOptions& options = {})
+                                      const raccoon::PublishOptions& extraOptions = {})
         {
             if (!transport_)
             {
                 return Result<void>::failure("Transport not initialized");
             }
 
-            if (!hasMessageChanged(channel, message))
-            {
-                return Result<void>::success(); // No change, skip publishing
-            }
+            raccoon::PublishOptions options = extraOptions;
+            options.deduplicate = true;
 
             if (!transport_->publish(channel, message, options))
             {
@@ -211,10 +157,7 @@ namespace wombat
                 return Result<void>::failure("Transport not initialized");
             }
 
-            transport_->subscribe<T>(channel, [handler, this](const T& msg) {
-                latencyStats_.record(nowUsec() - msg.timestamp);
-                handler(msg);
-            });
+            transport_->subscribe<T>(channel, std::move(handler));
 
             logger_->debug("Subscribed to " + std::string(T::getTypeName()) + " channel: " + channel);
             return Result<void>::success();
@@ -223,29 +166,10 @@ namespace wombat
     private:
         std::shared_ptr<Logger> logger_;
         std::unique_ptr<raccoon::Transport> transport_;
-        std::unordered_map<std::string, std::vector<uint8_t>> messageCache_;
         std::chrono::steady_clock::time_point lastProcessTime_{};
         uint64_t processCallCount_{0};
         uint64_t totalMessagesProcessed_{0};
         uint64_t intervalMessagesProcessed_{0};
-        LatencyStats latencyStats_;
-
-        template <typename MessageType>
-        bool hasMessageChanged(const std::string& channel, const MessageType& message)
-        {
-            const auto* messageBytes = reinterpret_cast<const uint8_t*>(&message);
-            const size_t messageSize = sizeof(MessageType);
-
-            auto& cachedMessage = messageCache_[channel];
-            if (cachedMessage.size() == messageSize &&
-                std::memcmp(cachedMessage.data(), messageBytes, messageSize) == 0)
-            {
-                return false; // No change
-            }
-
-            cachedMessage.assign(messageBytes, messageBytes + messageSize);
-            return true; // Changed
-        }
     };
 
     // Public interface implementation
@@ -278,50 +202,50 @@ namespace wombat
 
     // Explicit template instantiations — publish (change-detected, plain)
     template <>
-    Result<void> LcmBroker::publish<exlcm::vector3f_t>(const std::string& ch, const exlcm::vector3f_t& m)
+    Result<void> LcmBroker::publish<raccoon::vector3f_t>(const std::string& ch, const raccoon::vector3f_t& m)
     {
         return impl_->publishIfChanged(ch, m);
     }
 
     template <>
-    Result<void> LcmBroker::publish<exlcm::quaternion_t>(const std::string& ch, const exlcm::quaternion_t& m)
+    Result<void> LcmBroker::publish<raccoon::quaternion_t>(const std::string& ch, const raccoon::quaternion_t& m)
     {
         return impl_->publishIfChanged(ch, m);
     }
 
     template <>
-    Result<void> LcmBroker::publish<exlcm::scalar_f_t>(const std::string& ch, const exlcm::scalar_f_t& m)
+    Result<void> LcmBroker::publish<raccoon::scalar_f_t>(const std::string& ch, const raccoon::scalar_f_t& m)
     {
         return impl_->publishIfChanged(ch, m);
     }
 
     template <>
-    Result<void> LcmBroker::publish<exlcm::scalar_i32_t>(const std::string& ch, const exlcm::scalar_i32_t& m)
+    Result<void> LcmBroker::publish<raccoon::scalar_i32_t>(const std::string& ch, const raccoon::scalar_i32_t& m)
     {
         return impl_->publishIfChanged(ch, m);
     }
 
     template <>
-    Result<void> LcmBroker::publish<exlcm::scalar_i8_t>(const std::string& ch, const exlcm::scalar_i8_t& m)
+    Result<void> LcmBroker::publish<raccoon::scalar_i8_t>(const std::string& ch, const raccoon::scalar_i8_t& m)
     {
         return impl_->publishIfChanged(ch, m);
     }
 
     template <>
-    Result<void> LcmBroker::publish<exlcm::string_t>(const std::string& ch, const exlcm::string_t& m)
+    Result<void> LcmBroker::publish<raccoon::string_t>(const std::string& ch, const raccoon::string_t& m)
     {
         return impl_->publishIfChanged(ch, m);
     }
 
     // Explicit template instantiations — publishForce (plain, no change detection)
     template <>
-    Result<void> LcmBroker::publishForce<exlcm::scalar_i8_t>(const std::string& ch, const exlcm::scalar_i8_t& m)
+    Result<void> LcmBroker::publishForce<raccoon::scalar_i8_t>(const std::string& ch, const raccoon::scalar_i8_t& m)
     {
         return impl_->publishForce(ch, m);
     }
 
     template <>
-    Result<void> LcmBroker::publishForce<exlcm::scalar_i32_t>(const std::string& ch, const exlcm::scalar_i32_t& m)
+    Result<void> LcmBroker::publishForce<raccoon::scalar_i32_t>(const std::string& ch, const raccoon::scalar_i32_t& m)
     {
         return impl_->publishForce(ch, m);
     }
@@ -330,58 +254,59 @@ namespace wombat
     static const raccoon::PublishOptions retainedOpts{.retained = true};
 
     template <>
-    Result<void> LcmBroker::publishRetained<exlcm::scalar_i8_t>(const std::string& ch, const exlcm::scalar_i8_t& m)
+    Result<void> LcmBroker::publishRetained<raccoon::scalar_i8_t>(const std::string& ch, const raccoon::scalar_i8_t& m)
     {
         return impl_->publishIfChanged(ch, m, retainedOpts);
     }
 
     template <>
-    Result<void> LcmBroker::publishRetained<exlcm::scalar_i32_t>(const std::string& ch, const exlcm::scalar_i32_t& m)
+    Result<void> LcmBroker::publishRetained<raccoon::scalar_i32_t>(const std::string& ch,
+                                                                   const raccoon::scalar_i32_t& m)
     {
         return impl_->publishIfChanged(ch, m, retainedOpts);
     }
 
     // Explicit template instantiations — subscribe
     template <>
-    Result<void> LcmBroker::subscribe<exlcm::vector3f_t>(const std::string& ch,
-                                                         std::function<void(const exlcm::vector3f_t &)> h)
+    Result<void> LcmBroker::subscribe<raccoon::vector3f_t>(const std::string& ch,
+                                                           std::function<void(const raccoon::vector3f_t&)> h)
     {
-        return impl_->subscribe<exlcm::vector3f_t>(ch, std::move(h));
+        return impl_->subscribe<raccoon::vector3f_t>(ch, std::move(h));
     }
 
     template <>
-    Result<void> LcmBroker::subscribe<exlcm::quaternion_t>(const std::string& ch,
-                                                           std::function<void(const exlcm::quaternion_t &)> h)
+    Result<void> LcmBroker::subscribe<raccoon::quaternion_t>(const std::string& ch,
+                                                             std::function<void(const raccoon::quaternion_t&)> h)
     {
-        return impl_->subscribe<exlcm::quaternion_t>(ch, std::move(h));
+        return impl_->subscribe<raccoon::quaternion_t>(ch, std::move(h));
     }
 
     template <>
-    Result<void> LcmBroker::subscribe<exlcm::scalar_i32_t>(const std::string& ch,
-                                                           std::function<void(const exlcm::scalar_i32_t &)> h)
+    Result<void> LcmBroker::subscribe<raccoon::scalar_i32_t>(const std::string& ch,
+                                                             std::function<void(const raccoon::scalar_i32_t&)> h)
     {
-        return impl_->subscribe<exlcm::scalar_i32_t>(ch, std::move(h));
+        return impl_->subscribe<raccoon::scalar_i32_t>(ch, std::move(h));
     }
 
     template <>
-    Result<void> LcmBroker::subscribe<exlcm::scalar_f_t>(const std::string& ch,
-                                                         std::function<void(const exlcm::scalar_f_t &)> h)
+    Result<void> LcmBroker::subscribe<raccoon::scalar_f_t>(const std::string& ch,
+                                                           std::function<void(const raccoon::scalar_f_t&)> h)
     {
-        return impl_->subscribe<exlcm::scalar_f_t>(ch, std::move(h));
+        return impl_->subscribe<raccoon::scalar_f_t>(ch, std::move(h));
     }
 
     template <>
-    Result<void> LcmBroker::subscribe<exlcm::scalar_i8_t>(const std::string& ch,
-                                                          std::function<void(const exlcm::scalar_i8_t &)> h)
+    Result<void> LcmBroker::subscribe<raccoon::scalar_i8_t>(const std::string& ch,
+                                                            std::function<void(const raccoon::scalar_i8_t&)> h)
     {
-        return impl_->subscribe<exlcm::scalar_i8_t>(ch, std::move(h));
+        return impl_->subscribe<raccoon::scalar_i8_t>(ch, std::move(h));
     }
 
     template <>
-    Result<void> LcmBroker::subscribe<exlcm::orientation_matrix_t>(const std::string& ch,
-                                                                   std::function<void(
-const exlcm::orientation_matrix_t &)> h)
+    Result<void> LcmBroker::subscribe<raccoon::orientation_matrix_t>(const std::string& ch,
+                                                                     std::function<void(
+                                                                         const raccoon::orientation_matrix_t &)> h)
     {
-        return impl_->subscribe<exlcm::orientation_matrix_t>(ch, std::move(h));
+        return impl_->subscribe<raccoon::orientation_matrix_t>(ch, std::move(h));
     }
 } // namespace wombat

@@ -1,7 +1,6 @@
 #include "wombat/services/DataPublisher.h"
 #include "wombat/messaging/LcmBroker.h"
 #include "wombat/messaging/LcmConversions.h"
-#include "wombat/core/Channels.h"
 #include "mocks/MockLogger.h"
 #include <gtest/gtest.h>
 #include <atomic>
@@ -61,14 +60,14 @@ TEST_F(DataPublisherTest, PublishSensorDataSucceeds)
 TEST_F(DataPublisherTest, PublishSensorDataWithSubscription)
 {
     std::atomic<bool> received{false};
-    exlcm::vector3f_t receivedMsg{};
+    raccoon::vector3f_t receivedMsg{};
 
-    broker_->subscribe<exlcm::vector3f_t>(Channels::GYRO,
-                                          [&](const exlcm::vector3f_t& msg)
-                                          {
-                                              receivedMsg = msg;
-                                              received = true;
-                                          });
+    broker_->subscribe<raccoon::vector3f_t>(Channels::GYRO,
+                                            [&](const raccoon::vector3f_t& msg)
+                                            {
+                                                receivedMsg = msg;
+                                                received = true;
+                                            });
 
     SensorData data{};
     data.gyro = {1.5f, 2.5f, 3.5f};
@@ -87,14 +86,14 @@ TEST_F(DataPublisherTest, PublishSensorDataWithSubscription)
 TEST_F(DataPublisherTest, PublishHeadingWithSubscription)
 {
     std::atomic<bool> received{false};
-    exlcm::scalar_f_t receivedMsg{};
+    raccoon::scalar_f_t receivedMsg{};
 
-    broker_->subscribe<exlcm::scalar_f_t>(Channels::HEADING,
-                                          [&](const exlcm::scalar_f_t& msg)
-                                          {
-                                              receivedMsg = msg;
-                                              received = true;
-                                          });
+    broker_->subscribe<raccoon::scalar_f_t>(Channels::HEADING,
+                                            [&](const raccoon::scalar_f_t& msg)
+                                            {
+                                                receivedMsg = msg;
+                                                received = true;
+                                            });
 
     SensorData data{};
     data.heading = 123.5f;
@@ -128,12 +127,12 @@ TEST_F(DataPublisherTest, PublishMotorStateWithSubscription)
     std::atomic<bool> receivedPower{false};
     int32_t powerValue = 0;
 
-    broker_->subscribe<exlcm::scalar_i32_t>(Channels::motorPower(0),
-                                            [&](const exlcm::scalar_i32_t& msg)
-                                            {
-                                                powerValue = msg.value;
-                                                receivedPower = true;
-                                            });
+    broker_->subscribe<raccoon::scalar_i32_t>(Channels::motorPower(0),
+                                              [&](const raccoon::scalar_i32_t& msg)
+                                              {
+                                                  powerValue = msg.value;
+                                                  receivedPower = true;
+                                              });
 
     MotorState state{MotorControlMode::Pwm, 200, 0, 50, 1000, false};
     publisher_->publishMotorState(0, state);
@@ -148,12 +147,12 @@ TEST_F(DataPublisherTest, PublishMotorStateNegativeTarget)
     std::atomic<bool> receivedPower{false};
     int32_t powerValue = 0;
 
-    broker_->subscribe<exlcm::scalar_i32_t>(Channels::motorPower(1),
-                                            [&](const exlcm::scalar_i32_t& msg)
-                                            {
-                                                powerValue = msg.value;
-                                                receivedPower = true;
-                                            });
+    broker_->subscribe<raccoon::scalar_i32_t>(Channels::motorPower(1),
+                                              [&](const raccoon::scalar_i32_t& msg)
+                                              {
+                                                  powerValue = msg.value;
+                                                  receivedPower = true;
+                                              });
 
     MotorState state{MotorControlMode::Pwm, -150, 0, 0, 0, false};
     publisher_->publishMotorState(1, state);

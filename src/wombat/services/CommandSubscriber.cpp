@@ -1,5 +1,5 @@
 #include "wombat/services/CommandSubscriber.h"
-#include <exlcm/orientation_matrix_t.hpp>
+#include <raccoon/orientation_matrix_t.hpp>
 #include <chrono>
 
 namespace wombat
@@ -46,62 +46,62 @@ namespace wombat
         }
 
         // Motor commands (per-port)
-        auto r = subscribeForPorts<exlcm::scalar_i32_t>(
+        auto r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorPowerCommand,
-            [this](PortId p, const exlcm::scalar_i32_t& cmd) { onMotorPowerCommand(p, cmd); },
+            [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorPowerCommand(p, cmd); },
             "motor power command");
         if (r.isFailure()) return r;
 
-        r = subscribeForPorts<exlcm::scalar_i32_t>(
+        r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorStopCommand,
-            [this](PortId p, const exlcm::scalar_i32_t& cmd) { onMotorStopCommand(p, cmd); },
+            [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorStopCommand(p, cmd); },
             "motor stop command");
         if (r.isFailure()) return r;
 
-        r = subscribeForPorts<exlcm::scalar_i32_t>(
+        r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorVelocityCommand,
-            [this](PortId p, const exlcm::scalar_i32_t& cmd) { onMotorVelocityCommand(p, cmd); },
+            [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorVelocityCommand(p, cmd); },
             "motor velocity command");
         if (r.isFailure()) return r;
 
-        r = subscribeForPorts<exlcm::vector3f_t>(
+        r = subscribeForPorts<raccoon::vector3f_t>(
             MAX_MOTOR_PORTS, Channels::motorPositionCommand,
-            [this](PortId p, const exlcm::vector3f_t& cmd) { onMotorPositionCommand(p, cmd); },
+            [this](PortId p, const raccoon::vector3f_t& cmd) { onMotorPositionCommand(p, cmd); },
             "motor position command");
         if (r.isFailure()) return r;
 
-        r = subscribeForPorts<exlcm::vector3f_t>(
+        r = subscribeForPorts<raccoon::vector3f_t>(
             MAX_MOTOR_PORTS, Channels::motorPidCommand,
-            [this](PortId p, const exlcm::vector3f_t& cmd) { onMotorPidCommand(p, cmd); },
+            [this](PortId p, const raccoon::vector3f_t& cmd) { onMotorPidCommand(p, cmd); },
             "motor PID command");
         if (r.isFailure()) return r;
 
         // Motor position reset (per-port)
-        r = subscribeForPorts<exlcm::scalar_i32_t>(
+        r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorPositionResetCommand,
-            [this](PortId p, const exlcm::scalar_i32_t& cmd) { onMotorPositionResetCommand(p, cmd); },
+            [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorPositionResetCommand(p, cmd); },
             "motor position reset command");
         if (r.isFailure()) return r;
 
         // BEMF commands (per-port)
-        r = subscribeForPorts<exlcm::scalar_f_t>(
+        r = subscribeForPorts<raccoon::scalar_f_t>(
             MAX_MOTOR_PORTS, Channels::bemfScaleCommand,
-            [this](PortId p, const exlcm::scalar_f_t& cmd) { onBemfScaleCommand(p, cmd); },
+            [this](PortId p, const raccoon::scalar_f_t& cmd) { onBemfScaleCommand(p, cmd); },
             "BEMF scale command");
         if (r.isFailure()) return r;
 
-        r = subscribeForPorts<exlcm::scalar_f_t>(
+        r = subscribeForPorts<raccoon::scalar_f_t>(
             MAX_MOTOR_PORTS, Channels::bemfOffsetCommand,
-            [this](PortId p, const exlcm::scalar_f_t& cmd) { onBemfOffsetCommand(p, cmd); },
+            [this](PortId p, const raccoon::scalar_f_t& cmd) { onBemfOffsetCommand(p, cmd); },
             "BEMF offset command");
         if (r.isFailure()) return r;
 
         // BEMF nominal voltage (single channel)
         logger_->info(
             "Subscribing to BEMF nominal voltage command channel: " + std::string(Channels::BEMF_NOMINAL_VOLTAGE_CMD));
-        auto nominalResult = broker_->subscribe<exlcm::scalar_i32_t>(
+        auto nominalResult = broker_->subscribe<raccoon::scalar_i32_t>(
             Channels::BEMF_NOMINAL_VOLTAGE_CMD,
-            [this](const exlcm::scalar_i32_t& cmd) { onBemfNominalVoltageCommand(cmd); }
+            [this](const raccoon::scalar_i32_t& cmd) { onBemfNominalVoltageCommand(cmd); }
         );
         if (nominalResult.isFailure())
         {
@@ -110,23 +110,23 @@ namespace wombat
         }
 
         // Servo commands (per-port)
-        r = subscribeForPorts<exlcm::scalar_i32_t>(
+        r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_SERVO_PORTS, Channels::servoPositionCommand,
-            [this](PortId p, const exlcm::scalar_i32_t& cmd) { onServoPositionCommand(p, cmd); },
+            [this](PortId p, const raccoon::scalar_i32_t& cmd) { onServoPositionCommand(p, cmd); },
             "servo position command");
         if (r.isFailure()) return r;
 
-        r = subscribeForPorts<exlcm::scalar_i8_t>(
+        r = subscribeForPorts<raccoon::scalar_i8_t>(
             MAX_SERVO_PORTS, Channels::servoMode,
-            [this](PortId p, const exlcm::scalar_i8_t& cmd) { onServoModeCommand(p, cmd); },
+            [this](PortId p, const raccoon::scalar_i8_t& cmd) { onServoModeCommand(p, cmd); },
             "servo mode command");
         if (r.isFailure()) return r;
 
         // System commands (single channels)
         logger_->info("Subscribing to data dump request channel: " + std::string(Channels::DATA_DUMP_REQUEST));
-        auto dumpResult = broker_->subscribe<exlcm::scalar_i32_t>(
+        auto dumpResult = broker_->subscribe<raccoon::scalar_i32_t>(
             Channels::DATA_DUMP_REQUEST,
-            [this](const exlcm::scalar_i32_t& cmd) { onDataDumpRequest(cmd); }
+            [this](const raccoon::scalar_i32_t& cmd) { onDataDumpRequest(cmd); }
         );
         if (dumpResult.isFailure())
         {
@@ -134,9 +134,9 @@ namespace wombat
         }
 
         logger_->info("Subscribing to shutdown command channel: " + std::string(Channels::SHUTDOWN_CMD));
-        auto shutdownResult = broker_->subscribe<exlcm::scalar_i32_t>(
+        auto shutdownResult = broker_->subscribe<raccoon::scalar_i32_t>(
             Channels::SHUTDOWN_CMD,
-            [this](const exlcm::scalar_i32_t& cmd) { onShutdownCommand(cmd); }
+            [this](const raccoon::scalar_i32_t& cmd) { onShutdownCommand(cmd); }
         );
         if (shutdownResult.isFailure())
         {
@@ -146,9 +146,9 @@ namespace wombat
         // IMU orientation matrix commands
         logger_->info(
             "Subscribing to IMU gyro orientation command channel: " + std::string(Channels::IMU_GYRO_ORIENTATION_CMD));
-        auto gyroOrientResult = broker_->subscribe<exlcm::orientation_matrix_t>(
+        auto gyroOrientResult = broker_->subscribe<raccoon::orientation_matrix_t>(
             Channels::IMU_GYRO_ORIENTATION_CMD,
-            [this](const exlcm::orientation_matrix_t& cmd) { onImuGyroOrientationCommand(cmd); }
+            [this](const raccoon::orientation_matrix_t& cmd) { onImuGyroOrientationCommand(cmd); }
         );
         if (gyroOrientResult.isFailure())
         {
@@ -159,9 +159,9 @@ namespace wombat
         logger_->info(
             "Subscribing to IMU compass orientation command channel: " + std::string(
                 Channels::IMU_COMPASS_ORIENTATION_CMD));
-        auto compassOrientResult = broker_->subscribe<exlcm::orientation_matrix_t>(
+        auto compassOrientResult = broker_->subscribe<raccoon::orientation_matrix_t>(
             Channels::IMU_COMPASS_ORIENTATION_CMD,
-            [this](const exlcm::orientation_matrix_t& cmd) { onImuCompassOrientationCommand(cmd); }
+            [this](const raccoon::orientation_matrix_t& cmd) { onImuCompassOrientationCommand(cmd); }
         );
         if (compassOrientResult.isFailure())
         {
@@ -172,9 +172,9 @@ namespace wombat
         // Body-to-world axis remap command
         logger_->info(
             "Subscribing to axis remap command channel: " + std::string(Channels::AXIS_REMAP_CMD));
-        auto axisRemapResult = broker_->subscribe<exlcm::orientation_matrix_t>(
+        auto axisRemapResult = broker_->subscribe<raccoon::orientation_matrix_t>(
             Channels::AXIS_REMAP_CMD,
-            [this](const exlcm::orientation_matrix_t& cmd) { onAxisRemapCommand(cmd); }
+            [this](const raccoon::orientation_matrix_t& cmd) { onAxisRemapCommand(cmd); }
         );
         if (axisRemapResult.isFailure())
         {
@@ -220,7 +220,7 @@ namespace wombat
         return Result<void>::success();
     }
 
-    void CommandSubscriber::onMotorPowerCommand(const PortId port, const exlcm::scalar_i32_t& command)
+    void CommandSubscriber::onMotorPowerCommand(const PortId port, const raccoon::scalar_i32_t& command)
     {
         const auto nowUs = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
@@ -273,7 +273,7 @@ namespace wombat
             + " total_from_send_us=" + std::to_string(postSpiUs - command.timestamp));
     }
 
-    void CommandSubscriber::onMotorStopCommand(const PortId port, const exlcm::scalar_i32_t& command)
+    void CommandSubscriber::onMotorStopCommand(const PortId port, const raccoon::scalar_i32_t& command)
     {
         if (!isInitialized_)
         {
@@ -305,7 +305,7 @@ namespace wombat
             (command.value == 0 ? "off" : "brake") + ")");
     }
 
-    void CommandSubscriber::onMotorVelocityCommand(const PortId port, const exlcm::scalar_i32_t& command)
+    void CommandSubscriber::onMotorVelocityCommand(const PortId port, const raccoon::scalar_i32_t& command)
     {
         const auto nowUs = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
@@ -344,7 +344,7 @@ namespace wombat
             + " total_from_send_us=" + std::to_string(postSpiUs - command.timestamp));
     }
 
-    void CommandSubscriber::onMotorPositionCommand(const PortId port, const exlcm::vector3f_t& command)
+    void CommandSubscriber::onMotorPositionCommand(const PortId port, const raccoon::vector3f_t& command)
     {
         const auto nowUs = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
@@ -386,7 +386,7 @@ namespace wombat
             + " total_from_send_us=" + std::to_string(postSpiUs - command.timestamp));
     }
 
-    void CommandSubscriber::onServoPositionCommand(const PortId port, const exlcm::scalar_i32_t& command)
+    void CommandSubscriber::onServoPositionCommand(const PortId port, const raccoon::scalar_i32_t& command)
     {
         if (!isInitialized_)
         {
@@ -410,7 +410,7 @@ namespace wombat
             "Received servo position_cmd on port " + std::to_string(port) + ": " + std::to_string(command.value));
     }
 
-    void CommandSubscriber::onServoModeCommand(const PortId port, const exlcm::scalar_i8_t& command)
+    void CommandSubscriber::onServoModeCommand(const PortId port, const raccoon::scalar_i8_t& command)
     {
         if (!isInitialized_)
         {
@@ -431,7 +431,7 @@ namespace wombat
         }
     }
 
-    void CommandSubscriber::onDataDumpRequest(const exlcm::scalar_i32_t& command) const
+    void CommandSubscriber::onDataDumpRequest(const raccoon::scalar_i32_t& command) const
     {
         if (!isInitialized_)
         {
@@ -475,7 +475,7 @@ namespace wombat
         logger_->info("Data dump completed");
     }
 
-    void CommandSubscriber::onMotorPositionResetCommand(const PortId port, const exlcm::scalar_i32_t& command)
+    void CommandSubscriber::onMotorPositionResetCommand(const PortId port, const raccoon::scalar_i32_t& command)
     {
         if (!isInitialized_)
         {
@@ -502,7 +502,7 @@ namespace wombat
         logger_->info("Reset position for motor " + std::to_string(port));
     }
 
-    void CommandSubscriber::onBemfScaleCommand(const PortId port, const exlcm::scalar_f_t& command)
+    void CommandSubscriber::onBemfScaleCommand(const PortId port, const raccoon::scalar_f_t& command)
     {
         if (!isInitialized_)
         {
@@ -523,7 +523,7 @@ namespace wombat
         logger_->info("Set BEMF scale for motor " + std::to_string(port) + " to " + std::to_string(command.value));
     }
 
-    void CommandSubscriber::onBemfOffsetCommand(const PortId port, const exlcm::scalar_f_t& command)
+    void CommandSubscriber::onBemfOffsetCommand(const PortId port, const raccoon::scalar_f_t& command)
     {
         if (!isInitialized_)
         {
@@ -544,7 +544,7 @@ namespace wombat
         logger_->info("Set BEMF offset for motor " + std::to_string(port) + " to " + std::to_string(command.value));
     }
 
-    void CommandSubscriber::onBemfNominalVoltageCommand(const exlcm::scalar_i32_t& command)
+    void CommandSubscriber::onBemfNominalVoltageCommand(const raccoon::scalar_i32_t& command)
     {
         if (!isInitialized_)
         {
@@ -565,7 +565,7 @@ namespace wombat
         logger_->info("Set BEMF nominal voltage ADC to " + std::to_string(command.value));
     }
 
-    void CommandSubscriber::onMotorPidCommand(const PortId port, const exlcm::vector3f_t& command)
+    void CommandSubscriber::onMotorPidCommand(const PortId port, const raccoon::vector3f_t& command)
     {
         const auto nowUs = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
@@ -608,7 +608,7 @@ namespace wombat
             + " total_from_send_us=" + std::to_string(postSpiUs - command.timestamp));
     }
 
-    void CommandSubscriber::onShutdownCommand(const exlcm::scalar_i32_t& command)
+    void CommandSubscriber::onShutdownCommand(const raccoon::scalar_i32_t& command)
     {
         if (!isInitialized_)
         {
@@ -635,7 +635,7 @@ namespace wombat
         logger_->info("Shutdown " + std::string(enabled ? "enabled" : "disabled"));
     }
 
-    void CommandSubscriber::onImuGyroOrientationCommand(const exlcm::orientation_matrix_t& command)
+    void CommandSubscriber::onImuGyroOrientationCommand(const raccoon::orientation_matrix_t& command)
     {
         if (!isInitialized_)
         {
@@ -656,7 +656,7 @@ namespace wombat
         logger_->info("IMU gyro orientation matrix set");
     }
 
-    void CommandSubscriber::onImuCompassOrientationCommand(const exlcm::orientation_matrix_t& command)
+    void CommandSubscriber::onImuCompassOrientationCommand(const raccoon::orientation_matrix_t& command)
     {
         if (!isInitialized_)
         {
@@ -677,7 +677,7 @@ namespace wombat
         logger_->info("IMU compass orientation matrix set");
     }
 
-    void CommandSubscriber::onAxisRemapCommand(const exlcm::orientation_matrix_t& command)
+    void CommandSubscriber::onAxisRemapCommand(const raccoon::orientation_matrix_t& command)
     {
         if (!isInitialized_)
         {

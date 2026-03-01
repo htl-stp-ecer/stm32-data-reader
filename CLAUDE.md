@@ -58,7 +58,7 @@ LCM (multicast) --> CommandSubscriber ----|
 
 ### LCM Message Types
 
-Defined in `lcm-messages/types/*.lcm`, auto-generated to `exlcm::*` C++ headers:
+Defined in `lcm-messages/types/*.lcm`, auto-generated to `raccoon::*` C++ headers:
 - `vector3f_t` - 3D vectors (gyro, accel, mag)
 - `quaternion_t` - Orientation quaternion
 - `scalar_f_t`, `scalar_i32_t`, `scalar_i8_t` - Scalar values

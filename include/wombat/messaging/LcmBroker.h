@@ -2,12 +2,14 @@
 
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
-#include "wombat/messaging/LcmConcepts.h"
+#include <raccoon/Concepts.h>
 #include <memory>
 #include <functional>
 
 namespace wombat
 {
+    using raccoon::LcmMessage;
+
     class LcmBroker
     {
     public:

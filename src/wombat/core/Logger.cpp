@@ -2,14 +2,16 @@
 // Created by tobias on 9/14/25.
 //
 #include "wombat/core/Logger.h"
-#include "wombat/core/Channels.h"
+#include <raccoon/Channels.h>
 #include "wombat/messaging/LcmBroker.h"
-#include <exlcm/string_t.hpp>
+#include <raccoon/string_t.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
 
 namespace wombat
 {
+    namespace Channels = raccoon::Channels;
+
     class SpdlogLogger final : public Logger
     {
     public:
@@ -63,7 +65,7 @@ namespace wombat
                 return; // No broker available
             }
 
-            exlcm::string_t errorMsg;
+            raccoon::string_t errorMsg;
             errorMsg.timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count();
             errorMsg.value = message;
