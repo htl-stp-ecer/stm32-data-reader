@@ -23,6 +23,13 @@ jobs:
           cache-from: type=gha,scope=firmware
           cache-to: type=gha,scope=firmware,mode=max
 
+      - name: Restore firmware build cache
+        uses: actions/cache@v4
+        with:
+          path: firmware/build
+          key: firmware-build-${{ hashFiles('firmware/CMakeLists.txt', 'firmware/Firmware/**', 'shared/**') }}
+          restore-keys: firmware-build-
+
       - name: Build firmware
         run: cd firmware && docker compose up --build --exit-code-from build-wombat-firmware
 
@@ -71,14 +78,14 @@ jobs:
         with:
           path: |
             .ccache
-          key: ccache-${{ hashFiles('CMakeLists.txt', 'src/**', 'include/**', 'shared/**') }}
-          restore-keys: ccache-
+            build
+          key: reader-build-${{ hashFiles('CMakeLists.txt', 'src/**', 'include/**', 'shared/**') }}
+          restore-keys: reader-build-
 
       - name: Build ARM64 binary
         run: |
           SKIP_FIRMWARE=1 BUILD_NUMBER=${{ github.run_number }} bash ./build.sh
         env:
-          FORCE_RECONFIGURE: "1"
           CCACHE_HOST_DIR: ${{ github.workspace }}/.ccache
 
       - name: Upload reader artifact
