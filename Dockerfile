@@ -1,4 +1,4 @@
-FROM --platform=linux/arm64/v8 debian:12-slim
+FROM --platform=linux/arm64/v8 debian:13-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG TZ=Europe/Vienna

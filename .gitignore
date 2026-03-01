@@ -1011,6 +1011,7 @@ _deps
 # Libraries
 *.lib
 *.a
+!firmware/libs/motion_driver_6.12/src/mpl/libmpllib.a
 *.la
 *.lo
 

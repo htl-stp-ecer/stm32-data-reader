@@ -101,7 +101,7 @@ target_include_directories(motion_driver PUBLIC
 # Note: The libmpllib.a is ARM-compiled, so this only works for ARM targets
 if (EXISTS "${MOTION_DRIVER_CORE_DIR}/mpl/libmpllib.a")
     # Check if we're building for ARM
-    if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm" OR CMAKE_C_COMPILER MATCHES "arm-none-eabi") #FIXME mpl libary is not linked correctly since CMAKE does not recogrnice that we compile for ARM
+    if (CMAKE_SYSTEM_PROCESSOR MATCHES "[Aa][Rr][Mm]" OR CMAKE_C_COMPILER MATCHES "arm-none-eabi")
         # Create a named imported target for the prebuilt lib
         add_library(mpl_prebuilt STATIC IMPORTED GLOBAL)
         set_target_properties(mpl_prebuilt PROPERTIES
