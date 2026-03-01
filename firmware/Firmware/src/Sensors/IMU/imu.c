@@ -57,11 +57,10 @@ int runImuSelfTest(void);
 
 static void rotateBodyToWorld(const long rot_q30[9], const long body[3], long world[3])
 {
-    for (int i = 0; i < 3; i++)
-    {
+    for (int i = 0; i < 3; i++) {
         world[i] = inv_q30_mult(rot_q30[i * 3 + 0], body[0])
-            + inv_q30_mult(rot_q30[i * 3 + 1], body[1])
-            + inv_q30_mult(rot_q30[i * 3 + 2], body[2]);
+                 + inv_q30_mult(rot_q30[i * 3 + 1], body[1])
+                 + inv_q30_mult(rot_q30[i * 3 + 2], body[2]);
     }
 }
 
@@ -76,7 +75,7 @@ void setupImu(void)
 
     struct int_param_s int_param;
     unsigned char accel_fsr;
-    unsigned short gyro_rate, gyro_fsr;
+    unsigned short gyro_rate, gyro_fsr, compass_fsr;
 
     /* 1) HW init */
     runImuSelfTest(); //calibrate the gyro and accel biases
@@ -85,27 +84,33 @@ void setupImu(void)
     /* 2) MPL init + feature enables */
     inv_init_mpl();
     inv_enable_quaternion();
+    //inv_enable_9x_sensor_fusion();
     //inv_9x_fusion_use_timestamps(1); //don't need to use since alle data is send regularly
     inv_enable_fast_nomot();
     inv_enable_gyro_tc();
     inv_enable_in_use_auto_calibration();
+    //inv_enable_vector_compass_cal();
+    //inv_enable_magnetic_disturbance();
     inv_enable_heading_from_gyro();
     inv_enable_eMPL_outputs();
     inv_start_mpl();
 
     /* 3) Turn sensors on + FIFO config */
-    mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL);
+    mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL | INV_XYZ_COMPASS);
     mpu_configure_fifo(INV_XYZ_GYRO | INV_XYZ_ACCEL);
     mpu_set_sample_rate(DEFAULT_MPU_HZ);
+    mpu_set_compass_sample_rate(1000 / COMPASS_READ_MS);
 
     /* 4) Read back HW config */
     mpu_get_sample_rate(&gyro_rate);
     mpu_get_gyro_fsr(&gyro_fsr);
     mpu_get_accel_fsr(&accel_fsr);
+    mpu_get_compass_fsr(&compass_fsr);
 
     /* Sync rates into MPL */
     inv_set_gyro_sample_rate(1000000L / gyro_rate);
     inv_set_accel_sample_rate(1000000L / gyro_rate);
+    inv_set_compass_sample_rate(COMPASS_READ_MS * 1000L);
     inv_set_quat_sample_rate(1000000 / gyro_rate);
 
     inv_set_gyro_orientation_and_scale(
@@ -114,6 +119,9 @@ void setupImu(void)
     inv_set_accel_orientation_and_scale(
         inv_orientation_matrix_to_scalar(gyro_pdata.orientation),
         (long)accel_fsr << 15);
+    inv_set_compass_orientation_and_scale(
+        inv_orientation_matrix_to_scalar(compass_pdata.orientation),
+        (long)compass_fsr << 15);
 
     hal_get_tick_count(&timestamp);
 
@@ -170,11 +178,14 @@ static void read_from_mpl(void)
         imu.accel.data[2] = EARTHS_GRAVITY * inv_q16_to_float(world[2]);
     }
 
-    imu.compass.data[0] = 0.0f;
-    imu.compass.data[1] = 0.0f;
-    imu.compass.data[2] = 0.0f;
-    imu.compass.accuracy = 0;
-
+    if (inv_get_sensor_type_compass(data, &imu.compass.accuracy,
+                                    (inv_time_t*)&timestamp))
+    {
+        rotateBodyToWorld(rot_mat, data, world);
+        imu.compass.data[0] = inv_q16_to_float(world[0]);
+        imu.compass.data[1] = inv_q16_to_float(world[1]);
+        imu.compass.data[2] = inv_q16_to_float(world[2]);
+    }
     {
         long t1, t2, q00, q03, q12, q22;
         float heading_deg;
@@ -203,20 +214,16 @@ static void read_from_mpl(void)
         static uint32_t last_integration_time = 0;
 
         const float alpha = 0.3f;
-        for (int i = 0; i < 3; i++)
-        {
+        for (int i = 0; i < 3; i++) {
             filtered_accel[i] = alpha * imu.linearAccel.data[i] + (1.0f - alpha) * filtered_accel[i];
         }
 
         inv_time_t now;
         hal_get_tick_count(&now);
-        if (last_integration_time != 0)
-        {
+        if (last_integration_time != 0) {
             float dt = (float)(now - last_integration_time) / 1000.0f;
-            if (dt > 0.0f && dt < 0.1f)
-            {
-                for (int i = 0; i < 2; i++)
-                {
+            if (dt > 0.0f && dt < 0.1f) {
+                for (int i = 0; i < 2; i++) {
                     imu.accelVelocity.data[i] += filtered_accel[i] * dt;
                     imu.accelVelocity.data[i] *= 0.998f;
                 }
@@ -241,6 +248,11 @@ void readImu(void)
     {
         next_gyro_ms = timestamp + GYRO_READ_MS;
         new_gyro = 1;
+    }
+    if (timestamp > next_compass_ms)
+    {
+        next_compass_ms = timestamp + COMPASS_READ_MS;
+        new_compass = 1;
     }
 
     if (timestamp > next_temp_ms)
@@ -313,6 +325,32 @@ void readImu(void)
         }
     }
 
+    if (new_compass)
+    {
+        short compass_short[3];
+        long compass[3];
+        new_compass = 0;
+        /* For any MPU device with an AKM on the auxiliary I2C bus, the raw
+         * magnetometer registers are copied to special gyro registers.
+         */
+        if (!mpu_get_compass_reg(compass_short, &sensor_timestamp))
+        {
+            compass[0] = (long)compass_short[0];
+            compass[1] = (long)compass_short[1];
+            compass[2] = (long)compass_short[2];
+            /* NOTE: If using a third-party compass calibration library,
+             * pass in the compass data in uT * 2^16 and set the second
+             * parameter to INV_CALIBRATED | acc, where acc is the
+             * accuracy from 0 to 3.
+             */
+            inv_build_compass(compass, 0, sensor_timestamp);
+            //outpt raw values (only for testing purposes)
+            //imu.compass.data[0] = compass[0];
+            //imu.compass.data[1] = compass[1];
+            //imu.compass.data[2] = compass[2];
+        }
+        new_data = 1;
+    }
     if (new_data)
     {
         inv_execute_on_data();
@@ -342,8 +380,7 @@ void updateImuOrientation(const int8_t gyroOrientation[9], const int8_t compassO
     unsigned short gyro_fsr, compass_fsr;
     unsigned char accel_fsr;
 
-    for (int i = 0; i < 9; ++i)
-    {
+    for (int i = 0; i < 9; ++i) {
         gyro_pdata.orientation[i] = gyroOrientation[i];
         compass_pdata.orientation[i] = compassOrientation[i];
     }
