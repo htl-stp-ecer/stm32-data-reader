@@ -1,5 +1,5 @@
-#include "mpu9250_dmp.h"
-#include "MPU9250_RegisterMap.h"
+#include "Sensors/IMU/mpu9250_dmp.h"
+#include "Sensors/IMU/MPU9250_RegisterMap.h"
 #include "math.h"
 
 #define PI 3.14159265

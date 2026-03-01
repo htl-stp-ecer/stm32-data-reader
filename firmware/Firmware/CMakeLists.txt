@@ -17,7 +17,6 @@ include_directories(include/Actors)
 include_directories(include/Communication)
 include_directories(include/Sensors)
 include_directories(include/Sensors/IMU)
-include_directories(src/Sensors/IMU)
 include_directories(src/Sensors/IMU/motion_driver)
 include_directories(include/Utility)
 

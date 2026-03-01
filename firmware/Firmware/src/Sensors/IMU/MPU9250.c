@@ -8,7 +8,7 @@
 
 #include "main.h"
 #include "Sensors/IMU/MPU9250.h"
-#include "Sensors/IMU/MPU9250_Config.h"
+#include "Sensors/IMU/mpu9250_config.h"
 #include "Communication/spi.h"
 #include "Utillity/utillity.h"
 
