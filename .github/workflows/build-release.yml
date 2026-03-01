@@ -31,7 +31,10 @@ jobs:
           restore-keys: firmware-build-
 
       - name: Build firmware
-        run: cd firmware && docker compose up --build --exit-code-from build-wombat-firmware
+        run: |
+          cd firmware
+          docker compose build
+          docker compose up --exit-code-from build-wombat-firmware
 
       - name: Stage firmware artifacts
         run: |
@@ -84,7 +87,7 @@ jobs:
 
       - name: Build ARM64 binary
         run: |
-          SKIP_FIRMWARE=1 BUILD_NUMBER=${{ github.run_number }} bash ./build.sh
+          SKIP_FIRMWARE=1 BUILD_NUMBER=${{ github.run_number }} NINJA_JOBS=4 bash ./build.sh
         env:
           CCACHE_HOST_DIR: ${{ github.workspace }}/.ccache
 
