@@ -11,25 +11,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Cache firmware Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./firmware
-          load: true
-          tags: wombat-firmware:latest
-          cache-from: type=gha,scope=firmware
-          cache-to: type=gha,scope=firmware,mode=max
-
-      - name: Restore firmware build cache
-        uses: actions/cache@v4
-        with:
-          path: firmware/build
-          key: firmware-build-${{ hashFiles('firmware/CMakeLists.txt', 'firmware/Firmware/**', 'shared/**') }}
-          restore-keys: firmware-build-
-
       - name: Build firmware
         run: |
           cd firmware
@@ -59,31 +40,6 @@ jobs:
         with:
           submodules: recursive
           token: ${{ secrets.GH_PAT }}
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and cache toolchain image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/arm64/v8
-          load: true
-          tags: stm32-dev:arm64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Restore build caches
-        uses: actions/cache@v4
-        with:
-          path: |
-            .ccache
-            build
-          key: reader-build-${{ hashFiles('CMakeLists.txt', 'src/**', 'include/**', 'shared/**') }}
-          restore-keys: reader-build-
 
       - name: Build ARM64 binary
         run: |
