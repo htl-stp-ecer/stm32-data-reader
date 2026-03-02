@@ -20,7 +20,8 @@ namespace wombat
         PortId maxPorts,
         std::function<std::string(PortId)> channelFn,
         std::function<void(PortId, const MsgT &)> handler,
-        const std::string& description)
+        const std::string& description,
+        const raccoon::SubscribeOptions& options)
     {
         for (PortId i = 0; i < maxPorts; ++i)
         {
@@ -28,7 +29,8 @@ namespace wombat
             logger_->info("Subscribing to " + description + " channel: " + channel);
             auto result = broker_->subscribe<MsgT>(
                 channel,
-                [handler, i](const MsgT& cmd) { handler(i, cmd); }
+                [handler, i](const MsgT& cmd) { handler(i, cmd); },
+                options
             );
             if (result.isFailure())
             {
@@ -45,7 +47,9 @@ namespace wombat
             return Result<void>::success();
         }
 
-        // Motor commands (per-port)
+        static const raccoon::SubscribeOptions reliableOpts{.reliable = true};
+
+        // Motor commands (per-port) — power and velocity are continuous control loops (plain)
         auto r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorPowerCommand,
             [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorPowerCommand(p, cmd); },
@@ -55,7 +59,7 @@ namespace wombat
         r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorStopCommand,
             [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorStopCommand(p, cmd); },
-            "motor stop command");
+            "motor stop command", reliableOpts);
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<raccoon::scalar_i32_t>(
@@ -67,50 +71,41 @@ namespace wombat
         r = subscribeForPorts<raccoon::vector3f_t>(
             MAX_MOTOR_PORTS, Channels::motorPositionCommand,
             [this](PortId p, const raccoon::vector3f_t& cmd) { onMotorPositionCommand(p, cmd); },
-            "motor position command");
+            "motor position command", reliableOpts);
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<raccoon::vector3f_t>(
             MAX_MOTOR_PORTS, Channels::motorPidCommand,
             [this](PortId p, const raccoon::vector3f_t& cmd) { onMotorPidCommand(p, cmd); },
-            "motor PID command");
+            "motor PID command", reliableOpts);
         if (r.isFailure()) return r;
 
-        // Motor position reset (per-port)
+        // Motor position reset (per-port) — one-shot, reliable
         r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorPositionResetCommand,
             [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorPositionResetCommand(p, cmd); },
-            "motor position reset command");
+            "motor position reset command", reliableOpts);
         if (r.isFailure()) return r;
 
-        // Servo commands (per-port)
+        // Servo commands (per-port) — set-and-forget, reliable
         r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_SERVO_PORTS, Channels::servoPositionCommand,
             [this](PortId p, const raccoon::scalar_i32_t& cmd) { onServoPositionCommand(p, cmd); },
-            "servo position command");
+            "servo position command", reliableOpts);
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<raccoon::scalar_i8_t>(
             MAX_SERVO_PORTS, Channels::servoMode,
             [this](PortId p, const raccoon::scalar_i8_t& cmd) { onServoModeCommand(p, cmd); },
-            "servo mode command");
+            "servo mode command", reliableOpts);
         if (r.isFailure()) return r;
 
         // System commands (single channels)
-        logger_->info("Subscribing to data dump request channel: " + std::string(Channels::DATA_DUMP_REQUEST));
-        auto dumpResult = broker_->subscribe<raccoon::scalar_i32_t>(
-            Channels::DATA_DUMP_REQUEST,
-            [this](const raccoon::scalar_i32_t& cmd) { onDataDumpRequest(cmd); }
-        );
-        if (dumpResult.isFailure())
-        {
-            return Result<void>::failure("Failed to subscribe to data dump request: " + dumpResult.error());
-        }
-
         logger_->info("Subscribing to shutdown command channel: " + std::string(Channels::SHUTDOWN_CMD));
         auto shutdownResult = broker_->subscribe<raccoon::scalar_i32_t>(
             Channels::SHUTDOWN_CMD,
-            [this](const raccoon::scalar_i32_t& cmd) { onShutdownCommand(cmd); }
+            [this](const raccoon::scalar_i32_t& cmd) { onShutdownCommand(cmd); },
+            reliableOpts
         );
         if (shutdownResult.isFailure())
         {
@@ -364,50 +359,6 @@ namespace wombat
             logger_->error("Failed to set servo mode: " + result.error());
             return;
         }
-    }
-
-    void CommandSubscriber::onDataDumpRequest(const raccoon::scalar_i32_t& command) const
-    {
-        if (!isInitialized_)
-        {
-            logger_->warn("Received data dump request while not initialized");
-            return;
-        }
-
-        logger_->info("Received data dump request, publishing all current values");
-
-        // Get current sensor data and publish
-        auto sensorDataResult = deviceController_->getCurrentSensorData();
-        if (sensorDataResult.isSuccess())
-        {
-            dataPublisher_->publishSensorData(sensorDataResult.value());
-        }
-        else
-        {
-            logger_->warn("Failed to get sensor data for dump: " + sensorDataResult.error());
-        }
-
-        // Publish all motor states
-        for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
-        {
-            auto motorStateResult = deviceController_->getMotorState(port);
-            if (motorStateResult.isSuccess())
-            {
-                dataPublisher_->publishMotorState(port, motorStateResult.value());
-            }
-        }
-
-        // Publish all servo states
-        for (PortId port = 0; port < MAX_SERVO_PORTS; ++port)
-        {
-            auto servoStateResult = deviceController_->getServoState(port);
-            if (servoStateResult.isSuccess())
-            {
-                dataPublisher_->publishServoState(port, servoStateResult.value());
-            }
-        }
-
-        logger_->info("Data dump completed");
     }
 
     void CommandSubscriber::onMotorPositionResetCommand(const PortId port, const raccoon::scalar_i32_t& command)

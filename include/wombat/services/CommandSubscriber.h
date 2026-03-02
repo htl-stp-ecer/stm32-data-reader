@@ -49,7 +49,6 @@ namespace wombat
         void onMotorPositionCommand(PortId port, const raccoon::vector3f_t& command);
         void onServoPositionCommand(PortId port, const raccoon::scalar_i32_t& command);
         void onServoModeCommand(PortId port, const raccoon::scalar_i8_t& command);
-        void onDataDumpRequest(const raccoon::scalar_i32_t& command) const;
         void onMotorPositionResetCommand(PortId port, const raccoon::scalar_i32_t& command);
         void onMotorPidCommand(PortId port, const raccoon::vector3f_t& command);
         void onShutdownCommand(const raccoon::scalar_i32_t& command);
@@ -61,7 +60,8 @@ namespace wombat
             PortId maxPorts,
             std::function<std::string(PortId)> channelFn,
             std::function<void(PortId, const MsgT &)> handler,
-            const std::string& description);
+            const std::string& description,
+            const raccoon::SubscribeOptions& options = {});
 
         bool isInitialized_{false};
         std::unordered_map<std::string, int64_t> latestTimestamps_;

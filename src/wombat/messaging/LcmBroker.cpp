@@ -133,7 +133,7 @@ namespace wombat
 
         template <typename MessageType>
         Result<void> publishForce(const std::string& channel, const MessageType& message,
-                                   const raccoon::PublishOptions& options = {})
+                                  const raccoon::PublishOptions& options = {})
         {
             if (!transport_)
             {
@@ -150,14 +150,15 @@ namespace wombat
 
         template <LcmMessage T>
         Result<void> subscribe(const std::string& channel,
-                               std::function<void(const T &)> handler)
+                               std::function<void(const T &)> handler,
+                               const raccoon::SubscribeOptions& options = {})
         {
             if (!transport_)
             {
                 return Result<void>::failure("Transport not initialized");
             }
 
-            transport_->subscribe<T>(channel, std::move(handler));
+            transport_->subscribe<T>(channel, std::move(handler), options);
 
             logger_->debug("Subscribed to " + std::string(T::getTypeName()) + " channel: " + channel);
             return Result<void>::success();
@@ -266,47 +267,64 @@ namespace wombat
         return impl_->publishIfChanged(ch, m, retainedOpts);
     }
 
+    template <>
+    Result<void> LcmBroker::publishRetained<raccoon::scalar_f_t>(const std::string& ch,
+                                                                 const raccoon::scalar_f_t& m)
+    {
+        return impl_->publishIfChanged(ch, m, retainedOpts);
+    }
+
     // Explicit template instantiations — subscribe
     template <>
     Result<void> LcmBroker::subscribe<raccoon::vector3f_t>(const std::string& ch,
-                                                           std::function<void(const raccoon::vector3f_t&)> h)
+                                                           std::function<void(const raccoon::vector3f_t &)> h,
+                                                           const raccoon::SubscribeOptions& opts)
     {
-        return impl_->subscribe<raccoon::vector3f_t>(ch, std::move(h));
+        return impl_->subscribe<raccoon::vector3f_t>(ch, std::move(h), opts);
     }
 
     template <>
     Result<void> LcmBroker::subscribe<raccoon::quaternion_t>(const std::string& ch,
-                                                             std::function<void(const raccoon::quaternion_t&)> h)
+                                                             std::function<void(const raccoon::quaternion_t &)> h,
+                                                             const raccoon::SubscribeOptions& opts)
     {
-        return impl_->subscribe<raccoon::quaternion_t>(ch, std::move(h));
+        return impl_->subscribe<raccoon::quaternion_t>(ch, std::move(h), opts);
     }
 
     template <>
     Result<void> LcmBroker::subscribe<raccoon::scalar_i32_t>(const std::string& ch,
-                                                             std::function<void(const raccoon::scalar_i32_t&)> h)
+                                                             std::function<void(const raccoon::scalar_i32_t &)> h,
+                                                             const raccoon::SubscribeOptions& opts)
     {
-        return impl_->subscribe<raccoon::scalar_i32_t>(ch, std::move(h));
+        return impl_->subscribe<raccoon::scalar_i32_t>(ch, std::move(h), opts);
     }
 
     template <>
     Result<void> LcmBroker::subscribe<raccoon::scalar_f_t>(const std::string& ch,
-                                                           std::function<void(const raccoon::scalar_f_t&)> h)
+                                                           std::function<void(const raccoon::scalar_f_t &)> h,
+                                                           const raccoon::SubscribeOptions& opts)
     {
-        return impl_->subscribe<raccoon::scalar_f_t>(ch, std::move(h));
+        return impl_->subscribe<raccoon::scalar_f_t>(ch, std::move(h), opts);
     }
 
     template <>
     Result<void> LcmBroker::subscribe<raccoon::scalar_i8_t>(const std::string& ch,
-                                                            std::function<void(const raccoon::scalar_i8_t&)> h)
+                                                            std::function<void(const raccoon::scalar_i8_t &)> h,
+                                                            const raccoon::SubscribeOptions& opts)
     {
-        return impl_->subscribe<raccoon::scalar_i8_t>(ch, std::move(h));
+        return impl_->subscribe<raccoon::scalar_i8_t>(ch, std::move(h), opts);
     }
 
     template <>
     Result<void> LcmBroker::subscribe<raccoon::orientation_matrix_t>(const std::string& ch,
                                                                      std::function<void(
-                                                                         const raccoon::orientation_matrix_t &)> h)
+                                                                         const raccoon::orientation_matrix_t&)
+    >
+    h
+    ,
+    const raccoon::SubscribeOptions& opts
+    )
     {
-        return impl_->subscribe<raccoon::orientation_matrix_t>(ch, std::move(h));
+        return impl_->subscribe<raccoon::orientation_matrix_t>(ch, std::move(h), opts);
     }
 } // namespace wombat

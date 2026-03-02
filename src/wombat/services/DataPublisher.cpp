@@ -1,6 +1,7 @@
 #include "wombat/services/DataPublisher.h"
 #include "wombat/messaging/LcmConversions.h"
 #include <string>
+#include <cmath>
 
 namespace wombat
 {
@@ -55,7 +56,7 @@ namespace wombat
             logger_->warn("Failed to publish orientation data: " + orientationResult.error());
         }
 
-        auto headingResult = broker_->publish(Channels::HEADING, toLcmScalarF(data.heading));
+        auto headingResult = broker_->publishRetained(Channels::HEADING, toLcmScalarF(data.heading));
         if (headingResult.isFailure())
         {
             logger_->warn("Failed to publish heading data: " + headingResult.error());
@@ -70,10 +71,13 @@ namespace wombat
             logger_->warn("Failed to publish temperature data: " + tempResult.error());
         }
 
-        auto batteryResult = broker_->publish(Channels::BATTERY_VOLTAGE, toLcmScalarF(data.batteryVoltage));
-        if (batteryResult.isFailure())
         {
-            logger_->warn("Failed to publish battery voltage data: " + batteryResult.error());
+            const float rounded = std::round(data.batteryVoltage * 1000.0f) / 1000.0f;
+            auto batteryResult = broker_->publishRetained(Channels::BATTERY_VOLTAGE, toLcmScalarF(rounded));
+            if (batteryResult.isFailure())
+            {
+                logger_->warn("Failed to publish battery voltage data: " + batteryResult.error());
+            }
         }
 
         auto analogResult = publishAnalogValues(data.analogValues);

@@ -3,6 +3,7 @@
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
 #include <raccoon/Concepts.h>
+#include <raccoon/Options.h>
 #include <memory>
 #include <functional>
 
@@ -31,7 +32,8 @@ namespace wombat
         Result<void> publishRetained(const std::string& channel, const T& message);
 
         template <LcmMessage T>
-        Result<void> subscribe(const std::string& channel, std::function<void(const T &)> handler);
+        Result<void> subscribe(const std::string& channel, std::function<void(const T &)> handler,
+                               const raccoon::SubscribeOptions& options = {});
 
     private:
         class Impl;
