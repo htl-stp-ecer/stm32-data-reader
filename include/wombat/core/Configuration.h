@@ -30,6 +30,13 @@ namespace wombat
             std::string pattern{"[%H:%M:%S.%e] [%l] %v"};
         } logging;
 
+        struct Uart
+        {
+            std::string devicePath{"/dev/ttyAMA0"};
+            uint32_t baudRate{115200};
+            bool enabled{true};
+        } uart;
+
         std::chrono::milliseconds mainLoopDelay{1};
     };
 }

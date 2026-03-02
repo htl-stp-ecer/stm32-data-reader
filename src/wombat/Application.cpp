@@ -139,6 +139,11 @@ namespace wombat
         commandSubscriber_ = std::make_shared<CommandSubscriber>(messageBroker_, deviceController_, dataPublisher_,
                                                                  logger_);
 
+        if (config_.uart.enabled)
+        {
+            uartMonitor_ = std::make_unique<UartMonitor>(logger_, config_.uart);
+        }
+
         logger_->debug("All services created successfully");
         return Result<void>::success();
     }
@@ -167,6 +172,15 @@ namespace wombat
         }
 
 
+        if (uartMonitor_)
+        {
+            auto uartResult = uartMonitor_->initialize();
+            if (uartResult.isFailure())
+            {
+                logger_->warn("Failed to initialize UART monitor: " + uartResult.error());
+            }
+        }
+
         logger_->debug("All services initialized successfully");
         return Result<void>::success();
     }
@@ -174,6 +188,15 @@ namespace wombat
     Result<void> Application::shutdownServices()
     {
         // Shutdown in reverse order
+
+        if (uartMonitor_)
+        {
+            auto result = uartMonitor_->shutdown();
+            if (result.isFailure())
+            {
+                logger_->warn("Failed to shutdown UART monitor: " + result.error());
+            }
+        }
 
         if (commandSubscriber_)
         {
@@ -233,6 +256,16 @@ namespace wombat
             if (cpuTempResult.isFailure())
             {
                 logger_->debug("CPU temperature update failed: " + cpuTempResult.error());
+            }
+        }
+
+        // Read STM32 UART debug output
+        if (uartMonitor_)
+        {
+            auto uartResult = uartMonitor_->processUpdate();
+            if (uartResult.isFailure())
+            {
+                logger_->debug("UART monitor update failed: " + uartResult.error());
             }
         }
 

@@ -20,6 +20,7 @@
 
 #include "main.h"
 
+#include <stdio.h>
 #include "adcPorts-batteryVoltage.h"
 #include "bemf.h"
 #include "MPU9250.h"
@@ -32,12 +33,14 @@
 #include "Sensors/adcInit.h"
 #include "Hardware/dma.h"
 #include "Communication/spi.h"
+#include "Communication/usart.h"
 #include "Hardware/timerInit.h"
 #include "Hardware/gpio.h"
 #include "Sensors/IMU/imu.h"
 #include "Utillity/utillity.h"
 
 #define SERVO_UPDATE_INTERVAL 100 //ms (only update the servos with 10Hz to avoid servo jitter)
+#define HEARTBEAT_INTERVAL 5000 //ms
 
 /* Private includes ----------------------------------------------------------*/
 
@@ -79,17 +82,22 @@ int main(void)
     MX_TIM6_Init();
     MX_TIM8_Init();
     MX_TIM9_Init();
+    MX_USART3_UART_Init();
 
     //initialising systems
     systemTimerStart();
     //starting bemf meashurment cycle - startet with starting the systemTimer -> is called periodicly
     //starting analog port meashurment cycle - startet with starting the systemTimer -> is called periodicly
 
+    printf("Booted, firmware ready\r\n");
+
     initPiCommunication();
     initMotors();
     setupImu();
 
     uint32_t last_update = HAL_GetTick();
+    uint32_t last_heartbeat = HAL_GetTick();
+    uint32_t heartbeat_count = 0;
 
     /* Infinite loop */
     while (1)
@@ -99,6 +107,13 @@ int main(void)
         {
             update_servo_cmd();
             last_update = current_time;
+        }
+
+        if (current_time - last_heartbeat >= HEARTBEAT_INTERVAL)
+        {
+            printf("heartbeat #%lu uptime=%lus\r\n",
+                   ++heartbeat_count, current_time / 1000);
+            last_heartbeat = current_time;
         }
 
         if (updateFlags & PI_BUFFER_UPDATE_MOTOR_PID_SPEED)

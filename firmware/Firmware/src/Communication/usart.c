@@ -41,6 +41,12 @@ void MX_USART3_UART_Init(void)
     }
 }
 
+int __io_putchar(int ch)
+{
+    HAL_UART_Transmit(&uart_pi, (uint8_t*)&ch, 1, HAL_MAX_DELAY);
+    return ch;
+}
+
 void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
