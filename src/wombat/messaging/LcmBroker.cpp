@@ -50,7 +50,7 @@ namespace wombat
             int messagesProcessed = 0;
             while (true)
             {
-                const int result = transport_->spinOnce(0);
+                const int result = transport_->spinOnce(5);
                 if (result < 0)
                 {
                     return Result<void>::failure("Failed to process LCM messages");

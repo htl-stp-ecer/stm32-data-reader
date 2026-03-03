@@ -37,6 +37,6 @@ namespace wombat
             bool enabled{true};
         } uart;
 
-        std::chrono::milliseconds mainLoopDelay{1};
+        std::chrono::milliseconds mainLoopDelay{5};
     };
 }
