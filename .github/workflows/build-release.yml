@@ -83,7 +83,7 @@ jobs:
           cp artifacts/firmware/flash_wombat.sh release/
           cp artifacts/firmware/reset_coprocessor.sh release/
           cp artifacts/firmware/init_gpio.sh release/
-          cp install.sh release/
+          cp install.py release/
           cp systemd/stm32_data_reader.service release/
           cp systemd/lcm-loopback-multicast.service release/
           echo "Release contents:" && ls -la release/
