@@ -314,7 +314,27 @@ TEST_F(DeviceControllerTest, SetShutdownSuccess)
 {
     initializeController();
 
+    // setShutdown(true) clears all motor/servo commands before setting the flag;
+    // destructor also calls setShutdown(true), so allow additional calls
+    EXPECT_CALL(*mockSpi_, setMotorOff(_))
+        .Times(::testing::AtLeast(MAX_MOTOR_PORTS))
+        .WillRepeatedly(Return(Result<void>::success()));
+    EXPECT_CALL(*mockSpi_, setServoState(_, _))
+        .Times(::testing::AtLeast(MAX_SERVO_PORTS))
+        .WillRepeatedly(Return(Result<void>::success()));
+    EXPECT_CALL(*mockSpi_, setShutdown(true))
+        .Times(::testing::AtLeast(1))
+        .WillRepeatedly(Return(Result<void>::success()));
+
     auto result = controller_->setShutdown(true);
+    EXPECT_TRUE(result.isSuccess());
+}
+
+TEST_F(DeviceControllerTest, SetShutdownDisableDoesNotClearCommands)
+{
+    initializeController();
+
+    auto result = controller_->setShutdown(false);
     EXPECT_TRUE(result.isSuccess());
 }
 

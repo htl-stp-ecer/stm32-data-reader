@@ -348,6 +348,22 @@ namespace wombat
             return Result<void>::failure("Device controller not initialized");
         }
 
+        if (enabled)
+        {
+            // Clear all motor and servo commands so stale state doesn't
+            // re-activate actuators when shutdown is later disabled
+            for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
+            {
+                motorCommands_[port] = 0;
+                spi_->setMotorOff(port);
+            }
+            for (PortId port = 0; port < MAX_SERVO_PORTS; ++port)
+            {
+                servoCommands_[port] = 0;
+                spi_->setServoState(port, {ServoMode::Disabled, 0});
+            }
+        }
+
         auto result = spi_->setShutdown(enabled);
         if (result.isFailure())
         {
