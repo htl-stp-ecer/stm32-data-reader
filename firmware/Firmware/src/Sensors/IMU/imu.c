@@ -6,7 +6,6 @@
 #include "inv_mpu_dmp_motion_driver.h"
 #include "ml_math_func.h"
 #include "invensense.h"
-#include "data_builder.h"
 #include "motion_driver_hal.h"
 #include "spi.h"
 
@@ -69,7 +68,6 @@ static void poll_compass(unsigned long* sensor_timestamp)
         compass[0] = (long)compass_short[0];
         compass[1] = (long)compass_short[1];
         compass[2] = (long)compass_short[2];
-        inv_build_compass(compass, INV_NEW_DATA | INV_RAW_DATA | INV_SENSOR_ON, *sensor_timestamp);
         imu.compass.data[0] = compass[0];
         imu.compass.data[1] = compass[1];
         imu.compass.data[2] = compass[2];

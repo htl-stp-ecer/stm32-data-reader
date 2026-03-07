@@ -80,19 +80,14 @@ void imu_read_from_mpl(void)
     long world[3];
     int quat_accuracy = 0;
 
-    // DMP 6-axis quaternion (gyro + accel only)
-    long dmp_quat[4];
-    inv_get_6axis_quaternion(dmp_quat);
-    imu.quat.data[0] = inv_q30_to_float(dmp_quat[0]);
-    imu.quat.data[1] = inv_q30_to_float(dmp_quat[1]);
-    imu.quat.data[2] = inv_q30_to_float(dmp_quat[2]);
-    imu.quat.data[3] = inv_q30_to_float(dmp_quat[3]);
-
     inv_get_quaternion_set(quat, &quat_accuracy, (inv_time_t*)&timestamp);
+    imu.quat.data[0] = inv_q30_to_float(quat[0]);
+    imu.quat.data[1] = inv_q30_to_float(quat[1]);
+    imu.quat.data[2] = inv_q30_to_float(quat[2]);
+    imu.quat.data[3] = inv_q30_to_float(quat[3]);
     imu.quat.accuracy = (int8_t)quat_accuracy;
 
-    // Use DMP 6-axis quat for body-to-world rotation (existing behavior)
-    inv_quaternion_to_rotation(dmp_quat, rot_mat);
+    inv_quaternion_to_rotation(quat, rot_mat);
 
     if (inv_get_sensor_type_gyro(data, &imu.gyro.accuracy, (inv_time_t*)&timestamp))
     {
