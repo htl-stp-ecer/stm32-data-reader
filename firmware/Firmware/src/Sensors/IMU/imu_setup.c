@@ -8,6 +8,7 @@
 #include "ml_math_func.h"
 #include "invensense.h"
 #include "invensense_adv.h"
+#include "fusion_9axis.h"
 #include "eMPL_outputs.h"
 #include "motion_driver_hal.h"
 #include "spi.h"
@@ -33,6 +34,8 @@ void setupImu(void)
     inv_enable_in_use_auto_calibration();
     inv_enable_heading_from_gyro();
     inv_enable_eMPL_outputs();
+    inv_init_9x_fusion();
+    inv_enable_9x_sensor_fusion();
     inv_start_mpl();
 
     mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL | INV_XYZ_COMPASS);

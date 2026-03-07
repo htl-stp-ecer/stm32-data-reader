@@ -44,6 +44,7 @@ namespace wombat
         std::shared_ptr<Logger> logger_;
 
         void onMotorPowerCommand(PortId port, const raccoon::scalar_i32_t& command);
+        void onMotorModeCommand(PortId port, const raccoon::scalar_i32_t& command);
         void onMotorStopCommand(PortId port, const raccoon::scalar_i32_t& command);
         void onMotorVelocityCommand(PortId port, const raccoon::scalar_i32_t& command);
         void onMotorPositionCommand(PortId port, const raccoon::vector3f_t& command);

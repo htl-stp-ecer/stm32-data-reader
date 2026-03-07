@@ -72,6 +72,7 @@ namespace wombat
         d.orientation.x = rx->imu.quat.data[1];
         d.orientation.y = rx->imu.quat.data[2];
         d.orientation.z = rx->imu.quat.data[3];
+
         d.heading = rx->imu.heading;
 
         d.accuracy.gyro = rx->imu.gyro.accuracy;

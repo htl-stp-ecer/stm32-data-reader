@@ -57,6 +57,12 @@ namespace wombat
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<raccoon::scalar_i32_t>(
+            MAX_MOTOR_PORTS, Channels::motorModeCommand,
+            [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorModeCommand(p, cmd); },
+            "motor mode command", reliableOpts);
+        if (r.isFailure()) return r;
+
+        r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorStopCommand,
             [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorStopCommand(p, cmd); },
             "motor stop command", reliableOpts);
@@ -175,19 +181,12 @@ namespace wombat
         const auto preSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
 
-        Result<void> result = Result<void>::success();
-        if (powerValue == 0)
-        {
-            result = deviceController_->setMotorVelocity(port, 0);
-        }
-        else
-        {
-            // Map percentage (1-100) to duty (1-400), preserving sign for direction
-            const int32_t duty = (powerValue > 0)
-                                     ? static_cast<int32_t>(std::min(powerValue, 100) * 4)
-                                     : static_cast<int32_t>(std::max(powerValue, -100) * 4);
-            result = deviceController_->setMotorPwm(port, duty);
-        }
+        // Map percentage (-100..100) to duty (-400..400), preserving sign for direction.
+        // power=0 means zero duty (open-loop off), NOT velocity PID hold.
+        const int32_t duty = (powerValue > 0)
+                                 ? static_cast<int32_t>(std::min(powerValue, 100) * 4)
+                                 : static_cast<int32_t>(std::max(powerValue, -100) * 4);
+        const auto result = deviceController_->setMotorPwm(port, duty);
         const auto postSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
 
@@ -201,6 +200,43 @@ namespace wombat
             + " spi_done_epoch_us=" + std::to_string(postSpiUs)
             + " spi_round_trip_us=" + std::to_string(postSpiUs - preSpiUs)
             + " total_from_send_us=" + std::to_string(postSpiUs - command.timestamp));
+    }
+
+    void CommandSubscriber::onMotorModeCommand(const PortId port, const raccoon::scalar_i32_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received motor mode command while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::motorModeCommand(port), command.timestamp))
+            return;
+
+        // 0 = OFF, 1 = PASSIVE_BRAKE (matches MOTOR_CMD_MODE enum in pi_buffer.h)
+        Result<void> result = Result<void>::success();
+        if (command.value == 0)
+        {
+            result = deviceController_->setMotorOff(port);
+        }
+        else if (command.value == 1)
+        {
+            result = deviceController_->setMotorBrake(port);
+        }
+        else
+        {
+            logger_->warn("Unknown motor mode: " + std::to_string(command.value));
+            return;
+        }
+
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set motor mode: " + result.error());
+            return;
+        }
+
+        logger_->info("Motor " + std::to_string(port) + " mode set to " +
+            (command.value == 0 ? "OFF" : "PASSIVE_BRAKE"));
     }
 
     void CommandSubscriber::onMotorStopCommand(const PortId port, const raccoon::scalar_i32_t& command)

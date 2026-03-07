@@ -11,9 +11,9 @@ bash "${SCRIPT_DIR}/build.sh"
 # Copy systemd files next to the binary so install.sh finds them
 cp "${SCRIPT_DIR}/systemd/stm32_data_reader.service" "${SCRIPT_DIR}/build/"
 cp "${SCRIPT_DIR}/systemd/lcm-loopback-multicast.service" "${SCRIPT_DIR}/build/"
-cp "${SCRIPT_DIR}/install.sh" "${SCRIPT_DIR}/build/"
+cp "${SCRIPT_DIR}/install.py" "${SCRIPT_DIR}/build/"
 
 # Firmware artifacts are already copied by build.sh (wombat.bin + flash scripts)
 
 echo "Installing to Pi..."
-bash "${SCRIPT_DIR}/build/install.sh"
+python3 "${SCRIPT_DIR}/build/install.py"
