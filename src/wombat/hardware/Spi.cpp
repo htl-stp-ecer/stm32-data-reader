@@ -493,7 +493,7 @@ float battery_voltage(void)
     const float voltage = (float)v * stmVoltage * voltageDeviderFactor / adcResulution;
 
     static float filtered_voltage = 0.0f;
-    float alpha = 0.0001f; // Smoothing factor
+    float alpha = 0.05f; // Smoothing factor
     if (filtered_voltage == 0.0f)
     {
         filtered_voltage = voltage;

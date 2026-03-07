@@ -88,7 +88,7 @@ namespace wombat
         const float adcResolution = 4096.0f;
         const float rawVoltage = static_cast<float>(rx->batteryVoltage) * stmVoltage * voltageDividerFactor /
             adcResolution;
-        constexpr float alpha = 0.0001f;
+        constexpr float alpha = 0.05f;
         if (filteredBatteryVoltage_ == 0.0f)
             filteredBatteryVoltage_ = rawVoltage;
         else
