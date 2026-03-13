@@ -222,9 +222,8 @@ namespace wombat
         }
         set_servo_mode(port, mode);
 
-        // Convert degrees (0-180) to microseconds (600-2400) for the PWM timer
-        const float clamped = std::clamp(st.position, 0.0f, 180.0f);
-        const auto microseconds = static_cast<uint16_t>(std::round(600.0f + clamped * 1800.0f / 180.0f));
+        // Convert degrees to microseconds for the PWM timer (10µs per degree, centered at 1500µs)
+        const auto microseconds = static_cast<uint16_t>(std::round(600.0f + st.position * 10.0f));
         set_servo_pos(port, microseconds);
 
         servos_[port] = st;
