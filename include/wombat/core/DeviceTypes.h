@@ -12,7 +12,7 @@ namespace wombat
 {
     using PortId = uint8_t;
     using AnalogValue = uint16_t;
-    using ServoPosition = uint16_t;
+    using ServoPosition = float; // Degrees (0.0 - 180.0)
     using Timestamp = uint32_t;
     using DigitalValue = uint16_t;
 

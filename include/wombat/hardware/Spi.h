@@ -47,7 +47,7 @@ void set_motor_pwm(uint8_t port, int32_t duty); /* duty: -400..400, sign = direc
 void set_motor_velocity(uint8_t port, int32_t velocity);
 void set_motor_position(uint8_t port, int32_t velocity, int32_t goal_position);
 void set_servo_mode(uint8_t port, ServoMode mode);
-void set_servo_pos(uint8_t port, uint16_t raw /* 0-2047 */);
+void set_servo_pos(uint8_t port, uint16_t microseconds);
 
 /* Motor PID settings */
 void set_motor_pid(uint8_t port, float kp, float ki, float kd);

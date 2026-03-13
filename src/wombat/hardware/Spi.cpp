@@ -276,22 +276,14 @@ uint16_t get_servo_pos(uint8_t port)
 {
     if (port > 3)
         return 0;
-    uint16_t pos = ctx.tx.servoPos[port];
-    double degrees = ((double)pos - 1500.0) / 10.0;
-    double dval = (degrees + 90.0) * 2047.0 / 180.0;
-    if (dval < 0.0)
-        dval = 0.0;
-    if (dval > 2047.)
-        dval = 2047.01;
-    return (uint16_t)(dval + 0.5);
+    return ctx.tx.servoPos[port];
 }
 
-void set_servo_pos(uint8_t port, uint16_t raw)
+void set_servo_pos(uint8_t port, uint16_t microseconds)
 {
     if (port > 3)
         return;
-    unsigned short val = 1500 + (unsigned short)round(1800.0 * ((double)raw / 2047.0)) - 900;
-    ctx.tx.servoPos[port] = val;
+    ctx.tx.servoPos[port] = microseconds;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }

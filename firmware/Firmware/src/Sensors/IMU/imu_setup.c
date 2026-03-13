@@ -40,13 +40,9 @@ void setupImu(void)
     inv_init_9x_fusion();
     inv_enable_9x_sensor_fusion();
 
-    /* Load saved calibration from flash before starting MPL.
-     * This restores gyro/accel/compass biases from a previous session
-     * so the user doesn't need to recalibrate (figure-8, etc.) on every boot. */
-    if (cal_load_from_flash() == INV_SUCCESS)
-        printf("[IMU] Restored calibration from flash\r\n");
-    else
-        printf("[IMU] No saved calibration, starting fresh\r\n");
+    /* Calibration loading disabled — flash erase blocks main loop.
+     * TODO: re-enable once flash ops run from RAM or use a smaller sector. */
+    printf("[IMU] Calibration loading disabled\r\n");
 
     inv_start_mpl();
 

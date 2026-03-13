@@ -140,50 +140,8 @@ void readImu(void)
         inv_execute_on_data();
         imu_read_from_mpl();
 
-        /* Track if calibration accuracy improved */
-        if (imu.gyro.accuracy > best_gyro_accuracy ||
-            imu.accel.accuracy > best_accel_accuracy ||
-            imu.compass.accuracy > best_compass_accuracy)
-        {
-            best_gyro_accuracy = imu.gyro.accuracy;
-            best_accel_accuracy = imu.accel.accuracy;
-            best_compass_accuracy = imu.compass.accuracy;
-            cal_needs_save = 1;
-        }
-
-        /* Save after accuracy improves */
-        if (cal_needs_save && imu_timestamp > next_cal_save_ms)
-        {
-            next_cal_save_ms = imu_timestamp + CAL_SAVE_INTERVAL_MS;
-            cal_needs_save = 0;
-            printf("[IMU] Accuracy improved (gyro=%d accel=%d compass=%d), saving calibration\r\n",
-                   best_gyro_accuracy, best_accel_accuracy, best_compass_accuracy);
-            cal_save_to_flash();
-        }
-
-        /* Periodic re-save to capture refined biases (gyro temp comp, etc.) */
-        {
-            static unsigned long next_periodic_save = CAL_PERIODIC_SAVE_MS;
-            if (imu_timestamp > next_periodic_save)
-            {
-                next_periodic_save = imu_timestamp + CAL_PERIODIC_SAVE_MS;
-                printf("[IMU] Periodic calibration save (gyro=%d accel=%d compass=%d)\r\n",
-                       imu.gyro.accuracy, imu.accel.accuracy, imu.compass.accuracy);
-                cal_save_to_flash();
-            }
-        }
-
-        /* Log accuracy periodically (every 10s) */
-        {
-            static unsigned long next_accuracy_log = 10000;
-            if (imu_timestamp > next_accuracy_log)
-            {
-                next_accuracy_log = imu_timestamp + 10000;
-                printf("[IMU] gyro_acc=%d accel_acc=%d compass_acc=%d\r\n",
-                       imu.gyro.accuracy, imu.accel.accuracy,
-                       imu.compass.accuracy);
-            }
-        }
+        /* Calibration saving disabled — flash erase blocks main loop.
+         * TODO: re-enable once flash ops run from RAM or use a smaller sector. */
 
         while (SPI2->SR & SPI_SR_BSY)
             continue;

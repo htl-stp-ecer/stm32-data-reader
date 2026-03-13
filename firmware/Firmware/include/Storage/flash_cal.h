@@ -10,12 +10,17 @@
  * Firmware is ~101KB and fits in sectors 0-4, so sector 11 is safe.
  *
  * Data layout in flash:
- *   [4 bytes magic] [4 bytes data_len] [data_len bytes MPL state]
+ *   [4 bytes magic] [4 bytes version] [4 bytes data_len] [data_len bytes MPL state]
+ *
+ * Bump CAL_VERSION whenever the MPL feature set or IMU configuration changes
+ * (e.g. switching between 6-axis/9-axis fusion, changing DMP features).
+ * Old cal data with a mismatched version is silently rejected on load.
  */
 
 #define CAL_FLASH_SECTOR       11
 #define CAL_FLASH_ADDR         0x080E0000U
 #define CAL_FLASH_MAGIC        0xCA1BDA7AU  /* "CALBDATA" */
+#define CAL_VERSION            2            /* v2: 6-axis DMP quat + MPL compass */
 #define CAL_MAX_SIZE           4096         /* Max bytes for MPL state */
 
 /**

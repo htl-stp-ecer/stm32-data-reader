@@ -94,9 +94,9 @@ namespace wombat
         if (r.isFailure()) return r;
 
         // Servo commands (per-port) — set-and-forget, reliable
-        r = subscribeForPorts<raccoon::scalar_i32_t>(
+        r = subscribeForPorts<raccoon::scalar_f_t>(
             MAX_SERVO_PORTS, Channels::servoPositionCommand,
-            [this](PortId p, const raccoon::scalar_i32_t& cmd) { onServoPositionCommand(p, cmd); },
+            [this](PortId p, const raccoon::scalar_f_t& cmd) { onServoPositionCommand(p, cmd); },
             "servo position command", reliableOpts);
         if (r.isFailure()) return r;
 
@@ -352,7 +352,7 @@ namespace wombat
             + " total_from_send_us=" + std::to_string(postSpiUs - command.timestamp));
     }
 
-    void CommandSubscriber::onServoPositionCommand(const PortId port, const raccoon::scalar_i32_t& command)
+    void CommandSubscriber::onServoPositionCommand(const PortId port, const raccoon::scalar_f_t& command)
     {
         if (!isInitialized_)
         {
@@ -363,9 +363,9 @@ namespace wombat
         if (!isTimestampNewer(Channels::servoPositionCommand(port), command.timestamp))
             return;
 
-        const auto position = static_cast<ServoPosition>(command.value);
+        const ServoPosition degrees = command.value;
 
-        auto result = deviceController_->setServoCommand(port, position);
+        auto result = deviceController_->setServoCommand(port, degrees);
         if (result.isFailure())
         {
             logger_->error("Failed to set servo command: " + result.error());
@@ -373,7 +373,7 @@ namespace wombat
         }
 
         logger_->info(
-            "Received servo position_cmd on port " + std::to_string(port) + ": " + std::to_string(command.value));
+            "Received servo position_cmd on port " + std::to_string(port) + ": " + std::to_string(degrees) + " deg");
     }
 
     void CommandSubscriber::onServoModeCommand(const PortId port, const raccoon::scalar_i8_t& command)

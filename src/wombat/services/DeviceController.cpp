@@ -41,7 +41,7 @@ namespace wombat
         for (PortId port = 0; port < MAX_SERVO_PORTS; ++port)
         {
             servoCommands_[port] = 0;
-            ServoState servoState{ServoMode::Disabled, 0};
+            ServoState servoState{ServoMode::Disabled, 0.0f};
             auto setResult = spi_->setServoState(port, servoState);
             if (setResult.isFailure())
             {
@@ -360,7 +360,7 @@ namespace wombat
             for (PortId port = 0; port < MAX_SERVO_PORTS; ++port)
             {
                 servoCommands_[port] = 0;
-                spi_->setServoState(port, {ServoMode::Disabled, 0});
+                spi_->setServoState(port, {ServoMode::Disabled, 0.0f});
             }
         }
 

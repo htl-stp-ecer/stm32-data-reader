@@ -191,7 +191,7 @@ namespace wombat
 
         auto positionResult = broker_->publishRetained(
             Channels::servoPosition(port),
-            toLcmScalarI32(static_cast<int32_t>(state.position))
+            toLcmScalarF(state.position)
         );
         if (positionResult.isFailure())
         {

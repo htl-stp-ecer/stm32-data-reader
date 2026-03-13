@@ -111,8 +111,18 @@ int main(void)
 
         if (current_time - last_heartbeat >= HEARTBEAT_INTERVAL)
         {
-            printf("heartbeat #%lu uptime=%lus\r\n",
-                   ++heartbeat_count, current_time / 1000);
+            printf(
+                "hb #%lu t=%lus conv=%lu st=%d adc=[%u,%u,%u,%u,%u,%u,%u,%u] bemf=[%ld,%ld,%ld,%ld] raw=[%d,%d,%d,%d]\r\n",
+                ++heartbeat_count, current_time / 1000,
+                (unsigned long)bemfConvCount, (int)bemfState,
+                adc_dma_bemf_buffer[0], adc_dma_bemf_buffer[1],
+                adc_dma_bemf_buffer[2], adc_dma_bemf_buffer[3],
+                adc_dma_bemf_buffer[4], adc_dma_bemf_buffer[5],
+                adc_dma_bemf_buffer[6], adc_dma_bemf_buffer[7],
+                (long)motor_data.bemf[0], (long)motor_data.bemf[1],
+                (long)motor_data.bemf[2], (long)motor_data.bemf[3],
+                (int)bemfRawReadings[0], (int)bemfRawReadings[1],
+                (int)bemfRawReadings[2], (int)bemfRawReadings[3]);
             last_heartbeat = current_time;
         }
 
@@ -139,8 +149,8 @@ int main(void)
         if (updateFlags & PI_BUFFER_UPDATE_SAVE_IMU_CAL)
         {
             updateFlags &= ~PI_BUFFER_UPDATE_SAVE_IMU_CAL;
-            printf("Save calibration requested by Pi\r\n");
-            cal_save_to_flash();
+            printf("Save calibration requested by Pi (DISABLED)\r\n");
+            /* cal_save_to_flash() disabled — flash erase blocks main loop */
         }
 
         readImu();

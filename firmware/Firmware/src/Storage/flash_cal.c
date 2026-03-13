@@ -10,6 +10,7 @@
 typedef struct __attribute__ ((packed))
 {
     uint32_t magic;
+    uint32_t version;
     uint32_t data_len;
 }
 
@@ -47,6 +48,7 @@ int cal_has_saved_data(void)
 {
     const cal_flash_header_t* hd = (const cal_flash_header_t*)CAL_FLASH_ADDR;
     return (hd->magic == CAL_FLASH_MAGIC &&
+        hd->version == CAL_VERSION &&
         hd->data_len > 0 &&
         hd->data_len <= CAL_MAX_SIZE);
 }
@@ -100,6 +102,7 @@ inv_error_t cal_save_to_flash(void)
     /* Write header */
     cal_flash_header_t hd;
     hd.magic = CAL_FLASH_MAGIC;
+    hd.version = CAL_VERSION;
     hd.data_len = (uint32_t)mpl_size;
 
     hal_status = flash_write_bytes(CAL_FLASH_ADDR, (const uint8_t*)&hd, sizeof(hd));
@@ -132,6 +135,17 @@ inv_error_t cal_load_from_flash(void)
     if (hd->magic != CAL_FLASH_MAGIC)
     {
         printf("[CAL] No calibration data in flash (no magic)\r\n");
+        return INV_ERROR_CALIBRATION_LOAD;
+    }
+
+    if (hd->version != CAL_VERSION)
+    {
+        printf("[CAL] Stale calibration (version %u, need %u) — erasing\r\n",
+               (unsigned)hd->version, (unsigned)CAL_VERSION);
+        /* Erase so we don't log this every boot */
+        HAL_FLASH_Unlock();
+        flash_erase_cal_sector();
+        HAL_FLASH_Lock();
         return INV_ERROR_CALIBRATION_LOAD;
     }
 

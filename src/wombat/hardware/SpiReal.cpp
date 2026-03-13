@@ -1,5 +1,6 @@
 #include "wombat/hardware/SpiReal.h"
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 #include "spdlog/spdlog.h"
@@ -82,6 +83,21 @@ namespace wombat
         d.accuracy.compass = rx->imu.compass.accuracy;
         d.accuracy.quaternion = rx->imu.dmpQuat.accuracy;
 
+        // Debug: log IMU values periodically
+        static uint32_t imuLogCounter = 0;
+        if (++imuLogCounter % 500 == 0)
+        {
+            logger_->info("SPI rx gyro=[" + std::to_string(d.gyro.x) + ","
+                + std::to_string(d.gyro.y) + "," + std::to_string(d.gyro.z)
+                + "] accel=[" + std::to_string(d.accelerometer.x) + ","
+                + std::to_string(d.accelerometer.y) + "," + std::to_string(d.accelerometer.z)
+                + "] quat=[" + std::to_string(d.dmpOrientation.w) + ","
+                + std::to_string(d.dmpOrientation.x) + ","
+                + std::to_string(d.dmpOrientation.y) + ","
+                + std::to_string(d.dmpOrientation.z)
+                + "] heading=" + std::to_string(d.heading));
+        }
+
         // Battery voltage filtering
         const float stmVoltage = 3.3f;
         const float voltageDividerFactor = 11.0f;
@@ -108,6 +124,22 @@ namespace wombat
             motors_[i].position = rx->motor.position[i] - positionOffsets_[i];
             motors_[i].done = (doneFlags & (1u << i)) != 0;
         }
+
+        // Debug: log raw BEMF values from SPI buffer
+        static uint32_t bemfLogCounter = 0;
+        if (++bemfLogCounter % 200 == 0) // ~every 200 SPI reads
+        {
+            logger_->info("SPI rx bemf=["
+                + std::to_string(rx->motor.bemf[0]) + ","
+                + std::to_string(rx->motor.bemf[1]) + ","
+                + std::to_string(rx->motor.bemf[2]) + ","
+                + std::to_string(rx->motor.bemf[3]) + "] pos=["
+                + std::to_string(rx->motor.position[0]) + ","
+                + std::to_string(rx->motor.position[1]) + ","
+                + std::to_string(rx->motor.position[2]) + ","
+                + std::to_string(rx->motor.position[3]) + "]");
+        }
+
         return Result<SensorData>::success(d);
     }
 
@@ -189,7 +221,12 @@ namespace wombat
             break;
         }
         set_servo_mode(port, mode);
-        set_servo_pos(port, st.position);
+
+        // Convert degrees (0-180) to microseconds (600-2400) for the PWM timer
+        const float clamped = std::clamp(st.position, 0.0f, 180.0f);
+        const auto microseconds = static_cast<uint16_t>(std::round(600.0f + clamped * 1800.0f / 180.0f));
+        set_servo_pos(port, microseconds);
+
         servos_[port] = st;
         return Result<void>::success();
     }

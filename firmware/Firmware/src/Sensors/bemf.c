@@ -13,13 +13,14 @@
 #include "Data_structures/filter.h"
 
 #define BEMF_FILTER_ALPHA 0.2f
-#define MAX_BEMF_READING 1700
+#define MAX_BEMF_READING 2000
 #define MEDIAN_WINDOW 3
 
 volatile uint16_t adc_dma_bemf_buffer[BEMF_ADC_CHANNELS] = {0};
 volatile float bemfLastReadings[MOTOR_COUNT] = {0};
 volatile float bemfRawReadings[MOTOR_COUNT] = {0};
 volatile enum BemfState bemfState = STOPPED;
+volatile uint32_t bemfConvCount = 0; // how many times processBEMF actually ran
 static volatile uint32_t bemfCycleStartTime = 0;
 
 // Circular buffer for median-of-3 pre-filter
@@ -71,6 +72,7 @@ void processBEMF()
 {
     if (bemfState == CONVERSION_DONE)
     {
+        bemfConvCount++;
         // Compute differential BEMF and normalize for VDDA drift
         float scale = vddaScale;
         bemfRawReadings[0] = ((float)adc_dma_bemf_buffer[3] - (float)adc_dma_bemf_buffer[2]) * scale;
