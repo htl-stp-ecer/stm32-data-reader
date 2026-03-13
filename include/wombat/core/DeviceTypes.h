@@ -75,13 +75,15 @@ namespace wombat
         int8_t accelerometer{0};
         int8_t linearAcceleration{0};
         int8_t compass{0};
+        int8_t quaternion{0};
 
         bool operator==(const ImuAccuracy& other) const noexcept
         {
             return gyro == other.gyro &&
                 accelerometer == other.accelerometer &&
                 linearAcceleration == other.linearAcceleration &&
-                compass == other.compass;
+                compass == other.compass &&
+                quaternion == other.quaternion;
         }
     };
 

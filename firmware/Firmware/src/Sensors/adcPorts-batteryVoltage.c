@@ -6,12 +6,18 @@
 #include "Sensors/bemf.h"
 #include "Actors/motor.h"
 
+// Factory VREFINT calibration value (12-bit ADC reading at VDDA=3.3V, 30°C)
+#define VREFINT_CAL (*(volatile uint16_t*)0x1FFF7A2AU)
+
 // DMA target buffer — continuously overwritten by circular DMA
 static volatile uint16_t adcDmaBuffer[ANALOG_SENSOR_COUNT];
 
 // Oversampling accumulators
 static volatile uint32_t adcAccum[ANALOG_SENSOR_COUNT];
 static volatile uint32_t adcSampleCount;
+
+// VDDA scale: multiply raw ADC counts by this to normalize to 3.3V-equivalent
+volatile float vddaScale = 1.0f;
 
 void startContinuousAnalogSampling(void)
 {
@@ -67,10 +73,16 @@ int updatingAnalogValuesInSpiBuffer(void)
     adcSampleCount = 0;
     __enable_irq();
 
-    // Compute averages and write to SPI buffer
+    // Update VDDA scale from averaged VREFINT reading (index 7)
+    uint32_t vrefintAvg = localAccum[7] / count;
+    if (vrefintAvg > 0)
+        vddaScale = (float)VREFINT_CAL / (float)vrefintAvg;
+
+    // Compute averages, apply VDDA compensation, and write to SPI buffer
+    float scale = vddaScale;
     for (int i = 0; i < 6; i++)
-        txBuffer.analogSensor[i] = (int16_t)(localAccum[i] / count);
-    txBuffer.batteryVoltage = (int16_t)(localAccum[6] / count);
+        txBuffer.analogSensor[i] = (int16_t)((float)(localAccum[i] / count) * scale);
+    txBuffer.batteryVoltage = (int16_t)((float)(localAccum[6] / count) * scale);
 
     return 0;
 }

@@ -84,19 +84,20 @@ TEST(ImuAccuracyTest, DefaultIsZero)
     EXPECT_EQ(a.accelerometer, 0);
     EXPECT_EQ(a.linearAcceleration, 0);
     EXPECT_EQ(a.compass, 0);
+    EXPECT_EQ(a.quaternion, 0);
 }
 
 TEST(ImuAccuracyTest, Equality)
 {
-    ImuAccuracy a{3, 3, 3, 3};
-    ImuAccuracy b{3, 3, 3, 3};
+    ImuAccuracy a{3, 3, 3, 3, 3};
+    ImuAccuracy b{3, 3, 3, 3, 3};
     EXPECT_EQ(a, b);
 }
 
 TEST(ImuAccuracyTest, Inequality)
 {
-    ImuAccuracy a{3, 3, 3, 3};
-    ImuAccuracy b{3, 2, 3, 3};
+    ImuAccuracy a{3, 3, 3, 3, 3};
+    ImuAccuracy b{3, 2, 3, 3, 3};
     EXPECT_FALSE(a == b);
 }
 

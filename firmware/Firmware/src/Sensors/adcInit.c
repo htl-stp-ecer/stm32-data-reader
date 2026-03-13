@@ -40,7 +40,7 @@ void MX_ADC1_Init(void)
     hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
     hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
     hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-    hadc1.Init.NbrOfConversion = 7;
+    hadc1.Init.NbrOfConversion = 8;
     hadc1.Init.DMAContinuousRequests = ENABLE;
     hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
     if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -88,7 +88,11 @@ void MX_ADC1_Init(void)
     //use the longest sampling time of the ADC to get the most accureat reading on the battery voltage
     HAL_ADC_ConfigChannel(&hadc1, &sConfig);
 
-
+    // VREFINT (~1.21V internal reference) for VDDA compensation
+    // HAL auto-enables TSVREFE when this channel is configured
+    sConfig.Channel = ADC_CHANNEL_VREFINT;
+    sConfig.Rank = 8;
+    sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
     if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
     {
         Error_Handler();

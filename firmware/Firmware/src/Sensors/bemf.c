@@ -71,10 +71,12 @@ void processBEMF()
 {
     if (bemfState == CONVERSION_DONE)
     {
-        bemfRawReadings[0] = (float)adc_dma_bemf_buffer[3] - (float)adc_dma_bemf_buffer[2];
-        bemfRawReadings[1] = (float)adc_dma_bemf_buffer[1] - (float)adc_dma_bemf_buffer[0];
-        bemfRawReadings[2] = (float)adc_dma_bemf_buffer[7] - (float)adc_dma_bemf_buffer[6];
-        bemfRawReadings[3] = (float)adc_dma_bemf_buffer[5] - (float)adc_dma_bemf_buffer[4];
+        // Compute differential BEMF and normalize for VDDA drift
+        float scale = vddaScale;
+        bemfRawReadings[0] = ((float)adc_dma_bemf_buffer[3] - (float)adc_dma_bemf_buffer[2]) * scale;
+        bemfRawReadings[1] = ((float)adc_dma_bemf_buffer[1] - (float)adc_dma_bemf_buffer[0]) * scale;
+        bemfRawReadings[2] = ((float)adc_dma_bemf_buffer[7] - (float)adc_dma_bemf_buffer[6]) * scale;
+        bemfRawReadings[3] = ((float)adc_dma_bemf_buffer[5] - (float)adc_dma_bemf_buffer[4]) * scale;
 
         // Store raw values into median ring buffer
         for (int ch = 0; ch < MOTOR_COUNT; ch++)

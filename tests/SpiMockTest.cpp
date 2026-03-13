@@ -69,6 +69,7 @@ TEST_F(SpiMockTest, ReadSensorDataProducesValidData)
     EXPECT_EQ(data.accuracy.accelerometer, 3);
     EXPECT_EQ(data.accuracy.linearAcceleration, 3);
     EXPECT_EQ(data.accuracy.compass, 3);
+    EXPECT_EQ(data.accuracy.quaternion, 3);
 }
 
 TEST_F(SpiMockTest, AnalogValuesAreInRange)

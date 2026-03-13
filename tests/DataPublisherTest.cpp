@@ -211,7 +211,7 @@ TEST_F(DataPublisherTest, PublishShutdownStatus)
 TEST_F(DataPublisherTest, AccuracyPublishedOnFirstCall)
 {
     SensorData data{};
-    data.accuracy = {3, 3, 3, 3};
+    data.accuracy = {3, 3, 3, 3, 3};
 
     publisher_->publishSensorData(data);
 
@@ -231,7 +231,7 @@ TEST_F(DataPublisherTest, AccuracyPublishedOnFirstCall)
 TEST_F(DataPublisherTest, AccuracyNotPublishedWhenUnchanged)
 {
     SensorData data{};
-    data.accuracy = {3, 3, 3, 3};
+    data.accuracy = {3, 3, 3, 3, 3};
 
     publisher_->publishSensorData(data);
     logger_->clear();
@@ -254,11 +254,11 @@ TEST_F(DataPublisherTest, AccuracyNotPublishedWhenUnchanged)
 TEST_F(DataPublisherTest, AccuracyPublishedOnChange)
 {
     SensorData data{};
-    data.accuracy = {3, 3, 3, 3};
+    data.accuracy = {3, 3, 3, 3, 3};
     publisher_->publishSensorData(data);
     logger_->clear();
 
-    data.accuracy = {2, 3, 3, 3};
+    data.accuracy = {2, 3, 3, 3, 3};
     publisher_->publishSensorData(data);
 
     bool foundChanged = false;

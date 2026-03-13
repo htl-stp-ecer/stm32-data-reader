@@ -101,6 +101,7 @@ namespace wombat
         d.accuracy.accelerometer = 3;
         d.accuracy.linearAcceleration = 3;
         d.accuracy.compass = 3;
+        d.accuracy.quaternion = 3;
 
         // Temperature
         d.temperature = 28.0f + 0.3f * sinf(w * t * 0.2f);

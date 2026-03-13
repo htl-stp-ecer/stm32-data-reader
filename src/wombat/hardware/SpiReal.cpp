@@ -80,6 +80,7 @@ namespace wombat
         d.accuracy.accelerometer = rx->imu.accel.accuracy;
         d.accuracy.linearAcceleration = rx->imu.linearAccel.accuracy;
         d.accuracy.compass = rx->imu.compass.accuracy;
+        d.accuracy.quaternion = rx->imu.dmpQuat.accuracy;
 
         // Battery voltage filtering
         const float stmVoltage = 3.3f;
