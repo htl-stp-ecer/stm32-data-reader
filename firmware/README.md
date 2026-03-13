@@ -243,9 +243,6 @@ typedef struct __attribute__((packed)) {
     int32_t          motorGoalPosition[4];// Target position for MTP mode
     uint8_t          servoMode;           // 2 bits per servo
     uint16_t         servoPos[4];         // Servo pulse width
-    float            bemfScale[4];        // Per-motor BEMF calibration multiplier
-    float            bemfOffset[4];       // Per-motor BEMF offset
-    int16_t          nominalVoltageAdc;   // Nominal battery in ADC counts
     MotorPidSettings motorPidSettings;    // Runtime-adjustable PID gains
 } RxBuffer;
 ```

@@ -13,7 +13,7 @@ extern "C" {
 
 #include <stdint.h>
 
-#define TRANSFER_VERSION 13
+#define TRANSFER_VERSION 14
 
 #define PI_BUFFER_UPDATE_MOTOR_PID_SPEED 0x01
 #define PI_BUFFER_UPDATE_MOTOR_PID_POS   0x02
@@ -147,13 +147,6 @@ typedef struct __attribute__ ((packed))
     /* --- SERVO MODE --- */
     uint8_t servoMode;
     uint16_t servoPos[4];
-
-    /* --- BEMF CALIBRATION (per motor) --- */
-    // Formula: calibrated = (raw * batteryScale) * bemfScale + bemfOffset
-    // Set bemfScale=1.0 and bemfOffset=0.0 for uncalibrated (default)
-    float bemfScale[4]; // Multiplier per motor (default: 1.0)
-    float bemfOffset[4]; // Offset per motor (default: 0.0)
-    int16_t nominalVoltageAdc; // Nominal battery voltage in ADC counts (default: 3000)
 
     /* --- MOTOR PID SETTINGS (configurable from Pi) --- */
     MotorPidSettings motorPidSettings;

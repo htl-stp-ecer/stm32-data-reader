@@ -95,7 +95,7 @@ void processBEMF()
 
             motor_data.bemf[ch] = (int32_t)bemfLastReadings[ch];
 
-            if (bemfLastReadings[ch] > 8 || bemfLastReadings[ch] < -8)
+            if (bemfLastReadings[ch] > 3 || bemfLastReadings[ch] < -3)
             {
                 motor_data.position[ch] += (int32_t)bemfLastReadings[ch];
             }

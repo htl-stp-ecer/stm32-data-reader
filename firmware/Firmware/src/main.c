@@ -68,6 +68,13 @@ int main(void)
     /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
     HAL_Init();
 
+    /* AN4073: reduce internal digital noise coupling into ADC.
+     * Data+instruction cache ON, prefetch OFF minimises Flash-generated
+     * ADC code dispersion on STM32F427/437. */
+    __HAL_FLASH_INSTRUCTION_CACHE_ENABLE();
+    __HAL_FLASH_DATA_CACHE_ENABLE();
+    __HAL_FLASH_PREFETCH_BUFFER_DISABLE();
+
     /* Configure the system clock */
     SystemClock_Config();
 
