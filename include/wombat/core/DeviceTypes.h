@@ -75,15 +75,13 @@ namespace wombat
         int8_t accelerometer{0};
         int8_t linearAcceleration{0};
         int8_t compass{0};
-        int8_t quaternion{0};
 
         bool operator==(const ImuAccuracy& other) const noexcept
         {
             return gyro == other.gyro &&
                 accelerometer == other.accelerometer &&
                 linearAcceleration == other.linearAcceleration &&
-                compass == other.compass &&
-                quaternion == other.quaternion;
+                compass == other.compass;
         }
     };
 
@@ -110,10 +108,10 @@ namespace wombat
         Vector3f magnetometer{};
         Vector3f linearAcceleration{};
         Vector3f accelVelocity{};
-        Quaternionf orientation{};
+        Quaternionf dmpOrientation{};
         float heading{0.0f};
-        ImuAccuracy accuracy{};
         float temperature{0.0f};
+        ImuAccuracy accuracy{};
         float batteryVoltage{0.0f};
         std::array<AnalogValue, MAX_ANALOG_PORTS> analogValues{};
         DigitalValue digitalBits{0};

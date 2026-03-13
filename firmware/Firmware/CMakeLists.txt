@@ -9,6 +9,7 @@ file(GLOB Hardware "src/Hardware/*.c")
 file(GLOB Sensors "src/Sensors/*.c")
 file(GLOB IMU "src/Sensors/IMU/*.c")
 file(GLOB MotionDriver "src/Sensors/IMU/motion_driver/*.c")
+file(GLOB Storage "src/Storage/*.c")
 file(GLOB Utility "src/Utility/*.c")
 
 include_directories(${CMAKE_SOURCE_DIR}/../shared)
@@ -18,6 +19,7 @@ include_directories(include/Communication)
 include_directories(include/Sensors)
 include_directories(include/Sensors/IMU)
 include_directories(src/Sensors/IMU/motion_driver)
+include_directories(include/Storage)
 include_directories(include/Utility)
 
 set(sources
@@ -32,6 +34,7 @@ set(sources
         ${Sensors}
         ${IMU}
         ${MotionDriver}
+        ${Storage}
         ${Utility}
 )
 

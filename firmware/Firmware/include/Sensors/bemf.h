@@ -11,6 +11,9 @@
 #define BEMF_SAMPLING_INTERVAL (uint32_t) 5000 //us
 #define BEMF_CONVERSION_START_DELAY_TIME (uint32_t) 500 //us - time to delay the start of the bemf adc conversion - waiting until the bemf signal is stable again
 
+#define BEMF_WATCHDOG_TIMEOUT (uint32_t) (BEMF_SAMPLING_INTERVAL * 2) //us - force-recover if cycle stuck longer than this
+
+
 
 enum BemfState
 {
@@ -28,6 +31,7 @@ extern volatile enum BemfState bemfState;
 void stop_motors_for_bemf_conv();
 void startBemfReading();
 void processBEMF();
+void bemf_watchdog_check(uint32_t now);
 void updatingMotorsInSpiBuffer();
 
 #endif //BEMF_H

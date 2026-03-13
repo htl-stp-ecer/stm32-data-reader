@@ -6,13 +6,22 @@
 #include "inv_mpu_dmp_motion_driver.h"
 #include "ml_math_func.h"
 #include "invensense.h"
+#include "data_builder.h"
 #include "motion_driver_hal.h"
 #include "spi.h"
+#include "Storage/flash_cal.h"
+
+#include <stdio.h>
 
 #define DEFAULT_MPU_HZ   (50)
 #define GYRO_READ_MS     (uint32_t)(1000/DEFAULT_MPU_HZ)
 #define COMPASS_READ_MS  (100)
 #define TEMP_READ_MS     (500)
+
+/* Save shortly after accuracy improves */
+#define CAL_SAVE_INTERVAL_MS       30000
+/* Re-save periodically to capture refined biases (every 5 min) */
+#define CAL_PERIODIC_SAVE_MS      300000
 
 ImuData imu = {0};
 inv_time_t imu_timestamp;
@@ -23,6 +32,13 @@ static unsigned long next_compass_ms = 0;
 static unsigned char new_compass = 0;
 static unsigned long next_temp_ms = 0;
 static unsigned char new_temp = 0;
+
+/* Calibration auto-save state */
+static int8_t best_gyro_accuracy = 0;
+static int8_t best_accel_accuracy = 0;
+static int8_t best_compass_accuracy = 0;
+static unsigned long next_cal_save_ms = CAL_SAVE_INTERVAL_MS;
+static int cal_needs_save = 0;
 
 static void poll_fifo(unsigned long* sensor_timestamp)
 {
@@ -55,7 +71,16 @@ static void poll_fifo(unsigned long* sensor_timestamp)
     }
 
     if (sensors & INV_WXYZ_QUAT)
+    {
         inv_build_quat(quat, 0, *sensor_timestamp);
+
+        /* Store DMP 6-axis quaternion (gyro+accel only, no mag) */
+        imu.dmpQuat.data[0] = inv_q30_to_float(quat[0]);
+        imu.dmpQuat.data[1] = inv_q30_to_float(quat[1]);
+        imu.dmpQuat.data[2] = inv_q30_to_float(quat[2]);
+        imu.dmpQuat.data[3] = inv_q30_to_float(quat[3]);
+        imu.dmpQuat.accuracy = 3; /* DMP quat has no accuracy metric */
+    }
 }
 
 static void poll_compass(unsigned long* sensor_timestamp)
@@ -68,9 +93,9 @@ static void poll_compass(unsigned long* sensor_timestamp)
         compass[0] = (long)compass_short[0];
         compass[1] = (long)compass_short[1];
         compass[2] = (long)compass_short[2];
-        imu.compass.data[0] = compass[0];
-        imu.compass.data[1] = compass[1];
-        imu.compass.data[2] = compass[2];
+
+        /* Feed compass data into MPL for calibration and 9-axis fusion */
+        inv_build_compass(compass, INV_NEW_DATA | INV_RAW_DATA | INV_SENSOR_ON, *sensor_timestamp);
     }
 }
 
@@ -114,6 +139,51 @@ void readImu(void)
     {
         inv_execute_on_data();
         imu_read_from_mpl();
+
+        /* Track if calibration accuracy improved */
+        if (imu.gyro.accuracy > best_gyro_accuracy ||
+            imu.accel.accuracy > best_accel_accuracy ||
+            imu.compass.accuracy > best_compass_accuracy)
+        {
+            best_gyro_accuracy = imu.gyro.accuracy;
+            best_accel_accuracy = imu.accel.accuracy;
+            best_compass_accuracy = imu.compass.accuracy;
+            cal_needs_save = 1;
+        }
+
+        /* Save after accuracy improves */
+        if (cal_needs_save && imu_timestamp > next_cal_save_ms)
+        {
+            next_cal_save_ms = imu_timestamp + CAL_SAVE_INTERVAL_MS;
+            cal_needs_save = 0;
+            printf("[IMU] Accuracy improved (gyro=%d accel=%d compass=%d), saving calibration\r\n",
+                   best_gyro_accuracy, best_accel_accuracy, best_compass_accuracy);
+            cal_save_to_flash();
+        }
+
+        /* Periodic re-save to capture refined biases (gyro temp comp, etc.) */
+        {
+            static unsigned long next_periodic_save = CAL_PERIODIC_SAVE_MS;
+            if (imu_timestamp > next_periodic_save)
+            {
+                next_periodic_save = imu_timestamp + CAL_PERIODIC_SAVE_MS;
+                printf("[IMU] Periodic calibration save (gyro=%d accel=%d compass=%d)\r\n",
+                       imu.gyro.accuracy, imu.accel.accuracy, imu.compass.accuracy);
+                cal_save_to_flash();
+            }
+        }
+
+        /* Log accuracy periodically (every 10s) */
+        {
+            static unsigned long next_accuracy_log = 10000;
+            if (imu_timestamp > next_accuracy_log)
+            {
+                next_accuracy_log = imu_timestamp + 10000;
+                printf("[IMU] gyro_acc=%d accel_acc=%d compass_acc=%d\r\n",
+                       imu.gyro.accuracy, imu.accel.accuracy,
+                       imu.compass.accuracy);
+            }
+        }
 
         while (SPI2->SR & SPI_SR_BSY)
             continue;

@@ -10,6 +10,10 @@
 
 #include <math.h>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 static void rotateBodyToWorld(const long rot_q30[9], const long body[3], long world[3])
 {
     for (int i = 0; i < 3; i++)
@@ -20,22 +24,16 @@ static void rotateBodyToWorld(const long rot_q30[9], const long body[3], long wo
     }
 }
 
-static void read_heading(const long quat[4])
+static void read_heading(void)
 {
-    long q00, q03, q12, q22;
-    long t1, t2;
-    float heading_deg;
+    long data[3];
+    int8_t accuracy;
+    unsigned long timestamp;
 
-    q00 = inv_q29_mult(quat[0], quat[0]);
-    q03 = inv_q29_mult(quat[0], quat[3]);
-    q12 = inv_q29_mult(quat[1], quat[2]);
-    q22 = inv_q29_mult(quat[2], quat[2]);
-    t1 = q12 - q03;
-    t2 = q22 + q00 - (1L << 30);
-    heading_deg = atan2f((float)t1, (float)t2) * 180.f / (float)M_PI;
-    if (heading_deg < 0.f)
-        heading_deg += 360.f;
-    imu.heading = heading_deg;
+    if (inv_get_sensor_type_heading(data, &accuracy, (inv_time_t*)&timestamp))
+    {
+        imu.heading = inv_q16_to_float(data[0]);
+    }
 }
 
 static void integrate_linear_accel(void)
@@ -80,14 +78,20 @@ void imu_read_from_mpl(void)
     long world[3];
     int quat_accuracy = 0;
 
-    inv_get_quaternion_set(quat, &quat_accuracy, (inv_time_t*)&timestamp);
-    imu.quat.data[0] = inv_q30_to_float(quat[0]);
-    imu.quat.data[1] = inv_q30_to_float(quat[1]);
-    imu.quat.data[2] = inv_q30_to_float(quat[2]);
-    imu.quat.data[3] = inv_q30_to_float(quat[3]);
-    imu.quat.accuracy = (int8_t)quat_accuracy;
+    // DMP 6-axis quaternion for body-to-world rotation
+    long dmp_quat[4];
+    inv_get_6axis_quaternion(dmp_quat);
 
-    inv_quaternion_to_rotation(quat, rot_mat);
+    // /* 9-axis MPL quaternion (gyro+accel+compass) */
+    // inv_get_quaternion_set(quat, &quat_accuracy, (inv_time_t*)&timestamp);
+    // imu.quat.data[0] = inv_q30_to_float(quat[0]);
+    // imu.quat.data[1] = inv_q30_to_float(quat[1]);
+    // imu.quat.data[2] = inv_q30_to_float(quat[2]);
+    // imu.quat.data[3] = inv_q30_to_float(quat[3]);
+    // imu.quat.accuracy = (int8_t)quat_accuracy;
+
+    // Use DMP 6-axis quat for body-to-world rotation (stable, no mag influence)
+    inv_quaternion_to_rotation(dmp_quat, rot_mat);
 
     if (inv_get_sensor_type_gyro(data, &imu.gyro.accuracy, (inv_time_t*)&timestamp))
     {
@@ -105,7 +109,14 @@ void imu_read_from_mpl(void)
         imu.accel.data[2] = EARTHS_GRAVITY * inv_q16_to_float(world[2]);
     }
 
-    read_heading(quat);
+    read_heading();
+
+    if (inv_get_sensor_type_compass(data, &imu.compass.accuracy, (inv_time_t*)&timestamp))
+    {
+        imu.compass.data[0] = inv_q16_to_float(data[0]);
+        imu.compass.data[1] = inv_q16_to_float(data[1]);
+        imu.compass.data[2] = inv_q16_to_float(data[2]);
+    }
 
     if (inv_get_linear_accel(data) == INV_SUCCESS)
     {

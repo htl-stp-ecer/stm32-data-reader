@@ -67,8 +67,8 @@ TEST_F(SpiMockTest, ReadSensorDataProducesValidData)
     // IMU accuracy should be calibrated (3)
     EXPECT_EQ(data.accuracy.gyro, 3);
     EXPECT_EQ(data.accuracy.accelerometer, 3);
+    EXPECT_EQ(data.accuracy.linearAcceleration, 3);
     EXPECT_EQ(data.accuracy.compass, 3);
-    EXPECT_EQ(data.accuracy.quaternion, 3);
 }
 
 TEST_F(SpiMockTest, AnalogValuesAreInRange)
@@ -92,7 +92,7 @@ TEST_F(SpiMockTest, QuaternionIsNormalized)
     auto result = spiMock_->readSensorData();
     ASSERT_TRUE(result.isSuccess());
 
-    const auto& q = result.value().orientation;
+    const auto& q = result.value().dmpOrientation;
     float norm = std::sqrt(q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z);
     EXPECT_NEAR(norm, 1.0f, 0.01f);
 }

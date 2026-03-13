@@ -6,35 +6,38 @@
 #include "Sensors/bemf.h"
 #include "Actors/motor.h"
 
-#define ADC_IN_USE 0x01
-#define NEW_DATA 0x02
+// DMA target buffer — continuously overwritten by circular DMA
+static volatile uint16_t adcDmaBuffer[ANALOG_SENSOR_COUNT];
 
-typedef volatile struct
+// Oversampling accumulators
+static volatile uint32_t adcAccum[ANALOG_SENSOR_COUNT];
+static volatile uint32_t adcSampleCount;
+
+void startContinuousAnalogSampling(void)
 {
-    uint8_t state;
+    adcSampleCount = 0;
+    memset((void*)adcAccum, 0, sizeof(adcAccum));
+    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adcDmaBuffer, ANALOG_SENSOR_COUNT);
+}
 
-    int16_t adcRaw[ANALOG_SENSOR_COUNT];
-} AnalogReader;
-
-volatile AnalogReader analogReader = {0};
-
-
-/* @brief:
- * start the sampling of the adc's; conversion complete callback will be called when the conversion is done
- */
-void sampleAnalogPorts()
+void HAL_ADC_ErrorCallback(ADC_HandleTypeDef* hadc)
 {
-    analogReader.state |= NEW_DATA;
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)analogReader.adcRaw, ANALOG_SENSOR_COUNT);
+    if (hadc->Instance == ADC2)
+    {
+        // DMA/ADC error during BEMF conversion — abort and let watchdog recover
+        HAL_ADC_Stop_DMA(hadc);
+        bemfState = STOPPED;
+    }
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
-    /* --- analog Ports + battery voltage --- */
+    /* --- analog Ports + battery voltage (continuous oversampling) --- */
     if (hadc->Instance == ADC1)
     {
-        analogReader.state &= ~ADC_IN_USE;
-        analogReader.state |= NEW_DATA;
+        for (int i = 0; i < ANALOG_SENSOR_COUNT; i++)
+            adcAccum[i] += adcDmaBuffer[i];
+        adcSampleCount++;
     }
 
     /* --- bemf --- */
@@ -47,19 +50,27 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
     }
 }
 
-int updatingAnalogValuesInSpiBuffer()
+int updatingAnalogValuesInSpiBuffer(void)
 {
-    if ((analogReader.state & NEW_DATA) == 0)
+    if (adcSampleCount == 0)
         return 2;
 
-    if ((analogReader.state & ADC_IN_USE) == ADC_IN_USE)
-        return 3;
-
-    while (SPI2->SR & SPI_SR_BSY) //check if the spi buffer is in use
+    while (SPI2->SR & SPI_SR_BSY)
         continue;
 
-    //coppys analog port readings and battery voltage
-    memcpy(&txBuffer.analogSensor, &analogReader.adcRaw,
-           sizeof(txBuffer.analogSensor) + sizeof(txBuffer.batteryVoltage));
+    // Atomic snapshot and reset — prevent DMA callback from firing mid-swap
+    __disable_irq();
+    uint32_t count = adcSampleCount;
+    uint32_t localAccum[ANALOG_SENSOR_COUNT];
+    memcpy(localAccum, (void*)adcAccum, sizeof(localAccum));
+    memset((void*)adcAccum, 0, sizeof(adcAccum));
+    adcSampleCount = 0;
+    __enable_irq();
+
+    // Compute averages and write to SPI buffer
+    for (int i = 0; i < 6; i++)
+        txBuffer.analogSensor[i] = (int16_t)(localAccum[i] / count);
+    txBuffer.batteryVoltage = (int16_t)(localAccum[6] / count);
+
     return 0;
 }

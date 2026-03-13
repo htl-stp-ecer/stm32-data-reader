@@ -68,19 +68,18 @@ namespace wombat
         d.accelVelocity.y = rx->imu.accelVelocity.data[1];
         d.accelVelocity.z = rx->imu.accelVelocity.data[2];
 
-        d.orientation.w = rx->imu.quat.data[0];
-        d.orientation.x = rx->imu.quat.data[1];
-        d.orientation.y = rx->imu.quat.data[2];
-        d.orientation.z = rx->imu.quat.data[3];
+        d.dmpOrientation.w = rx->imu.dmpQuat.data[0];
+        d.dmpOrientation.x = rx->imu.dmpQuat.data[1];
+        d.dmpOrientation.y = rx->imu.dmpQuat.data[2];
+        d.dmpOrientation.z = rx->imu.dmpQuat.data[3];
 
         d.heading = rx->imu.heading;
+        d.temperature = rx->imu.temperature;
 
         d.accuracy.gyro = rx->imu.gyro.accuracy;
         d.accuracy.accelerometer = rx->imu.accel.accuracy;
         d.accuracy.linearAcceleration = rx->imu.linearAccel.accuracy;
         d.accuracy.compass = rx->imu.compass.accuracy;
-        d.accuracy.quaternion = rx->imu.quat.accuracy;
-        d.temperature = rx->imu.temperature;
 
         // Battery voltage filtering
         const float stmVoltage = 3.3f;

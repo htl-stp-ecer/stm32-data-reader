@@ -8,9 +8,9 @@
 /*ANALOG PORTS + BATTERY VOLTAGE*/
 #define ANALOG_SENSOR_COUNT 7 //6 analog ports + Vbat measurment
 
-#define ANALOG_SENSOR_SAMPLING_INTERVAL 1000
+#define ANALOG_OUTPUT_INTERVAL 4000 // 250 Hz output rate (oversample between updates)
 
-void sampleAnalogPorts();
-int updatingAnalogValuesInSpiBuffer();
+void startContinuousAnalogSampling(void);
+int updatingAnalogValuesInSpiBuffer(void);
 
 #endif //ADC_VALUES_H

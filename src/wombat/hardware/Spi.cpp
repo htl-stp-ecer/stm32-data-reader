@@ -367,36 +367,35 @@ float magZ(void)
     return ctx.rx.imu.compass.data[2];
 }
 
-// Quaternion data access (note: struct order is w, x, y, z)
+// DMP Quaternion data access (note: struct order is w, x, y, z)
 float quatX(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    return ctx.rx.imu.quat.data[1];
+    return ctx.rx.imu.dmpQuat.data[1];
 }
 
 float quatY(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    return ctx.rx.imu.quat.data[2];
+    return ctx.rx.imu.dmpQuat.data[2];
 }
 
 float quatZ(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    return ctx.rx.imu.quat.data[3];
+    return ctx.rx.imu.dmpQuat.data[3];
 }
 
 float quatW(void)
 {
     if (!spi_update())
         exit(EXIT_FAILURE);
-    return ctx.rx.imu.quat.data[0];
+    return ctx.rx.imu.dmpQuat.data[0];
 }
 
-// Linear acceleration data access (gravity removed)
 float linearAccelX(void)
 {
     if (!spi_update())
@@ -529,9 +528,7 @@ int8_t compass_accuracy(void)
 
 int8_t quaternion_accuracy(void)
 {
-    if (!spi_update())
-        exit(EXIT_FAILURE);
-    return ctx.rx.imu.quat.accuracy;
+    return 3; // DMP quat has no accuracy metric
 }
 
 void set_motor_pid(uint8_t port, float kp, float ki, float kd)

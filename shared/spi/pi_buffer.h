@@ -13,11 +13,12 @@ extern "C" {
 
 #include <stdint.h>
 
-#define TRANSFER_VERSION 10
+#define TRANSFER_VERSION 13
 
 #define PI_BUFFER_UPDATE_MOTOR_PID_SPEED 0x01
 #define PI_BUFFER_UPDATE_MOTOR_PID_POS   0x02
 #define PI_BUFFER_UPDATE_IMU_ORIENTATION 0x04
+#define PI_BUFFER_UPDATE_SAVE_IMU_CAL    0x08
 #define PI_BUFFER_UPDATE_PARITY_BIT      0x80
 
 #define SHUTDOWN_SERVO 0x01
@@ -61,8 +62,8 @@ typedef struct __attribute__ ((packed))
     SensorData compass;
     SensorData linearAccel;
     SensorData accelVelocity;
-    QuaternionData quat;
-    float heading;
+    QuaternionData dmpQuat; /* DMP 6-axis quaternion (gyro+accel only) */
+    float heading; /* MPL heading (mag-corrected when calibrated) */
     float temperature;
 }
 

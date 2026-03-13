@@ -77,7 +77,7 @@ namespace wombat
         d.accelVelocity.y = 0.01f * cosf(w * t * 0.3f);
         d.accelVelocity.z = 0.0f;
 
-        // Orientation: smoothly varying quaternion from small Euler rotations
+        // DMP orientation: smoothly varying quaternion from small Euler rotations
         const float roll = 0.12f * sinf(w * t * 0.8f);
         const float pitch = 0.10f * cosf(w * t * 0.6f);
         const float yaw = 0.18f * sinf(w * t * 0.4f);
@@ -89,17 +89,18 @@ namespace wombat
         const float cy = cosf(yaw * 0.5f);
         const float sy = sinf(yaw * 0.5f);
 
-        d.orientation.w = cr * cp * cy + sr * sp * sy;
-        d.orientation.x = sr * cp * cy - cr * sp * sy;
-        d.orientation.y = cr * sp * cy + sr * cp * sy;
-        d.orientation.z = cr * cp * sy - sr * sp * cy;
+        d.dmpOrientation.w = cr * cp * cy + sr * sp * sy;
+        d.dmpOrientation.x = sr * cp * cy - cr * sp * sy;
+        d.dmpOrientation.y = cr * sp * cy + sr * cp * sy;
+        d.dmpOrientation.z = cr * cp * sy - sr * sp * cy;
+
+        d.heading = 180.0f + 90.0f * sinf(w * t * 0.2f);
 
         // IMU accuracy (mock: calibrated)
         d.accuracy.gyro = 3;
         d.accuracy.accelerometer = 3;
         d.accuracy.linearAcceleration = 3;
         d.accuracy.compass = 3;
-        d.accuracy.quaternion = 3;
 
         // Temperature
         d.temperature = 28.0f + 0.3f * sinf(w * t * 0.2f);

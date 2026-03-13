@@ -49,7 +49,7 @@ TEST_F(DataPublisherTest, PublishSensorDataSucceeds)
     data.gyro = {1.0f, 2.0f, 3.0f};
     data.accelerometer = {0.0f, 0.0f, 1.0f};
     data.magnetometer = {0.3f, 0.1f, 0.5f};
-    data.orientation = {1.0f, 0.0f, 0.0f, 0.0f};
+    data.dmpOrientation = {1.0f, 0.0f, 0.0f, 0.0f};
     data.temperature = 25.0f;
     data.batteryVoltage = 12.0f;
 
@@ -211,7 +211,7 @@ TEST_F(DataPublisherTest, PublishShutdownStatus)
 TEST_F(DataPublisherTest, AccuracyPublishedOnFirstCall)
 {
     SensorData data{};
-    data.accuracy = {3, 3, 3, 3, 3};
+    data.accuracy = {3, 3, 3, 3};
 
     publisher_->publishSensorData(data);
 
@@ -231,7 +231,7 @@ TEST_F(DataPublisherTest, AccuracyPublishedOnFirstCall)
 TEST_F(DataPublisherTest, AccuracyNotPublishedWhenUnchanged)
 {
     SensorData data{};
-    data.accuracy = {3, 3, 3, 3, 3};
+    data.accuracy = {3, 3, 3, 3};
 
     publisher_->publishSensorData(data);
     logger_->clear();
@@ -254,11 +254,11 @@ TEST_F(DataPublisherTest, AccuracyNotPublishedWhenUnchanged)
 TEST_F(DataPublisherTest, AccuracyPublishedOnChange)
 {
     SensorData data{};
-    data.accuracy = {3, 3, 3, 3, 3};
+    data.accuracy = {3, 3, 3, 3};
     publisher_->publishSensorData(data);
     logger_->clear();
 
-    data.accuracy = {2, 3, 3, 3, 3};
+    data.accuracy = {2, 3, 3, 3};
     publisher_->publishSensorData(data);
 
     bool foundChanged = false;

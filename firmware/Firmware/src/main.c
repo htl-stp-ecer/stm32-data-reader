@@ -37,6 +37,7 @@
 #include "Hardware/timerInit.h"
 #include "Hardware/gpio.h"
 #include "Sensors/IMU/imu.h"
+#include "Storage/flash_cal.h"
 #include "Utillity/utillity.h"
 
 #define SERVO_UPDATE_INTERVAL 100 //ms (only update the servos with 10Hz to avoid servo jitter)
@@ -85,9 +86,8 @@ int main(void)
     MX_USART3_UART_Init();
 
     //initialising systems
+    startContinuousAnalogSampling(); // kick off continuous ADC1 + circular DMA (oversampling)
     systemTimerStart();
-    //starting bemf meashurment cycle - startet with starting the systemTimer -> is called periodicly
-    //starting analog port meashurment cycle - startet with starting the systemTimer -> is called periodicly
 
     printf("Booted, firmware ready\r\n");
 
@@ -136,10 +136,16 @@ int main(void)
                 (const int8_t*)rxBuffer.imuCompassOrientation);
         }
 
+        if (updateFlags & PI_BUFFER_UPDATE_SAVE_IMU_CAL)
+        {
+            updateFlags &= ~PI_BUFFER_UPDATE_SAVE_IMU_CAL;
+            printf("Save calibration requested by Pi\r\n");
+            cal_save_to_flash();
+        }
+
         readImu();
 
-        //update spi buffer if possible
-        updatingAnalogValuesInSpiBuffer();
+        //update spi buffer if possible (analog is updated at 250Hz from timer ISR)
         updatingMotorsInSpiBuffer();
     }
 }

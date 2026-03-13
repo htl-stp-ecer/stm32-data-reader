@@ -27,6 +27,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
 
         if (!(rxBuffer.systemShutdown & SHUTDOWN_MOTOR))
         {
+            bemf_watchdog_check(microSeconds);
+
             static uint32_t bemfLastStart = 0;
             doEveryXuSeconds(stop_motors_for_bemf_conv(), BEMF_SAMPLING_INTERVAL, bemfLastStart);
 
@@ -36,8 +38,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
             }
         }
 
-        static uint32_t analogSensorLastStart = 0;
-        doEveryXuSeconds(sampleAnalogPorts(), ANALOG_SENSOR_SAMPLING_INTERVAL, analogSensorLastStart);
+        static uint32_t analogOutputLastStart = 0;
+        doEveryXuSeconds(updatingAnalogValuesInSpiBuffer(), ANALOG_OUTPUT_INTERVAL, analogOutputLastStart);
     }
 }
 

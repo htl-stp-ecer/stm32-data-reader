@@ -47,7 +47,8 @@ MEMORY
 {
   CCMRAM    (xrw)    : ORIGIN = 0x10000000,   LENGTH = 64K
   RAM    (xrw)    : ORIGIN = 0x20000000,   LENGTH = 192K
-  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 2048K
+  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 896K    /* Sectors 0-10; sector 11 (0x080E0000, 128K) reserved for calibration */
+  CAL_DATA (rw)    : ORIGIN = 0x80E0000,   LENGTH = 128K   /* Calibration storage - do not place code here */
 }
 
 /* Sections */

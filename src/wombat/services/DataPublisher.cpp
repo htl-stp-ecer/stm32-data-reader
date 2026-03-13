@@ -12,48 +12,40 @@ namespace wombat
 
     Result<void> DataPublisher::publishSensorData(const SensorData& data)
     {
-        // Apply body-to-world axis remap to all IMU data before publishing
-        const auto gyro = data.gyro;
-        const auto accel = data.accelerometer;
-        const auto mag = data.magnetometer;
-        const auto linAccel = data.linearAcceleration;
-        const auto accelVel = data.accelVelocity;
-        const auto orientation = data.orientation;
-
-        auto gyroResult = broker_->publish(Channels::GYRO, toLcm(gyro));
+        auto gyroResult = broker_->publish(Channels::GYRO, toLcm(data.gyro));
         if (gyroResult.isFailure())
         {
             logger_->warn("Failed to publish gyro data: " + gyroResult.error());
         }
 
-        auto accelResult = broker_->publish(Channels::ACCELEROMETER, toLcm(accel));
+        auto accelResult = broker_->publish(Channels::ACCELEROMETER, toLcm(data.accelerometer));
         if (accelResult.isFailure())
         {
             logger_->warn("Failed to publish accelerometer data: " + accelResult.error());
         }
 
-        auto magResult = broker_->publish(Channels::MAGNETOMETER, toLcm(mag));
+        auto magResult = broker_->publish(Channels::MAGNETOMETER, toLcm(data.magnetometer));
         if (magResult.isFailure())
         {
             logger_->warn("Failed to publish magnetometer data: " + magResult.error());
         }
 
-        auto linAccelResult = broker_->publish(Channels::LINEAR_ACCELERATION, toLcm(linAccel));
+        auto linAccelResult = broker_->publish(Channels::LINEAR_ACCELERATION, toLcm(data.linearAcceleration));
         if (linAccelResult.isFailure())
         {
             logger_->warn("Failed to publish linear acceleration data: " + linAccelResult.error());
         }
 
-        auto accelVelResult = broker_->publish(Channels::ACCEL_VELOCITY, toLcm(accelVel));
+        auto accelVelResult = broker_->publish(Channels::ACCEL_VELOCITY, toLcm(data.accelVelocity));
         if (accelVelResult.isFailure())
         {
             logger_->warn("Failed to publish accel velocity data: " + accelVelResult.error());
         }
 
-        auto orientationResult = broker_->publish(Channels::ORIENTATION, toLcm(orientation));
-        if (orientationResult.isFailure())
+        auto dmpOrientResult = broker_->publish(Channels::DMP_ORIENTATION, toLcm(data.dmpOrientation));
+        if (dmpOrientResult.isFailure())
         {
-            logger_->warn("Failed to publish orientation data: " + orientationResult.error());
+            logger_->warn("Failed to publish DMP orientation: " + dmpOrientResult.error());
         }
 
         auto headingResult = broker_->publishRetained(Channels::HEADING, toLcmScalarF(data.heading));
@@ -247,33 +239,25 @@ namespace wombat
         const bool isFirstTime = !lastAccuracy_.has_value();
         const bool hasChanged = lastAccuracy_.has_value() && !(accuracy == lastAccuracy_.value());
 
-        if (!isFirstTime && !hasChanged)
-        {
-            return Result<void>::success();
-        }
-
         if (isFirstTime)
         {
             logger_->info("IMU accuracy (initial): gyro=" + std::to_string(accuracy.gyro) +
                 ", accel=" + std::to_string(accuracy.accelerometer) +
                 ", lin_accel=" + std::to_string(accuracy.linearAcceleration) +
-                ", compass=" + std::to_string(accuracy.compass) +
-                ", quat=" + std::to_string(accuracy.quaternion));
+                ", compass=" + std::to_string(accuracy.compass));
         }
-        else
+        else if (hasChanged)
         {
             logger_->info("IMU accuracy changed: gyro=" + std::to_string(accuracy.gyro) +
                 ", accel=" + std::to_string(accuracy.accelerometer) +
                 ", lin_accel=" + std::to_string(accuracy.linearAcceleration) +
-                ", compass=" + std::to_string(accuracy.compass) +
-                ", quat=" + std::to_string(accuracy.quaternion));
+                ", compass=" + std::to_string(accuracy.compass));
         }
 
-        // Publish with retained flag — new subscribers get cached value immediately
-        broker_->publishRetained(Channels::GYRO_ACCURACY, toLcmScalarI8(accuracy.gyro));
-        broker_->publishRetained(Channels::ACCEL_ACCURACY, toLcmScalarI8(accuracy.accelerometer));
-        broker_->publishRetained(Channels::COMPASS_ACCURACY, toLcmScalarI8(accuracy.compass));
-        broker_->publishRetained(Channels::QUATERNION_ACCURACY, toLcmScalarI8(accuracy.quaternion));
+        // Always publish so recorders get values immediately
+        broker_->publish(Channels::GYRO_ACCURACY, toLcmScalarI8(accuracy.gyro));
+        broker_->publish(Channels::ACCEL_ACCURACY, toLcmScalarI8(accuracy.accelerometer));
+        broker_->publish(Channels::COMPASS_ACCURACY, toLcmScalarI8(accuracy.compass));
 
         lastAccuracy_ = accuracy;
 

@@ -8,9 +8,13 @@
 #include "ml_math_func.h"
 #include "invensense.h"
 #include "invensense_adv.h"
+#include "fusion_9axis.h"
 #include "eMPL_outputs.h"
 #include "motion_driver_hal.h"
 #include "spi.h"
+#include "Storage/flash_cal.h"
+
+#include <stdio.h>
 
 #define DEFAULT_MPU_HZ   (50)
 #define COMPASS_READ_MS  (100)
@@ -33,6 +37,17 @@ void setupImu(void)
     inv_enable_in_use_auto_calibration();
     inv_enable_heading_from_gyro();
     inv_enable_eMPL_outputs();
+    inv_init_9x_fusion();
+    inv_enable_9x_sensor_fusion();
+
+    /* Load saved calibration from flash before starting MPL.
+     * This restores gyro/accel/compass biases from a previous session
+     * so the user doesn't need to recalibrate (figure-8, etc.) on every boot. */
+    if (cal_load_from_flash() == INV_SUCCESS)
+        printf("[IMU] Restored calibration from flash\r\n");
+    else
+        printf("[IMU] No saved calibration, starting fresh\r\n");
+
     inv_start_mpl();
 
     mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL | INV_XYZ_COMPASS);

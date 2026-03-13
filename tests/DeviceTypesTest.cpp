@@ -84,20 +84,19 @@ TEST(ImuAccuracyTest, DefaultIsZero)
     EXPECT_EQ(a.accelerometer, 0);
     EXPECT_EQ(a.linearAcceleration, 0);
     EXPECT_EQ(a.compass, 0);
-    EXPECT_EQ(a.quaternion, 0);
 }
 
 TEST(ImuAccuracyTest, Equality)
 {
-    ImuAccuracy a{3, 3, 3, 3, 3};
-    ImuAccuracy b{3, 3, 3, 3, 3};
+    ImuAccuracy a{3, 3, 3, 3};
+    ImuAccuracy b{3, 3, 3, 3};
     EXPECT_EQ(a, b);
 }
 
 TEST(ImuAccuracyTest, Inequality)
 {
-    ImuAccuracy a{3, 3, 3, 3, 3};
-    ImuAccuracy b{3, 2, 3, 3, 3};
+    ImuAccuracy a{3, 3, 3, 3};
+    ImuAccuracy b{3, 2, 3, 3};
     EXPECT_FALSE(a == b);
 }
 
@@ -130,7 +129,7 @@ TEST(SensorDataTest, DefaultValues)
     SensorData d{};
     EXPECT_EQ(d.gyro, Vector3f{});
     EXPECT_EQ(d.accelerometer, Vector3f{});
-    EXPECT_EQ(d.orientation, Quaternionf{});
+    EXPECT_EQ(d.dmpOrientation, Quaternionf{});
     EXPECT_FLOAT_EQ(d.heading, 0.0f);
     EXPECT_FLOAT_EQ(d.temperature, 0.0f);
     EXPECT_FLOAT_EQ(d.batteryVoltage, 0.0f);
