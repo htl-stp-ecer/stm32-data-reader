@@ -119,13 +119,11 @@ int main(void)
         if (current_time - last_heartbeat >= HEARTBEAT_INTERVAL)
         {
             printf(
-                "hb #%lu t=%lus conv=%lu st=%d adc=[%u,%u,%u,%u,%u,%u,%u,%u] bemf=[%ld,%ld,%ld,%ld] raw=[%d,%d,%d,%d]\r\n",
+                "hb #%lu t=%lus conv=%lu st=%d mot=%d adc=[%u,%u] bemf=[%ld,%ld,%ld,%ld] raw=[%d,%d,%d,%d]\r\n",
                 ++heartbeat_count, current_time / 1000,
                 (unsigned long)bemfConvCount, (int)bemfState,
+                (int)bemfCurrentMotor,
                 adc_dma_bemf_buffer[0], adc_dma_bemf_buffer[1],
-                adc_dma_bemf_buffer[2], adc_dma_bemf_buffer[3],
-                adc_dma_bemf_buffer[4], adc_dma_bemf_buffer[5],
-                adc_dma_bemf_buffer[6], adc_dma_bemf_buffer[7],
                 (long)motor_data.bemf[0], (long)motor_data.bemf[1],
                 (long)motor_data.bemf[2], (long)motor_data.bemf[3],
                 (int)bemfRawReadings[0], (int)bemfRawReadings[1],

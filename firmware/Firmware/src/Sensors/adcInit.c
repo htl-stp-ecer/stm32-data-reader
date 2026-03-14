@@ -115,7 +115,7 @@ void MX_ADC2_Init(void)
     hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
     hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
     hadc2.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-    hadc2.Init.NbrOfConversion = 8;
+    hadc2.Init.NbrOfConversion = 2;
     hadc2.Init.DMAContinuousRequests = DISABLE;
     hadc2.Init.EOCSelection = ADC_EOC_SEQ_CONV;
     if (HAL_ADC_Init(&hadc2) != HAL_OK)
@@ -123,48 +123,17 @@ void MX_ADC2_Init(void)
         Error_Handler();
     }
 
-    /* Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. */
+    /* Default: configure for motor 0 (CH2 low, CH3 high).
+     * bemf.c reconfigures before each measurement cycle. */
 #define BEMF_SAMPLES_PER_CHANAL ADC_SAMPLETIME_480CYCLES
-    sConfig.Channel = ADC_CHANNEL_0;
+    sConfig.Channel = ADC_CHANNEL_2;
     sConfig.Rank = 1;
     sConfig.SamplingTime = BEMF_SAMPLES_PER_CHANAL;
     HAL_ADC_ConfigChannel(&hadc2, &sConfig);
 
-    sConfig.Channel = ADC_CHANNEL_1;
+    sConfig.Channel = ADC_CHANNEL_3;
     sConfig.Rank = 2;
     sConfig.SamplingTime = BEMF_SAMPLES_PER_CHANAL;
-    HAL_ADC_ConfigChannel(&hadc2, &sConfig);
-
-    sConfig.Channel = ADC_CHANNEL_2;
-    sConfig.Rank = 3;
-    sConfig.SamplingTime = BEMF_SAMPLES_PER_CHANAL;
-    HAL_ADC_ConfigChannel(&hadc2, &sConfig);
-
-    sConfig.Channel = ADC_CHANNEL_3;
-    sConfig.Rank = 4;
-    sConfig.SamplingTime = BEMF_SAMPLES_PER_CHANAL;
-    HAL_ADC_ConfigChannel(&hadc2, &sConfig);
-
-    sConfig.Channel = ADC_CHANNEL_4;
-    sConfig.Rank = 5;
-    sConfig.SamplingTime = BEMF_SAMPLES_PER_CHANAL;
-    HAL_ADC_ConfigChannel(&hadc2, &sConfig);
-
-    sConfig.Channel = ADC_CHANNEL_5;
-    sConfig.Rank = 6;
-    sConfig.SamplingTime = BEMF_SAMPLES_PER_CHANAL;
-    HAL_ADC_ConfigChannel(&hadc2, &sConfig);
-
-    sConfig.Channel = ADC_CHANNEL_6;
-    sConfig.Rank = 7;
-    sConfig.SamplingTime = BEMF_SAMPLES_PER_CHANAL;
-    HAL_ADC_ConfigChannel(&hadc2, &sConfig);
-
-    sConfig.Channel = ADC_CHANNEL_7;
-    sConfig.Rank = 8;
-    sConfig.SamplingTime = BEMF_SAMPLES_PER_CHANAL;
-    HAL_ADC_ConfigChannel(&hadc2, &sConfig);
-
     if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
     {
         Error_Handler();
