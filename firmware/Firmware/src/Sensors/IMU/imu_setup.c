@@ -37,8 +37,8 @@ void setupImu(void)
     inv_enable_in_use_auto_calibration();
     inv_enable_heading_from_gyro();
     inv_enable_eMPL_outputs();
-    inv_init_9x_fusion();
-    inv_enable_9x_sensor_fusion();
+    //inv_init_9x_fusion();
+    //inv_enable_9x_sensor_fusion();
 
     /* Calibration loading disabled — flash erase blocks main loop.
      * TODO: re-enable once flash ops run from RAM or use a smaller sector. */

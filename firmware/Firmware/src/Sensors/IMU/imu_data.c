@@ -24,16 +24,22 @@ static void rotateBodyToWorld(const long rot_q30[9], const long body[3], long wo
     }
 }
 
-static void read_heading(void)
+static void read_heading(const long quat[4])
 {
-    long data[3];
-    int8_t accuracy;
-    unsigned long timestamp;
+    long q00, q03, q12, q22;
+    long t1, t2;
+    float heading_deg;
 
-    if (inv_get_sensor_type_heading(data, &accuracy, (inv_time_t*)&timestamp))
-    {
-        imu.heading = inv_q16_to_float(data[0]);
-    }
+    q00 = inv_q29_mult(quat[0], quat[0]);
+    q03 = inv_q29_mult(quat[0], quat[3]);
+    q12 = inv_q29_mult(quat[1], quat[2]);
+    q22 = inv_q29_mult(quat[2], quat[2]);
+    t1 = q12 - q03;
+    t2 = q22 + q00 - (1L << 30);
+    heading_deg = atan2f((float)t1, (float)t2) * 180.f / (float)M_PI;
+    if (heading_deg < 0.f)
+        heading_deg += 360.f;
+    imu.heading = heading_deg;
 }
 
 static void integrate_linear_accel(void)
@@ -109,7 +115,7 @@ void imu_read_from_mpl(void)
         imu.accel.data[2] = EARTHS_GRAVITY * inv_q16_to_float(world[2]);
     }
 
-    read_heading();
+    read_heading(dmp_quat);
 
     if (inv_get_sensor_type_compass(data, &imu.compass.accuracy, (inv_time_t*)&timestamp))
     {
