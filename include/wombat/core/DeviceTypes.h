@@ -103,6 +103,16 @@ namespace wombat
         ServoPosition position{0};
     };
 
+    struct OdometryState
+    {
+        float pos_x{0.0f}; // meters, world frame
+        float pos_y{0.0f}; // meters, world frame
+        float heading{0.0f}; // radians (firmware CW-positive convention)
+        float vx{0.0f}; // m/s, body frame
+        float vy{0.0f}; // m/s, body frame
+        float wz{0.0f}; // rad/s, body frame
+    };
+
     struct SensorData
     {
         Vector3f gyro{};
@@ -118,5 +128,6 @@ namespace wombat
         std::array<AnalogValue, MAX_ANALOG_PORTS> analogValues{};
         DigitalValue digitalBits{0};
         Timestamp lastUpdate{0};
+        OdometryState odometry{};
     };
 }

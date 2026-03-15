@@ -13,13 +13,14 @@ extern "C" {
 
 #include <stdint.h>
 
-#define TRANSFER_VERSION 14
+#define TRANSFER_VERSION 15
 
 #define PI_BUFFER_UPDATE_MOTOR_PID_SPEED 0x01
 #define PI_BUFFER_UPDATE_MOTOR_PID_POS   0x02
 #define PI_BUFFER_UPDATE_IMU_ORIENTATION 0x04
 #define PI_BUFFER_UPDATE_SAVE_IMU_CAL    0x08
-#define PI_BUFFER_UPDATE_PARITY_BIT      0x80
+#define PI_BUFFER_UPDATE_KINEMATICS      0x10
+#define PI_BUFFER_UPDATE_ODOM_RESET      0x20
 
 #define SHUTDOWN_SERVO 0x01
 #define SHUTDOWN_MOTOR 0x02
@@ -78,6 +79,33 @@ typedef struct __attribute__ ((packed))
 
 MotorData;
 
+typedef struct __attribute__ ((packed))
+{
+    float pos_x; // meters, world frame
+    float pos_y; // meters, world frame
+    float heading; // radians, CCW-positive (library/ENU convention)
+    float vx; // m/s, body frame
+    float vy; // m/s, body frame
+    float wz; // rad/s, body frame
+}
+
+OdometryData;
+
+typedef struct __attribute__ ((packed))
+{
+    /* Inverse kinematics matrix: wheel speeds (rad/s) -> [vx, vy, wz]
+     * Pre-baked with wheel radius and geometry constants.
+     * Row 0: vx coefficients for [fl, fr, bl, br]
+     * Row 1: vy coefficients
+     * Row 2: wz coefficients */
+    float inv_matrix[3][4];
+
+    /* Per-motor encoder calibration: radians per BEMF tick */
+    float ticks_to_rad[4];
+}
+
+KinematicsConfig;
+
 typedef struct __attribute__ ((packed)) TxBuffer_tag
 {
     /* --- Version of SPI buffer --- */
@@ -96,6 +124,9 @@ typedef struct __attribute__ ((packed)) TxBuffer_tag
 
     /* --- IMU DATA --- */
     ImuData imu;
+
+    /* --- ODOMETRY (computed on STM32 from BEMF + IMU) --- */
+    OdometryData odometry;
 }
 
 TxBuffer;
@@ -155,6 +186,9 @@ typedef struct __attribute__ ((packed))
     // Row-major 3x3 signed char matrices, each element is -1, 0, or 1
     int8_t imuGyroOrientation[9]; // Gyro/accel chip-to-board mapping
     int8_t imuCompassOrientation[9]; // Compass chip-to-board mapping
+
+    /* --- KINEMATICS CONFIG (sent once at startup from Pi) --- */
+    KinematicsConfig kinematics;
 }
 
 RxBuffer;

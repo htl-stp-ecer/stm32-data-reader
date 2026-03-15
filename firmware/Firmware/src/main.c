@@ -37,6 +37,7 @@
 #include "Hardware/timerInit.h"
 #include "Hardware/gpio.h"
 #include "Sensors/IMU/imu.h"
+#include "Sensors/odometry.h"
 #include "Storage/flash_cal.h"
 #include "Utillity/utillity.h"
 
@@ -158,10 +159,25 @@ int main(void)
             /* cal_save_to_flash() disabled — flash erase blocks main loop */
         }
 
+        if (updateFlags & PI_BUFFER_UPDATE_KINEMATICS)
+        {
+            updateFlags &= ~PI_BUFFER_UPDATE_KINEMATICS;
+            odometry_configure(&rxBuffer.kinematics);
+            printf("Kinematics config received from Pi\r\n");
+        }
+
+        if (updateFlags & PI_BUFFER_UPDATE_ODOM_RESET)
+        {
+            updateFlags &= ~PI_BUFFER_UPDATE_ODOM_RESET;
+            odometry_reset();
+        }
+
         readImu();
 
         //update spi buffer if possible (analog is updated at 250Hz from timer ISR)
         updatingMotorsInSpiBuffer();
+        odometry_update();
+        odometry_write_to_spi_buffer(&txBuffer.odometry);
     }
 }
 

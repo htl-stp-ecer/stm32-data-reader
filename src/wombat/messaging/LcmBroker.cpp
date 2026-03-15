@@ -8,6 +8,7 @@
 #include <raccoon/scalar_i8_t.hpp>
 #include <raccoon/string_t.hpp>
 #include <raccoon/orientation_matrix_t.hpp>
+#include <raccoon/kinematics_config_t.hpp>
 #include <chrono>
 
 namespace wombat
@@ -318,7 +319,7 @@ namespace wombat
     template <>
     Result<void> LcmBroker::subscribe<raccoon::orientation_matrix_t>(const std::string& ch,
                                                                      std::function<void(
-                                                                         const raccoon::orientation_matrix_t&)
+                                                                     const raccoon::orientation_matrix_t&)
     >
     h
     ,
@@ -326,5 +327,14 @@ namespace wombat
     )
     {
         return impl_->subscribe<raccoon::orientation_matrix_t>(ch, std::move(h), opts);
+    }
+
+    template <>
+    Result<void> LcmBroker::subscribe<raccoon::kinematics_config_t>(const std::string& ch,
+                                                                    std::function<void(
+const raccoon::kinematics_config_t &)> h,
+                                                                    const raccoon::SubscribeOptions& opts)
+    {
+        return impl_->subscribe<raccoon::kinematics_config_t>(ch, std::move(h), opts);
     }
 } // namespace wombat

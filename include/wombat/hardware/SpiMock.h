@@ -35,6 +35,10 @@ namespace wombat
         Result<void> setMotorPid(PortId port, float kp, float ki, float kd) override;
 
         Result<void> setShutdown(bool enabled) override;
+
+        Result<void> sendKinematicsConfig(const float inv_matrix[3][4], const float ticks_to_rad[4]) override;
+        Result<void> resetOdometry() override;
+
     private:
         Configuration::Spi cfg_;
         std::shared_ptr<Logger> logger_;

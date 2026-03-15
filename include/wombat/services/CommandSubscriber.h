@@ -14,6 +14,7 @@
 #include <raccoon/scalar_i32_t.hpp>
 #include <raccoon/scalar_i8_t.hpp>
 #include <raccoon/orientation_matrix_t.hpp>
+#include <raccoon/kinematics_config_t.hpp>
 #include "wombat/services/DeviceController.h"
 #include "wombat/services/DataPublisher.h"
 #include <memory>
@@ -53,6 +54,8 @@ namespace wombat
         void onMotorPositionResetCommand(PortId port, const raccoon::scalar_i32_t& command);
         void onMotorPidCommand(PortId port, const raccoon::vector3f_t& command);
         void onShutdownCommand(const raccoon::scalar_i32_t& command);
+        void onKinematicsConfigCommand(const raccoon::kinematics_config_t& command);
+        void onOdometryResetCommand(const raccoon::scalar_i32_t& command);
 
         bool isTimestampNewer(const std::string& channel, int64_t timestamp);
 

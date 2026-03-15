@@ -245,4 +245,16 @@ namespace wombat
         if (logger_) logger_->info("SPI Mock: Shutdown " + std::string(enabled ? "enabled" : "disabled"));
         return Result<void>::success();
     }
+
+    Result<void> SpiMock::sendKinematicsConfig(const float /*inv_matrix*/[3][4], const float /*ticks_to_rad*/[4])
+    {
+        if (logger_) logger_->info("SPI Mock: Kinematics config sent (no-op)");
+        return Result<void>::success();
+    }
+
+    Result<void> SpiMock::resetOdometry()
+    {
+        if (logger_) logger_->info("SPI Mock: Odometry reset (no-op)");
+        return Result<void>::success();
+    }
 }

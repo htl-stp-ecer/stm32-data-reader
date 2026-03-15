@@ -52,6 +52,12 @@ void set_servo_pos(uint8_t port, uint16_t microseconds);
 /* Motor PID settings */
 void set_motor_pid(uint8_t port, float kp, float ki, float kd);
 
+/* Odometry: send kinematics config to STM32 */
+void set_kinematics_config(const float inv_matrix[3][4], const float ticks_to_rad[4]);
+
+/* Odometry: request STM32 to reset its integrated pose */
+void reset_stm32_odometry(void);
+
 /* ---------------- bulk read (RX) -------------------- */
 /* Returns pointer to the internal RX buffer (last received data).
  * Does NOT trigger an SPI transfer – call spi_update() first. */
@@ -93,6 +99,14 @@ uint16_t digital_raw(void);
 bool digital(uint8_t bit);
 
 float battery_voltage(void);
+
+/* Odometry data (computed on STM32) */
+float odom_pos_x(void);
+float odom_pos_y(void);
+float odom_heading(void);
+float odom_vx(void);
+float odom_vy(void);
+float odom_wz(void);
 
 int8_t gyro_accuracy(void);
 int8_t accel_accuracy(void);

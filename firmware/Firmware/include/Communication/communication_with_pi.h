@@ -13,10 +13,9 @@ extern volatile TxBuffer txBuffer;
 /**
  * @brief flags that command a subsystem to update
  * @details
- * The last bit is a parrety bit to check for transimssion errors.
- * (parity bit is a even barryt check)
- * All other bits are related to one specific system.
+ * Each bit is related to one specific system.
  * If set it will update the system.
+ * Flags are accepted when non-zero and cleared after processing.
  *
  * (should be used for systems, that don't have/should to update constantly)
  */

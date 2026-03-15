@@ -84,6 +84,20 @@ namespace wombat
             logger_->warn("Failed to publish digital bits: " + digitalResult.error());
         }
 
+        // Odometry (computed on STM32)
+        logger_->info("Odometry: pos_x=" + std::to_string(data.odometry.pos_x) +
+            " pos_y=" + std::to_string(data.odometry.pos_y) +
+            " heading=" + std::to_string(data.odometry.heading) +
+            " vx=" + std::to_string(data.odometry.vx) +
+            " vy=" + std::to_string(data.odometry.vy) +
+            " wz=" + std::to_string(data.odometry.wz));
+        broker_->publishRetained(Channels::ODOM_POS_X, toLcmScalarF(data.odometry.pos_x));
+        broker_->publishRetained(Channels::ODOM_POS_Y, toLcmScalarF(data.odometry.pos_y));
+        broker_->publishRetained(Channels::ODOM_HEADING, toLcmScalarF(data.odometry.heading));
+        broker_->publishRetained(Channels::ODOM_VX, toLcmScalarF(data.odometry.vx));
+        broker_->publishRetained(Channels::ODOM_VY, toLcmScalarF(data.odometry.vy));
+        broker_->publishRetained(Channels::ODOM_WZ, toLcmScalarF(data.odometry.wz));
+
         if (logger_) logger_->debug("Sensor data publish completed");
 
         return Result<void>::success();

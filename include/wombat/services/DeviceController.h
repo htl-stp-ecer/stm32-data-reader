@@ -41,6 +41,12 @@ namespace wombat
 
         // STM32 shutdown flag - disables motors and servos at firmware level
         Result<void> setShutdown(bool enabled);
+
+        // Odometry: send kinematics matrix to STM32
+        Result<void> sendKinematicsConfig(const float inv_matrix[3][4], const float ticks_to_rad[4]);
+        // Odometry: reset STM32 integrated pose
+        Result<void> resetOdometry();
+
     private:
         std::unique_ptr<ISpi> spi_;
         std::shared_ptr<Logger> logger_;

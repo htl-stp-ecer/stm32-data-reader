@@ -288,7 +288,7 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef* hspi)
 
         if (rxBuffer.transferVersion == TRANSFER_VERSION)
         {
-            if (rxBuffer.updates % 2) // parity check --> is the updates value correct
+            if (rxBuffer.updates != 0)
             {
                 updateFlags = rxBuffer.updates;
             }

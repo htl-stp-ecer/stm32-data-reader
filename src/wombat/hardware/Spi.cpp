@@ -534,3 +534,26 @@ void set_motor_pid(uint8_t port, float kp, float ki, float kd)
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }
+
+void set_kinematics_config(const float inv_matrix[3][4], const float ticks_to_rad[4])
+{
+    memcpy((void*)ctx.tx.kinematics.inv_matrix, inv_matrix, sizeof(ctx.tx.kinematics.inv_matrix));
+    memcpy((void*)ctx.tx.kinematics.ticks_to_rad, ticks_to_rad, sizeof(ctx.tx.kinematics.ticks_to_rad));
+    ctx.tx.updates |= PI_BUFFER_UPDATE_KINEMATICS;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}
+
+void reset_stm32_odometry(void)
+{
+    ctx.tx.updates |= PI_BUFFER_UPDATE_ODOM_RESET;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}
+
+float odom_pos_x(void) { return ctx.rx.odometry.pos_x; }
+float odom_pos_y(void) { return ctx.rx.odometry.pos_y; }
+float odom_heading(void) { return ctx.rx.odometry.heading; }
+float odom_vx(void) { return ctx.rx.odometry.vx; }
+float odom_vy(void) { return ctx.rx.odometry.vy; }
+float odom_wz(void) { return ctx.rx.odometry.wz; }

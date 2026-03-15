@@ -312,20 +312,6 @@ namespace wombat
             if (motorStateResult.isSuccess())
             {
                 const auto& ms = motorStateResult.value();
-                // Log when BEMF changes significantly (timing instrumentation)
-                const auto delta = ms.backEmf - lastBemf_[port];
-                if (std::abs(delta) > 20)
-                {
-                    const auto nowUs = std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::system_clock::now().time_since_epoch()).count();
-                    logger_->info("[TIMING] bemf_change port=" + std::to_string(port)
-                        + " prev=" + std::to_string(lastBemf_[port])
-                        + " now=" + std::to_string(ms.backEmf)
-                        + " delta=" + std::to_string(delta)
-                        + " epoch_us=" + std::to_string(nowUs)
-                        + " stm32_update_us=" + std::to_string(sensorData.lastUpdate));
-                }
-                lastBemf_[port] = ms.backEmf;
 
                 auto publishResult = dataPublisher_->publishMotorState(port, ms);
                 if (publishResult.isFailure())

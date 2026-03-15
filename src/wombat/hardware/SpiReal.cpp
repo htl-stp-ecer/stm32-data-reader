@@ -140,6 +140,14 @@ namespace wombat
                 + std::to_string(rx->motor.position[3]) + "]");
         }
 
+        // Odometry (computed on STM32)
+        d.odometry.pos_x = rx->odometry.pos_x;
+        d.odometry.pos_y = rx->odometry.pos_y;
+        d.odometry.heading = rx->odometry.heading;
+        d.odometry.vx = rx->odometry.vx;
+        d.odometry.vy = rx->odometry.vy;
+        d.odometry.wz = rx->odometry.wz;
+
         return Result<SensorData>::success(d);
     }
 
@@ -257,6 +265,20 @@ namespace wombat
         set_shutdown_flag(SHUTDOWN_MOTOR_FLAG, enabled);
         set_shutdown_flag(SHUTDOWN_SERVO_FLAG, enabled);
         if (logger_) logger_->info("SPI: Shutdown " + std::string(enabled ? "enabled" : "disabled"));
+        return Result<void>::success();
+    }
+
+    Result<void> SpiReal::sendKinematicsConfig(const float inv_matrix[3][4], const float ticks_to_rad[4])
+    {
+        set_kinematics_config(inv_matrix, ticks_to_rad);
+        if (logger_) logger_->info("SPI: Kinematics config sent to STM32");
+        return Result<void>::success();
+    }
+
+    Result<void> SpiReal::resetOdometry()
+    {
+        reset_stm32_odometry();
+        if (logger_) logger_->info("SPI: STM32 odometry reset requested");
         return Result<void>::success();
     }
 }

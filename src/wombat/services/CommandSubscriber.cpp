@@ -118,6 +118,30 @@ namespace wombat
             return Result<void>::failure("Failed to subscribe to shutdown command: " + shutdownResult.error());
         }
 
+        // Kinematics config command (one-shot, reliable)
+        logger_->info("Subscribing to kinematics config channel: " + std::string(Channels::KINEMATICS_CONFIG_CMD));
+        auto kinResult = broker_->subscribe<raccoon::kinematics_config_t>(
+            Channels::KINEMATICS_CONFIG_CMD,
+            [this](const raccoon::kinematics_config_t& cmd) { onKinematicsConfigCommand(cmd); },
+            reliableOpts
+        );
+        if (kinResult.isFailure())
+        {
+            return Result<void>::failure("Failed to subscribe to kinematics config: " + kinResult.error());
+        }
+
+        // Odometry reset command (one-shot, reliable)
+        logger_->info("Subscribing to odometry reset channel: " + std::string(Channels::ODOM_RESET_CMD));
+        auto odomResetResult = broker_->subscribe<raccoon::scalar_i32_t>(
+            Channels::ODOM_RESET_CMD,
+            [this](const raccoon::scalar_i32_t& cmd) { onOdometryResetCommand(cmd); },
+            reliableOpts
+        );
+        if (odomResetResult.isFailure())
+        {
+            return Result<void>::failure("Failed to subscribe to odometry reset: " + odomResetResult.error());
+        }
+
         isInitialized_ = true;
         logger_->info("Command subscriber initialized successfully");
         return Result<void>::success();
@@ -158,9 +182,6 @@ namespace wombat
 
     void CommandSubscriber::onMotorPowerCommand(const PortId port, const raccoon::scalar_i32_t& command)
     {
-        const auto nowUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-        const auto lcmLatencyUs = nowUs - command.timestamp;
         if (!isInitialized_)
         {
             logger_->warn("Received motor command while not initialized");
@@ -170,16 +191,7 @@ namespace wombat
         if (!isTimestampNewer(Channels::motorPowerCommand(port), command.timestamp))
             return;
 
-        logger_->info("[TIMING] power_cmd port=" + std::to_string(port)
-            + " value=" + std::to_string(command.value)
-            + " msg_ts_us=" + std::to_string(command.timestamp)
-            + " recv_epoch_us=" + std::to_string(nowUs)
-            + " lcm_latency_us=" + std::to_string(lcmLatencyUs));
-
         const int32_t powerValue = command.value;
-
-        const auto preSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
 
         // Map percentage (-100..100) to duty (-400..400), preserving sign for direction.
         // power=0 means zero duty (open-loop off), NOT velocity PID hold.
@@ -187,19 +199,12 @@ namespace wombat
                                  ? static_cast<int32_t>(std::min(powerValue, 100) * 4)
                                  : static_cast<int32_t>(std::max(powerValue, -100) * 4);
         const auto result = deviceController_->setMotorPwm(port, duty);
-        const auto postSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
 
         if (result.isFailure())
         {
             logger_->error("Failed to set motor command: " + result.error());
             return;
         }
-
-        logger_->info("[TIMING] power_cmd port=" + std::to_string(port)
-            + " spi_done_epoch_us=" + std::to_string(postSpiUs)
-            + " spi_round_trip_us=" + std::to_string(postSpiUs - preSpiUs)
-            + " total_from_send_us=" + std::to_string(postSpiUs - command.timestamp));
     }
 
     void CommandSubscriber::onMotorModeCommand(const PortId port, const raccoon::scalar_i32_t& command)
@@ -273,10 +278,6 @@ namespace wombat
 
     void CommandSubscriber::onMotorVelocityCommand(const PortId port, const raccoon::scalar_i32_t& command)
     {
-        const auto nowUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-        const auto lcmLatencyUs = nowUs - command.timestamp;
-
         if (!isInitialized_)
         {
             logger_->warn("Received motor velocity command while not initialized");
@@ -286,36 +287,17 @@ namespace wombat
         if (!isTimestampNewer(Channels::motorVelocityCommand(port), command.timestamp))
             return;
 
-        logger_->info("[TIMING] velocity_cmd port=" + std::to_string(port)
-            + " value=" + std::to_string(command.value)
-            + " msg_ts_us=" + std::to_string(command.timestamp)
-            + " recv_epoch_us=" + std::to_string(nowUs)
-            + " lcm_latency_us=" + std::to_string(lcmLatencyUs));
-
-        const auto preSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
         const auto result = deviceController_->setMotorVelocity(port, command.value);
-        const auto postSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
 
         if (result.isFailure())
         {
             logger_->error("Failed to set motor velocity: " + result.error());
             return;
         }
-
-        logger_->info("[TIMING] velocity_cmd port=" + std::to_string(port)
-            + " spi_done_epoch_us=" + std::to_string(postSpiUs)
-            + " spi_round_trip_us=" + std::to_string(postSpiUs - preSpiUs)
-            + " total_from_send_us=" + std::to_string(postSpiUs - command.timestamp));
     }
 
     void CommandSubscriber::onMotorPositionCommand(const PortId port, const raccoon::vector3f_t& command)
     {
-        const auto nowUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-        const auto lcmLatencyUs = nowUs - command.timestamp;
-
         if (!isInitialized_)
         {
             logger_->warn("Received motor position command while not initialized");
@@ -328,28 +310,13 @@ namespace wombat
         const int32_t velocity = static_cast<int32_t>(command.x);
         const int32_t goalPosition = static_cast<int32_t>(command.y);
 
-        logger_->info("[TIMING] position_cmd port=" + std::to_string(port)
-            + " velocity=" + std::to_string(velocity) + " goal=" + std::to_string(goalPosition)
-            + " msg_ts_us=" + std::to_string(command.timestamp)
-            + " recv_epoch_us=" + std::to_string(nowUs)
-            + " lcm_latency_us=" + std::to_string(lcmLatencyUs));
-
-        const auto preSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
         const auto result = deviceController_->setMotorPosition(port, velocity, goalPosition);
-        const auto postSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
 
         if (result.isFailure())
         {
             logger_->error("Failed to set motor position: " + result.error());
             return;
         }
-
-        logger_->info("[TIMING] position_cmd port=" + std::to_string(port)
-            + " spi_done_epoch_us=" + std::to_string(postSpiUs)
-            + " spi_round_trip_us=" + std::to_string(postSpiUs - preSpiUs)
-            + " total_from_send_us=" + std::to_string(postSpiUs - command.timestamp));
     }
 
     void CommandSubscriber::onServoPositionCommand(const PortId port, const raccoon::scalar_f_t& command)
@@ -426,10 +393,6 @@ namespace wombat
 
     void CommandSubscriber::onMotorPidCommand(const PortId port, const raccoon::vector3f_t& command)
     {
-        const auto nowUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-        const auto lcmLatencyUs = nowUs - command.timestamp;
-
         if (!isInitialized_)
         {
             logger_->warn("Received motor PID command while not initialized");
@@ -443,28 +406,13 @@ namespace wombat
         const float ki = command.y;
         const float kd = command.z;
 
-        logger_->info("[TIMING] pid_cmd port=" + std::to_string(port)
-            + " kp=" + std::to_string(kp) + " ki=" + std::to_string(ki) + " kd=" + std::to_string(kd)
-            + " msg_ts_us=" + std::to_string(command.timestamp)
-            + " recv_epoch_us=" + std::to_string(nowUs)
-            + " lcm_latency_us=" + std::to_string(lcmLatencyUs));
-
-        const auto preSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
         const auto result = deviceController_->setMotorPid(port, kp, ki, kd);
-        const auto postSpiUs = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
 
         if (result.isFailure())
         {
             logger_->error("Failed to set motor PID: " + result.error());
             return;
         }
-
-        logger_->info("[TIMING] pid_cmd port=" + std::to_string(port)
-            + " spi_done_epoch_us=" + std::to_string(postSpiUs)
-            + " spi_round_trip_us=" + std::to_string(postSpiUs - preSpiUs)
-            + " total_from_send_us=" + std::to_string(postSpiUs - command.timestamp));
     }
 
     void CommandSubscriber::onShutdownCommand(const raccoon::scalar_i32_t& command)
@@ -492,5 +440,57 @@ namespace wombat
         dataPublisher_->publishShutdownStatus(shutdownFlags);
 
         logger_->info("Shutdown " + std::string(enabled ? "enabled" : "disabled"));
+    }
+
+    void CommandSubscriber::onKinematicsConfigCommand(const raccoon::kinematics_config_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received kinematics config while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::KINEMATICS_CONFIG_CMD, command.timestamp))
+            return;
+
+        // Unpack flat array into 3x4 matrix
+        float inv_matrix[3][4];
+        for (int r = 0; r < 3; r++)
+            for (int c = 0; c < 4; c++)
+                inv_matrix[r][c] = command.inv_matrix[r * 4 + c];
+
+        float ticks_to_rad[4];
+        for (int i = 0; i < 4; i++)
+            ticks_to_rad[i] = command.ticks_to_rad[i];
+
+        auto result = deviceController_->sendKinematicsConfig(inv_matrix, ticks_to_rad);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to send kinematics config: " + result.error());
+            return;
+        }
+
+        logger_->info("Kinematics config forwarded to STM32");
+    }
+
+    void CommandSubscriber::onOdometryResetCommand(const raccoon::scalar_i32_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received odometry reset while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::ODOM_RESET_CMD, command.timestamp))
+            return;
+
+        auto result = deviceController_->resetOdometry();
+        if (result.isFailure())
+        {
+            logger_->error("Failed to reset odometry: " + result.error());
+            return;
+        }
+
+        logger_->info("STM32 odometry reset");
     }
 } // namespace wombat

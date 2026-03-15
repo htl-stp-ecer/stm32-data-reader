@@ -375,6 +375,24 @@ namespace wombat
         return Result<void>::success();
     }
 
+    Result<void> DeviceController::sendKinematicsConfig(const float inv_matrix[3][4], const float ticks_to_rad[4])
+    {
+        if (!isInitialized_)
+        {
+            return Result<void>::failure("Device controller not initialized");
+        }
+        return spi_->sendKinematicsConfig(inv_matrix, ticks_to_rad);
+    }
+
+    Result<void> DeviceController::resetOdometry()
+    {
+        if (!isInitialized_)
+        {
+            return Result<void>::failure("Device controller not initialized");
+        }
+        return spi_->resetOdometry();
+    }
+
     Result<void> DeviceController::validatePortId(PortId port, PortId maxPort) const
     {
         if (port >= maxPort)

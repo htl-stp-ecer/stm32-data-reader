@@ -59,8 +59,5 @@ namespace wombat
         Result<void> publishCurrentData();
 
         Timestamp lastPublishedTimestamp_{0};
-
-        // BEMF change detection for timing instrumentation
-        int32_t lastBemf_[4]{0, 0, 0, 0};
     };
 } // namespace wombat
