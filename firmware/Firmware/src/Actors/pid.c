@@ -5,10 +5,13 @@
 #define PID_DEFAULT_I  0.045f
 #define PID_DEFAULT_D  0.000f
 
-// Position loop outputs a velocity target, not PWM directly
-#define PID_POS_DEFAULT_P  0.01f
+// Position loop outputs a velocity target (BEMF ticks), not PWM directly.
+// Pure proportional: the inner velocity PID already provides damping and
+// steady-state correction, so I and D on the outer loop are unnecessary.
+// P=0.15: at 1000-tick error → ~150 velocity target; speedLimit clamps large errors.
+#define PID_POS_DEFAULT_P  1.0f
 #define PID_POS_DEFAULT_I  0.0f
-#define PID_POS_DEFAULT_D  0.015f
+#define PID_POS_DEFAULT_D  0.0f
 // Max velocity the position loop can request (in BEMF ticks)
 
 void pid_init(PidController* pid)

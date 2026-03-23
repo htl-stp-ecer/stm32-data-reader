@@ -121,7 +121,7 @@ namespace wombat
         for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
         {
             motors_[i].backEmf = rx->motor.bemf[i];
-            motors_[i].position = rx->motor.position[i] - positionOffsets_[i];
+            motors_[i].position = rx->motor.position[i];
             motors_[i].done = (doneFlags & (1u << i)) != 0;
         }
 
@@ -247,8 +247,7 @@ namespace wombat
     Result<void> SpiReal::resetMotorPosition(PortId port)
     {
         if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        const auto rawValue = motors_[port].position + positionOffsets_[port];
-        positionOffsets_[port] = rawValue;
+        reset_motor_position_on_stm32(port);
         motors_[port].position = 0;
         return Result<void>::success();
     }

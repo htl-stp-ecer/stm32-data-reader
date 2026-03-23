@@ -441,6 +441,16 @@ int32_t get_motor_position(uint8_t port)
     return ctx.rx.motor.position[port];
 }
 
+void reset_motor_position_on_stm32(uint8_t port)
+{
+    if (port > 3)
+        return;
+    ctx.tx.motorPositionReset |= (1u << port);
+    ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_POS_RESET;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}
+
 uint8_t get_motor_done(void)
 {
     if (!spi_update())

@@ -144,7 +144,7 @@ namespace wombat
             motors_[i].backEmf = rawBemf;
 
             // Position: simple mock based on target
-            motors_[i].position = motors_[i].target - positionOffsets_[i];
+            motors_[i].position = motors_[i].target;
 
             // All motors report done in mock mode
             motors_[i].done = true;
@@ -227,8 +227,6 @@ namespace wombat
     Result<void> SpiMock::resetMotorPosition(PortId port)
     {
         if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        const auto rawValue = motors_[port].position + positionOffsets_[port];
-        positionOffsets_[port] = rawValue;
         motors_[port].position = 0;
         return Result<void>::success();
     }

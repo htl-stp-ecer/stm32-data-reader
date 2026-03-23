@@ -12,7 +12,10 @@
 
 #include <stdlib.h>
 
-#define MTP_DONE_THRESHOLD 50  // position error deadband for "done" in BEMF units
+#define MTP_DONE_THRESHOLD 40   // position error deadband for "done" in BEMF units
+#define MTP_MIN_VEL 15          // minimum crawl velocity to overcome static friction
+#define MTP_ACCEL_PER_TICK 150  // profile velocity acceleration rate (faster ramp-up)
+#define MTP_DECEL_FACTOR 10     // decel for sqrt curve: v = sqrt(2*factor*dist)
 
 const volatile Motor motors[MOTOR_COUNT] = {
     //motor 0 and 1 as well as 2 and 3 are switched
@@ -105,7 +108,9 @@ const volatile Motor motors[MOTOR_COUNT] = {
 };
 
 static PidController pidControllers[MOTOR_COUNT]; // velocity (inner) loop
-static PidController posPidControllers[MOTOR_COUNT]; // position (outer) loop
+static PidController posPidControllers[MOTOR_COUNT]; // position (outer) loop — unused for MTP, kept for API
+static int32_t profileVel[MOTOR_COUNT]; // trapezoidal profile current velocity
+static int32_t prevGoalPos[MOTOR_COUNT]; // track goal changes for sticky done reset
 volatile MotorData motor_data = {0};
 
 void initMotors()
@@ -251,11 +256,12 @@ void update_motor(const uint8_t channel, const int16_t bemf_filtered)
     // Track previous control mode per motor to detect mode changes
     static uint8_t prevControlMode[MOTOR_COUNT] = {OFF};
 
-    // Detect mode change and reset PID + MRP state
+    // Detect mode change and reset state
     if (ctlMode != prevControlMode[channel])
     {
         pid_reset(&pidControllers[channel]);
         pid_reset(&posPidControllers[channel]);
+        profileVel[channel] = 0;
         prevControlMode[channel] = ctlMode;
         // Clear done flag on mode change
         motor_data.done &= ~(1u << channel);
@@ -291,32 +297,87 @@ void update_motor(const uint8_t channel, const int16_t bemf_filtered)
 
     case MOT_MODE_MTP:
         {
-            // Cascaded PID: position loop → velocity target → velocity loop → PWM
+            // Clear done if goal position changed (new MTP command)
+            if (goalPos != prevGoalPos[channel])
+            {
+                prevGoalPos[channel] = goalPos;
+                motor_data.done &= ~(1u << channel);
+                profileVel[channel] = 0;
+                pid_reset(&pidControllers[channel]);
+            }
+
+            // Sticky done: once reached, stay done until goal changes or mode changes
+            if (motor_data.done & (1u << channel))
+            {
+                motor_setDirection(channel, SHORT_BREAK);
+                motor_setDutycycle(channel, 0);
+                break;
+            }
+
+            // Sqrt decel curve → velocity target → velocity PID → PWM
             int32_t currentPos = motor_data.position[channel];
             int32_t posError = goalPos - currentPos;
             int32_t absError = posError < 0 ? -posError : posError;
-
-            int32_t velTarget = pid_update(&posPidControllers[channel], goalPos, currentPos);
-
             int32_t speedLimit = rxBuffer.motorTarget[channel];
-            if (speedLimit > 0)
-            {
-                if (velTarget > speedLimit) velTarget = speedLimit;
-                else if (velTarget < -speedLimit) velTarget = -speedLimit;
-            }
-
-            int32_t pidOut = pid_update(&pidControllers[channel], velTarget, bemf_filtered);
-            applyMotorOutput(channel, pidOut);
-
+            if (speedLimit <= 0) speedLimit = 300;
 
             if (absError <= MTP_DONE_THRESHOLD)
             {
+                // Done — active brake, set sticky flag
+                profileVel[channel] = 0;
                 motor_data.done |= (1u << channel);
+                motor_setDirection(channel, SHORT_BREAK);
+                motor_setDutycycle(channel, 0);
+                break;
+            }
+            int32_t dir = (posError > 0) ? 1 : -1;
+
+            // Deceleration curve: v = sqrt(2 * decel_factor * distance)
+            // Conservative decel_factor means early deceleration start
+            uint32_t val = 2u * MTP_DECEL_FACTOR * (uint32_t)absError;
+            uint32_t vDecel = 0;
+            if (val > 0)
+            {
+                uint32_t x = val;
+                uint32_t r = 0;
+                for (int b = 15; b >= 0; b--)
+                {
+                    uint32_t test = r | (1u << b);
+                    if (test * test <= x)
+                        r = test;
+                }
+                vDecel = r;
+            }
+
+            // Apply minimum velocity (overcome friction)
+            if (vDecel < MTP_MIN_VEL) vDecel = MTP_MIN_VEL;
+
+            // Apply speed limit
+            int32_t desiredVel = (int32_t)vDecel;
+            if (desiredVel > speedLimit) desiredVel = speedLimit;
+            desiredVel *= dir;
+
+            // Rate-limit acceleration only; allow instant deceleration
+            int32_t absDesired = desiredVel < 0 ? -desiredVel : desiredVel;
+            int32_t absCurrent = profileVel[channel] < 0 ? -profileVel[channel] : profileVel[channel];
+            if (absDesired >= absCurrent)
+            {
+                // Accelerating — rate limit
+                int32_t velDiff = desiredVel - profileVel[channel];
+                if (velDiff > MTP_ACCEL_PER_TICK) velDiff = MTP_ACCEL_PER_TICK;
+                else if (velDiff < -MTP_ACCEL_PER_TICK) velDiff = -MTP_ACCEL_PER_TICK;
+                profileVel[channel] += velDiff;
             }
             else
             {
-                motor_data.done &= ~(1u << channel);
+                // Decelerating — follow curve directly and reset PID integral
+                // to prevent windup from acceleration phase fighting the brake
+                profileVel[channel] = desiredVel;
+                pidControllers[channel].iErr = 0.0f;
             }
+
+            int32_t pidOut = pid_update(&pidControllers[channel], profileVel[channel], bemf_filtered);
+            applyMotorOutput(channel, pidOut);
             break;
         }
 

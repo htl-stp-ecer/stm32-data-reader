@@ -13,7 +13,7 @@ extern "C" {
 
 #include <stdint.h>
 
-#define TRANSFER_VERSION 15
+#define TRANSFER_VERSION 16
 
 #define PI_BUFFER_UPDATE_MOTOR_PID_SPEED 0x01
 #define PI_BUFFER_UPDATE_MOTOR_PID_POS   0x02
@@ -21,6 +21,7 @@ extern "C" {
 #define PI_BUFFER_UPDATE_SAVE_IMU_CAL    0x08
 #define PI_BUFFER_UPDATE_KINEMATICS      0x10
 #define PI_BUFFER_UPDATE_ODOM_RESET      0x20
+#define PI_BUFFER_UPDATE_MOTOR_POS_RESET 0x40
 
 #define SHUTDOWN_SERVO 0x01
 #define SHUTDOWN_MOTOR 0x02
@@ -174,6 +175,9 @@ typedef struct __attribute__ ((packed))
 
     /* --- MOTOR GOAL POSITION (for MTP mode) --- */
     int32_t motorGoalPosition[4]; // target position in accumulated BEMF ticks
+
+    /* --- MOTOR POSITION RESET (bit N = reset motor N position to 0) --- */
+    uint8_t motorPositionReset;
 
     /* --- SERVO MODE --- */
     uint8_t servoMode;

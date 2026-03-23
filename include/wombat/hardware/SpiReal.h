@@ -44,7 +44,6 @@ namespace wombat
         std::shared_ptr<Logger> logger_;
         std::array<MotorState, MAX_MOTOR_PORTS> motors_{};
         std::array<ServoState, MAX_SERVO_PORTS> servos_{};
-        std::array<int32_t, MAX_MOTOR_PORTS> positionOffsets_{};
         float filteredBatteryVoltage_{0.0f};
     };
 }

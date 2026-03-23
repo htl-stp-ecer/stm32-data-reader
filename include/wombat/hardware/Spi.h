@@ -93,6 +93,7 @@ float imuTemperature(void);
 
 int32_t bemf(uint8_t mot);
 int32_t get_motor_position(uint8_t port);
+void reset_motor_position_on_stm32(uint8_t port);
 uint8_t get_motor_done(void);
 uint16_t analog_in(uint8_t idx);
 uint16_t digital_raw(void);

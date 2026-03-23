@@ -172,6 +172,19 @@ int main(void)
             odometry_reset();
         }
 
+        if (updateFlags & PI_BUFFER_UPDATE_MOTOR_POS_RESET)
+        {
+            updateFlags &= ~PI_BUFFER_UPDATE_MOTOR_POS_RESET;
+            for (int ch = 0; ch < MOTOR_COUNT; ch++)
+            {
+                if (rxBuffer.motorPositionReset & (1u << ch))
+                {
+                    motor_data.position[ch] = 0;
+                }
+            }
+            rxBuffer.motorPositionReset = 0;
+        }
+
         readImu();
 
         //update spi buffer if possible (analog is updated at 250Hz from timer ISR)

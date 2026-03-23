@@ -81,6 +81,12 @@ namespace wombat
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<raccoon::vector3f_t>(
+            MAX_MOTOR_PORTS, Channels::motorRelativeCommand,
+            [this](PortId p, const raccoon::vector3f_t& cmd) { onMotorRelativeCommand(p, cmd); },
+            "motor relative command", reliableOpts);
+        if (r.isFailure()) return r;
+
+        r = subscribeForPorts<raccoon::vector3f_t>(
             MAX_MOTOR_PORTS, Channels::motorPidCommand,
             [this](PortId p, const raccoon::vector3f_t& cmd) { onMotorPidCommand(p, cmd); },
             "motor PID command", reliableOpts);
@@ -317,6 +323,40 @@ namespace wombat
             logger_->error("Failed to set motor position: " + result.error());
             return;
         }
+    }
+
+    void CommandSubscriber::onMotorRelativeCommand(const PortId port, const raccoon::vector3f_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received motor relative command while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::motorRelativeCommand(port), command.timestamp))
+            return;
+
+        const int32_t velocity = static_cast<int32_t>(command.x);
+        const int32_t delta = static_cast<int32_t>(command.y);
+
+        auto posResult = deviceController_->getMotorPosition(port);
+        if (posResult.isFailure())
+        {
+            logger_->error("Failed to read motor " + std::to_string(port) + " position for relative move: " + posResult.error());
+            return;
+        }
+
+        const int32_t goalPosition = posResult.value() + delta;
+        const auto result = deviceController_->setMotorPosition(port, velocity, goalPosition);
+
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set motor relative position: " + result.error());
+            return;
+        }
+
+        logger_->debug("Motor " + std::to_string(port) + " relative move: delta=" +
+            std::to_string(delta) + ", goal=" + std::to_string(goalPosition));
     }
 
     void CommandSubscriber::onServoPositionCommand(const PortId port, const raccoon::scalar_f_t& command)
