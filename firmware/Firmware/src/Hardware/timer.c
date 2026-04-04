@@ -7,6 +7,7 @@
 #include "Hardware/timer.h"
 #include "communication_with_pi.h"
 #include "Hardware/timerInit.h"
+#include <stdio.h>
 
 volatile uint32_t microSeconds = 0;
 
@@ -35,6 +36,23 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
             if (bemfState == WAITING_TO_START)
             {
                 doAfterXuSeconds(startBemfReading(), BEMF_CONVERSION_START_DELAY_TIME, bemfLastStart);
+            }
+
+            // Detect BEMF stall — if the ADC callback hasn't fired for
+            // a full sampling interval, something is stuck.
+            static uint32_t lastSeenBemfConv = 0;
+            static uint32_t bemfStallStart = 0;
+            if (bemfConvCount != lastSeenBemfConv)
+            {
+                lastSeenBemfConv = bemfConvCount;
+                bemfStallStart = microSeconds;
+            }
+            else if (microSeconds - bemfStallStart >= BEMF_SAMPLING_INTERVAL * 2)
+            {
+                printf("[stp] ERROR: BEMF stall! st=%d mot=%d conv=%lu\r\n",
+                       (int)bemfState, (int)bemfCurrentMotor,
+                       (unsigned long)bemfConvCount);
+                bemfStallStart = microSeconds; // rate-limit to once per 2*interval
             }
         }
 

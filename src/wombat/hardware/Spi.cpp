@@ -545,10 +545,11 @@ void set_motor_pid(uint8_t port, float kp, float ki, float kd)
         exit(EXIT_FAILURE);
 }
 
-void set_kinematics_config(const float inv_matrix[3][4], const float ticks_to_rad[4])
+void set_kinematics_config(const float inv_matrix[3][4], const float ticks_to_rad[4], const float fwd_matrix[4][3])
 {
     memcpy((void*)ctx.tx.kinematics.inv_matrix, inv_matrix, sizeof(ctx.tx.kinematics.inv_matrix));
     memcpy((void*)ctx.tx.kinematics.ticks_to_rad, ticks_to_rad, sizeof(ctx.tx.kinematics.ticks_to_rad));
+    memcpy((void*)ctx.tx.kinematics.fwd_matrix, fwd_matrix, sizeof(ctx.tx.kinematics.fwd_matrix));
     ctx.tx.updates |= PI_BUFFER_UPDATE_KINEMATICS;
     if (!spi_force_update())
         exit(EXIT_FAILURE);

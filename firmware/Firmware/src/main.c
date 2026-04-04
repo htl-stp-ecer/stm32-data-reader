@@ -97,7 +97,7 @@ int main(void)
     startContinuousAnalogSampling(); // kick off continuous ADC1 + circular DMA (oversampling)
     systemTimerStart();
 
-    printf("Booted, firmware ready\r\n");
+    printf("[stp] Booted, firmware ready\r\n");
 
     initPiCommunication();
     initMotors();
@@ -120,7 +120,7 @@ int main(void)
         if (current_time - last_heartbeat >= HEARTBEAT_INTERVAL)
         {
             printf(
-                "hb #%lu t=%lus conv=%lu st=%d mot=%d adc=[%u,%u] bemf=[%ld,%ld,%ld,%ld] raw=[%d,%d,%d,%d]\r\n",
+                "[stp] hb #%lu t=%lus conv=%lu st=%d mot=%d adc=[%u,%u] bemf=[%ld,%ld,%ld,%ld] raw=[%d,%d,%d,%d]\r\n",
                 ++heartbeat_count, current_time / 1000,
                 (unsigned long)bemfConvCount, (int)bemfState,
                 (int)bemfCurrentMotor,
@@ -155,7 +155,7 @@ int main(void)
         if (updateFlags & PI_BUFFER_UPDATE_SAVE_IMU_CAL)
         {
             updateFlags &= ~PI_BUFFER_UPDATE_SAVE_IMU_CAL;
-            printf("Save calibration requested by Pi (DISABLED)\r\n");
+            printf("[stp] Save calibration requested by Pi (DISABLED)\r\n");
             /* cal_save_to_flash() disabled — flash erase blocks main loop */
         }
 
@@ -163,7 +163,7 @@ int main(void)
         {
             updateFlags &= ~PI_BUFFER_UPDATE_KINEMATICS;
             odometry_configure(&rxBuffer.kinematics);
-            printf("Kinematics config received from Pi\r\n");
+            printf("[stp] Kinematics config received from Pi\r\n");
         }
 
         if (updateFlags & PI_BUFFER_UPDATE_ODOM_RESET)

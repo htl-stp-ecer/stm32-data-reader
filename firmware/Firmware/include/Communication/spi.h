@@ -26,11 +26,34 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
+#include <stdbool.h>
 #include "../main.h"
 
 extern SPI_HandleTypeDef hspi2;
 extern SPI_HandleTypeDef hspi3;
 
+/**
+ * @brief Wait for SPI2 BSY flag to clear, with a 100 µs timeout.
+ * @return true if SPI2 is idle, false if timed out (SPI2 stuck).
+ *
+ * Uses the DWT cycle counter (CYCCNT) which runs independently of
+ * interrupts, so this is safe to call from any context including ISRs.
+ * At 180 MHz, 100 µs = 18 000 cycles.
+ */
+#define SPI2_WAIT_TIMEOUT_CYCLES 18000u // 100 µs at 180 MHz
+
+static inline bool spi2_wait_idle(void)
+{
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CYCCNT = 0;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    while (SPI2->SR & SPI_SR_BSY)
+    {
+        if (DWT->CYCCNT >= SPI2_WAIT_TIMEOUT_CYCLES)
+            return false;
+    }
+    return true;
+}
 
 void MX_SPI2_Init(void);
 void MX_SPI3_Init(void);

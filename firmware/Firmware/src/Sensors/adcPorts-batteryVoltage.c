@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "Communication/communication_with_pi.h"
+#include "Communication/spi.h"
 #include "Sensors/adcPorts-batteryVoltage.h"
 #include "Sensors/adcInit.h"
 #include "Sensors/bemf.h"
@@ -61,8 +62,8 @@ int updatingAnalogValuesInSpiBuffer(void)
     if (adcSampleCount == 0)
         return 2;
 
-    while (SPI2->SR & SPI_SR_BSY)
-        continue;
+    if (!spi2_wait_idle())
+        return 1; // SPI2 stuck — skip rather than blocking ISR
 
     // Atomic snapshot and reset — prevent DMA callback from firing mid-swap
     __disable_irq();

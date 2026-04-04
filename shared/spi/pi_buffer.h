@@ -13,7 +13,7 @@ extern "C" {
 
 #include <stdint.h>
 
-#define TRANSFER_VERSION 16
+#define TRANSFER_VERSION 17
 
 #define PI_BUFFER_UPDATE_MOTOR_PID_SPEED 0x01
 #define PI_BUFFER_UPDATE_MOTOR_PID_POS   0x02
@@ -103,6 +103,11 @@ typedef struct __attribute__ ((packed))
 
     /* Per-motor encoder calibration: radians per BEMF tick */
     float ticks_to_rad[4];
+
+    /* Forward kinematics matrix: body velocity [vx, vy, wz] -> expected wheel speeds (rad/s)
+     * Row i: coefficients for wheel i: w_i = fwd[i][0]*vx + fwd[i][1]*vy + fwd[i][2]*wz
+     * Used for per-wheel slip detection via residual analysis. */
+    float fwd_matrix[4][3];
 }
 
 KinematicsConfig;

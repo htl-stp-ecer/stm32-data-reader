@@ -28,6 +28,7 @@ extern volatile float bemfLastReadings[];
 extern volatile float bemfRawReadings[];
 extern volatile enum BemfState bemfState;
 extern volatile uint32_t bemfConvCount;
+extern volatile uint32_t bemfConvCountPerMotor[];
 extern volatile uint8_t bemfCurrentMotor;
 
 void stop_motors_for_bemf_conv();

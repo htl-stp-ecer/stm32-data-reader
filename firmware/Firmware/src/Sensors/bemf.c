@@ -9,6 +9,7 @@
 
 #include "adcInit.h"
 #include "communication_with_pi.h"
+#include "Communication/spi.h"
 #include "Hardware/timer.h"
 #include "Data_structures/filter.h"
 
@@ -21,12 +22,16 @@ volatile float bemfLastReadings[MOTOR_COUNT] = {0};
 volatile float bemfRawReadings[MOTOR_COUNT] = {0};
 volatile enum BemfState bemfState = STOPPED;
 volatile uint32_t bemfConvCount = 0; // how many times processBEMF actually ran
+volatile uint32_t bemfConvCountPerMotor[MOTOR_COUNT] = {0}; // per-motor conversion count
 volatile uint8_t bemfCurrentMotor = 0;
 static volatile uint32_t bemfCycleStartTime = 0;
 
 // Circular buffer for median-of-3 pre-filter (per motor)
 static float medianBuf[MOTOR_COUNT][MEDIAN_WINDOW] = {{0}};
 static uint8_t medianIdx[MOTOR_COUNT] = {0};
+
+// Float accumulator per motor — keeps fractional ticks between updates
+static float positionAccum[MOTOR_COUNT] = {0};
 
 // ADC channel pairs per software motor: {low, high}
 static const uint32_t bemfAdcChannels[MOTOR_COUNT][2] = {
@@ -98,6 +103,7 @@ void processBEMF()
     {
         bemfConvCount++;
         uint8_t ch = bemfCurrentMotor;
+        bemfConvCountPerMotor[ch]++;
 
         // Compute differential BEMF and normalize for VDDA drift
         // buf[0] = low channel, buf[1] = high channel
@@ -115,9 +121,17 @@ void processBEMF()
         {
             motor_data.bemf[ch] = (int32_t)bemfLastReadings[ch];
 
-            if (bemfLastReadings[ch] > 3 || bemfLastReadings[ch] < -3)
+            // Accumulate in float to preserve fractional ticks and sub-threshold movement.
+            // No dead zone — all readings contribute. Noise averages out over time;
+            // the median + EMA filters upstream already suppress single-sample spikes.
+            positionAccum[ch] += bemfLastReadings[ch];
+
+            // Transfer whole ticks to integer position, keep remainder
+            int32_t whole = (int32_t)positionAccum[ch];
+            if (whole != 0)
             {
-                motor_data.position[ch] += (int32_t)bemfLastReadings[ch];
+                motor_data.position[ch] += whole;
+                positionAccum[ch] -= (float)whole;
             }
         }
 
@@ -148,9 +162,8 @@ void bemf_watchdog_check(uint32_t now)
 
 void updatingMotorsInSpiBuffer()
 {
-    //check the bemf-State
-    while (SPI2->SR & SPI_SR_BSY) //check if the spi buffer is in use
-        continue;
+    if (!spi2_wait_idle())
+        return; // SPI2 stuck — skip this update rather than hang
 
     txBuffer.motor = motor_data;
 }

@@ -33,7 +33,8 @@ namespace wombat
         virtual Result<void> setMotorPid(PortId port, float kp, float ki, float kd) = 0;
         virtual Result<void> setShutdown(bool enabled) = 0;
 
-        virtual Result<void> sendKinematicsConfig(const float inv_matrix[3][4], const float ticks_to_rad[4]) = 0;
+        virtual Result<void> sendKinematicsConfig(const float inv_matrix[3][4], const float ticks_to_rad[4],
+                                                  const float fwd_matrix[4][3]) = 0;
         virtual Result<void> resetOdometry() = 0;
     };
 }

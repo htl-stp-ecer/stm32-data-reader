@@ -18,7 +18,7 @@ HAL_TIM_ActiveChannel convertChanalToActiveChanal(uint16_t chanal);
 
 #define doEveryXuSeconds(func, interval, lastExecutionTime)\
 { \
-        if((microSeconds) - (interval) >= (lastExecutionTime)){ \
+        if((microSeconds) - (lastExecutionTime) >= (interval)){ \
             lastExecutionTime = microSeconds; \
             func; \
         } \

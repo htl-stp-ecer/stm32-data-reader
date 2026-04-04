@@ -128,3 +128,53 @@ SKIP_FIRMWARE=1 ./build.sh                # Skip firmware, reader only
 
 - `stm32_data_reader.service` - Main application service
 - `lcm-loopback-multicast.service` - Required for LCM multicast on loopback
+
+## Testing on Hardware (Autonomous)
+
+When making firmware or reader changes that affect motor/sensor behavior, deploy and test on the real hardware. If the
+user doesn't provide the Pi's IP address, ask for it.
+
+### Deploy & test workflow:
+
+```bash
+RPI_HOST=<ip> bash deploy.sh              # Build + deploy reader + firmware
+```
+
+### Running Python test scripts on the Pi:
+
+```bash
+scp test_script.py pi@<ip>:/home/pi/      # Copy test script
+ssh pi@<ip> "python3 /home/pi/test_script.py"  # Run it
+```
+
+### Raccoon transport Python library (on the Pi):
+
+The raccoon-transport Python package is installed system-wide on the Pi. Use it to send LCM commands and read sensor
+data. Key imports:
+
+```python
+from raccoon_transport import Transport
+from raccoon_transport.channels import Channels
+from raccoon_transport.types.raccoon import vector3f_t, scalar_i32_t, scalar_f_t
+```
+
+### Motor command examples (Python, runs on Pi):
+
+- **Position command** (`vector3f_t`): `x` = speed limit, `y` = goal position. Publish to
+  `Channels.motor_position_command(port)` with `reliable=True`.
+- **Position reset** (`scalar_i32_t`): `value` must be non-zero (e.g. `1`) to trigger. Publish to
+  `Channels.motor_position_reset_command(port)` with `reliable=True`.
+- **Stop motor** (`scalar_i32_t`): Publish to `Channels.motor_stop_command(port)` with `reliable=True`.
+- **Read position**: Subscribe to `Channels.motor_position(port)`, decode as `scalar_i32_t`, field is `.value`.
+- **Read done flag**: Subscribe to `Channels.motor_done(port)`, decode as `scalar_i32_t`, field is `.value`.
+- **Read BEMF**: Subscribe to `Channels.back_emf(port)`, decode as `scalar_i32_t`, field is `.value`.
+
+### Important notes:
+
+- Motor commands that change state (position, stop, reset, mode) use `reliable=True` delivery.
+- Velocity/power commands (continuous) do NOT use reliable delivery.
+- `scalar_i8_t` has field `.dir`, not `.value`. Used for servo mode only.
+- Position reset resets the counter on the STM32 directly (not just a Pi-side offset).
+- Use `time.sleep(0.3-0.5)` after reset before sending new commands.
+- Use timeouts when waiting for done — motors may not finish if blocked or misconfigured.
+- The `test_mtp.py` script in the repo root is a reference for MTP testing.

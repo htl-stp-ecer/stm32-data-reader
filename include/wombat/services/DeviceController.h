@@ -43,7 +43,8 @@ namespace wombat
         Result<void> setShutdown(bool enabled);
 
         // Odometry: send kinematics matrix to STM32
-        Result<void> sendKinematicsConfig(const float inv_matrix[3][4], const float ticks_to_rad[4]);
+        Result<void> sendKinematicsConfig(const float inv_matrix[3][4], const float ticks_to_rad[4],
+                                          const float fwd_matrix[4][3]);
         // Odometry: reset STM32 integrated pose
         Result<void> resetOdometry();
 

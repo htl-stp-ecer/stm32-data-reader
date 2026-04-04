@@ -290,7 +290,7 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef* hspi)
         {
             if (rxBuffer.updates != 0)
             {
-                updateFlags = rxBuffer.updates;
+                updateFlags |= rxBuffer.updates;
             }
 
             sanitizeMotorCommandsForShutdown();

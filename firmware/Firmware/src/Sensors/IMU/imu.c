@@ -143,8 +143,8 @@ void readImu(void)
         /* Calibration saving disabled — flash erase blocks main loop.
          * TODO: re-enable once flash ops run from RAM or use a smaller sector. */
 
-        while (SPI2->SR & SPI_SR_BSY)
-            continue;
+        if (!spi2_wait_idle())
+            return; // SPI2 stuck — skip this IMU buffer update
         txBuffer.imu = imu;
     }
 }

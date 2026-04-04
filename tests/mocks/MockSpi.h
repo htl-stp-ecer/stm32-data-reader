@@ -58,7 +58,8 @@ namespace wombat::test
         );
         MOCK_METHOD(Result<void>, setShutdown, (bool enabled), (override)
         );
-        MOCK_METHOD(Result<void>, sendKinematicsConfig, (const float (*)[4], const float*), (override)
+        MOCK_METHOD(Result<void>, sendKinematicsConfig, (const float (*)[4], const float*,
+                    const float (*)[3]), (override)
         );
         MOCK_METHOD(Result<void>, resetOdometry, (), (override)
         );

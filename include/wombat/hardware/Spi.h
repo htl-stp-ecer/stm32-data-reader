@@ -53,7 +53,7 @@ void set_servo_pos(uint8_t port, uint16_t microseconds);
 void set_motor_pid(uint8_t port, float kp, float ki, float kd);
 
 /* Odometry: send kinematics config to STM32 */
-void set_kinematics_config(const float inv_matrix[3][4], const float ticks_to_rad[4]);
+void set_kinematics_config(const float inv_matrix[3][4], const float ticks_to_rad[4], const float fwd_matrix[4][3]);
 
 /* Odometry: request STM32 to reset its integrated pose */
 void reset_stm32_odometry(void);

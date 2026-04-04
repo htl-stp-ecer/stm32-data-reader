@@ -270,11 +270,13 @@ namespace wombat
                 ", quat=" + std::to_string(accuracy.quaternion));
         }
 
-        // Always publish so recorders get values immediately
-        broker_->publish(Channels::GYRO_ACCURACY, toLcmScalarI8(accuracy.gyro));
-        broker_->publish(Channels::ACCEL_ACCURACY, toLcmScalarI8(accuracy.accelerometer));
-        broker_->publish(Channels::COMPASS_ACCURACY, toLcmScalarI8(accuracy.compass));
-        broker_->publish(Channels::QUATERNION_ACCURACY, toLcmScalarI8(accuracy.quaternion));
+        if (isFirstTime || hasChanged)
+        {
+            broker_->publish(Channels::GYRO_ACCURACY, toLcmScalarI8(accuracy.gyro));
+            broker_->publish(Channels::ACCEL_ACCURACY, toLcmScalarI8(accuracy.accelerometer));
+            broker_->publish(Channels::COMPASS_ACCURACY, toLcmScalarI8(accuracy.compass));
+            broker_->publish(Channels::QUATERNION_ACCURACY, toLcmScalarI8(accuracy.quaternion));
+        }
 
         lastAccuracy_ = accuracy;
 

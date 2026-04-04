@@ -503,7 +503,13 @@ namespace wombat
         for (int i = 0; i < 4; i++)
             ticks_to_rad[i] = command.ticks_to_rad[i];
 
-        auto result = deviceController_->sendKinematicsConfig(inv_matrix, ticks_to_rad);
+        // Unpack flat array into 4x3 forward kinematics matrix
+        float fwd_matrix[4][3];
+        for (int r = 0; r < 4; r++)
+            for (int c = 0; c < 3; c++)
+                fwd_matrix[r][c] = command.fwd_matrix[r * 3 + c];
+
+        auto result = deviceController_->sendKinematicsConfig(inv_matrix, ticks_to_rad, fwd_matrix);
         if (result.isFailure())
         {
             logger_->error("Failed to send kinematics config: " + result.error());
