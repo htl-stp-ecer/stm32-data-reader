@@ -1,0 +1,11 @@
+name: Reboot Runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  reboot:
+    runs-on: self-hosted
+    steps:
+      - name: Reboot machine
+        run: sudo reboot
