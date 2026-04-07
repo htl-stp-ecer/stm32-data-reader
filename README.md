@@ -1,249 +1,211 @@
-# STM32 Data Reader
+<div align="center">
 
-A C++20 application that runs on a Raspberry Pi to communicate with an STM32 microcontroller over SPI. It reads sensor data (IMU, analog inputs, digital inputs) and controls motors and servos, publishing all data over LCM (Lightweight Communications and Marshalling) multicast messaging.
+<img src="https://raw.githubusercontent.com/htl-stp-ecer/.github/main/profile/raccoon-logo.svg" alt="stm32-data-reader" width="100"/>
 
-## Features
+# stm32-data-reader
 
-- **IMU Data**: Gyroscope, accelerometer, magnetometer, and orientation quaternion with accuracy indicators
-- **Motor Control**: 4 motor ports with speed/direction control and back-EMF sensing
-- **Servo Control**: 4 servo ports with position control
-- **Analog Inputs**: 6 analog sensor ports
-- **Digital I/O**: 16-bit digital input reading
-- **System Monitoring**: Battery voltage, IMU temperature, CPU temperature
-- **LCM Messaging**: Real-time publish/subscribe communication with change detection
+**Raspberry Pi ↔ STM32 SPI bridge — reads sensor data and publishes it via LCM for RaccoonOS.**
 
-## Prerequisites
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](COPYING)
+![C++20](https://img.shields.io/badge/C%2B%2B20-00599C?logo=cplusplus&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Raspberry%20Pi%20ARM64-A22846?logo=raspberrypi&logoColor=white)
+![STM32](https://img.shields.io/badge/STM32-03234B?logo=stmicroelectronics&logoColor=white)
 
-### For Cross-Compilation (Recommended)
+> 📖 **Full documentation at [raccoon-docs.pages.dev](https://raccoon-docs.pages.dev/)**
 
-- Docker with BuildX support
-- QEMU user-mode emulation (for ARM64 builds on x86)
+</div>
 
-### For Local Development
+---
 
-- CMake 3.16+
-- C++20 compatible compiler (GCC 10+ or Clang 12+)
-- Ninja or Make
+This service runs on the Raspberry Pi inside the [KIPR Wombat](https://www.kipr.org/kipr/hardware-software) and acts as the hardware bridge between the STM32 microcontroller and the rest of RaccoonOS. It communicates with the STM32 over SPI, reads IMU, analog, and digital sensor data, and publishes everything onto the LCM multicast bus — where [RaccoonLib](https://github.com/htl-stp-ecer/raccoon-lib) and [StpVelox](https://github.com/htl-stp-ecer/botui) can consume it. Motor and servo commands flow the other way: received from LCM and forwarded to the STM32.
 
-### On Target Raspberry Pi
+---
 
-- Raspberry Pi OS (64-bit recommended)
-- SPI enabled (`sudo raspi-config` → Interface Options → SPI)
-- Network connectivity for LCM multicast
+## What it bridges
+
+**Publishes (STM32 → LCM):**
+- IMU — gyroscope, accelerometer, magnetometer, orientation quaternion, calibration accuracy
+- Analog inputs (6 ports), digital inputs (16-bit)
+- Motor back-EMF readings (4 ports)
+- System — battery voltage, IMU temperature, CPU temperature
+
+**Subscribes (LCM → STM32):**
+- Motor power and stop commands (4 ports)
+- Servo position commands (4 ports)
+- BEMF reset, scale, and offset commands
+
+Full channel reference: see [LCM Channels](#lcm-channels) below.
+
+---
 
 ## Building
 
-### Cross-Compile for Raspberry Pi (ARM64)
-
-The recommended way to build for deployment:
+The recommended build targets ARM64 via Docker cross-compilation.
 
 ```bash
-# Standard release build
-./build.sh
-
-# Force CMake reconfiguration
-FORCE_RECONFIGURE=1 ./build.sh
-
-# Debug build
+./build.sh                       # Release build (reader + firmware)
+SKIP_FIRMWARE=1 ./build.sh       # Reader only
 CMAKE_BUILD_TYPE=Debug ./build.sh
-
-# Rebuild Docker image
-REBUILD_IMAGE=1 ./build.sh
+FORCE_RECONFIGURE=1 ./build.sh   # Force CMake reconfiguration
+REBUILD_IMAGE=1 ./build.sh       # Rebuild Docker image
 ```
 
-The binary is output to `build/stm32_data_reader`.
+Output: `build/stm32_data_reader`
 
-### Local Development Build
-
-For testing on your development machine using the mock SPI implementation:
+### Local build (mock SPI, no hardware needed)
 
 ```bash
-mkdir -p cmake-build-debug
-cd cmake-build-debug
+mkdir -p cmake-build-debug && cd cmake-build-debug
 cmake .. -DUSE_SPI_MOCK=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build . -j$(nproc)
 ```
 
-### CMake Options
+| CMake option | Default | Description |
+|:-------------|:--------|:------------|
+| `USE_SPI_MOCK` | `ON` | Mock SPI — build and test without hardware |
+| `CMAKE_BUILD_TYPE` | `Release` | `Release`, `Debug`, `RelWithDebInfo` |
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `USE_SPI_MOCK` | `ON` | Use mock SPI for testing without hardware |
-| `CMAKE_BUILD_TYPE` | `Release` | Build type (Debug, Release, RelWithDebInfo) |
+---
 
 ## Deployment
 
-### Automatic Deployment
-
-Deploy to a Raspberry Pi over SSH:
-
 ```bash
-# Uses default settings (pi@10.101.156.14)
-./deploy.sh
-
-# Override target
-RPI_USER=myuser RPI_HOST=192.168.1.100 ./deploy.sh
-
-# Custom install directory
+./deploy.sh                              # Build both + deploy to Pi + flash firmware
+RPI_HOST=<your-pi-ip> ./deploy.sh        # Override target
+RPI_USER=myuser ./deploy.sh
 RPI_DIR=/opt/stm32_data_reader ./deploy.sh
 ```
 
-The deploy script will:
-1. Cross-compile the binary
-2. Stop any running service
-3. Copy the binary and systemd service files
-4. Set up the multicast loopback service
+The deploy script cross-compiles, stops any running service, copies the binary and systemd service files, and sets up the LCM multicast loopback service.
 
-### Manual Deployment
+### Running as a systemd service
 
 ```bash
-# Build
-./build.sh
-
-# Copy binary
-scp build/stm32_data_reader pi@<raspberry-pi>:/home/pi/stm32_data_reader/
-
-# Copy and enable services
-scp systemd/*.service pi@<raspberry-pi>:/tmp/
-ssh pi@<raspberry-pi> 'sudo mv /tmp/*.service /etc/systemd/system/ && sudo systemctl daemon-reload'
-ssh pi@<raspberry-pi> 'sudo systemctl enable --now lcm-loopback-multicast stm32_data_reader'
-```
-
-### Running as a Service
-
-```bash
-# Start the service
-sudo systemctl start stm32_data_reader
-
-# Enable on boot
-sudo systemctl enable stm32_data_reader
-
-# View logs
+sudo systemctl enable --now stm32_data_reader
 journalctl -u stm32_data_reader -f
 ```
 
-### Running Manually
+---
+
+## Firmware
+
+The STM32 firmware lives in `firmware/` and shares the SPI protocol header (`shared/spi/pi_buffer.h`) with the reader — single source of truth for both sides.
 
 ```bash
-cd /home/pi/stm32_data_reader
-./stm32_data_reader
+# Build firmware only
+cd firmware && bash build.sh
+
+# Build firmware natively (requires gcc-arm-none-eabi)
+cd firmware && mkdir -p build && cd build
+cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=../CMake/GNU-ARM-Toolchain.cmake ..
+cmake --build . -- -j$(nproc)
 ```
+
+`./build.sh` from the repo root builds both reader and firmware together. `./deploy.sh` flashes the firmware to the STM32 after copying.
+
+---
+
+## Architecture
+
+```
+STM32 <--SPI--> Spi/SpiMock --> DeviceController --> DataPublisher --> LCM multicast
+                                       ^
+                LCM multicast --> CommandSubscriber ----|
+```
+
+| Component | What it does |
+|:----------|:-------------|
+| `Application` | Main orchestrator — lifecycle, signal handling |
+| `DeviceController` | Owns SPI state: motors, servos, sensors |
+| `DataPublisher` | Publishes sensor data to LCM with change detection |
+| `CommandSubscriber` | Receives LCM commands and routes to DeviceController |
+| `LcmBroker` | Typed publish/subscribe wrapper (PIMPL pattern) |
+| `Spi` / `SpiMock` | Hardware abstraction toggled via `USE_SPI_MOCK` |
+
+---
 
 ## LCM Channels
 
-### Sensor Data (Published)
+### Published (sensor data)
 
 | Channel | Type | Description |
-|---------|------|-------------|
-| `libstp/gyro/value` | `vector3f_t` | Gyroscope readings (rad/s) |
-| `libstp/accel/value` | `vector3f_t` | Accelerometer readings (m/s²) |
-| `libstp/mag/value` | `vector3f_t` | Magnetometer readings |
+|:--------|:-----|:------------|
+| `libstp/gyro/value` | `vector3f_t` | Gyroscope (rad/s) |
+| `libstp/accel/value` | `vector3f_t` | Accelerometer (m/s²) |
+| `libstp/mag/value` | `vector3f_t` | Magnetometer |
 | `libstp/imu/quaternion` | `quaternion_t` | Orientation quaternion |
 | `libstp/imu/temp/value` | `scalar_f_t` | IMU temperature (°C) |
-| `libstp/cpu/temp/value` | `scalar_f_t` | Raspberry Pi CPU temperature (°C) |
+| `libstp/cpu/temp/value` | `scalar_f_t` | CPU temperature (°C) |
 | `libstp/battery/voltage` | `scalar_f_t` | Battery voltage |
 | `libstp/analog/{0-5}/value` | `scalar_i32_t` | Analog sensor readings |
 | `libstp/digital/{0-15}/value` | `scalar_i32_t` | Digital input states |
-| `libstp/bemf/{0-3}/value` | `scalar_i32_t` | Motor back-EMF readings |
-| `libstp/gyro/accuracy` | `scalar_i8_t` | Gyro calibration status (0-3) |
+| `libstp/bemf/{0-3}/value` | `scalar_i32_t` | Motor back-EMF |
+| `libstp/gyro/accuracy` | `scalar_i8_t` | Gyro calibration status (0–3) |
 | `libstp/accel/accuracy` | `scalar_i8_t` | Accelerometer calibration status |
 | `libstp/mag/accuracy` | `scalar_i8_t` | Magnetometer calibration status |
 | `libstp/imu/quaternion_accuracy` | `scalar_i8_t` | Quaternion accuracy |
 
-### Commands (Subscribed)
+### Subscribed (commands)
 
 | Channel | Type | Description |
-|---------|------|-------------|
-| `libstp/motor/{0-3}/power_cmd` | `scalar_i32_t` | Set motor power (-100 to 100) |
-| `libstp/motor/{0-3}/stop_cmd` | `scalar_i32_t` | Emergency stop motor |
-| `libstp/servo/{0-3}/position_cmd` | `scalar_i32_t` | Set servo position |
+|:--------|:-----|:------------|
+| `libstp/motor/{0-3}/power_cmd` | `scalar_i32_t` | Motor power (−100 to 100) |
+| `libstp/motor/{0-3}/stop_cmd` | `scalar_i32_t` | Stop motor |
+| `libstp/servo/{0-3}/position_cmd` | `scalar_i32_t` | Servo position |
 | `libstp/bemf/{0-3}/reset_cmd` | `scalar_i32_t` | Reset BEMF accumulator |
-| `libstp/bemf/{0-3}/scale_cmd` | `scalar_f_t` | Set BEMF scale factor |
-| `libstp/bemf/{0-3}/offset_cmd` | `scalar_f_t` | Set BEMF offset |
-| `libstp/bemf/nominal_voltage_cmd` | `scalar_i32_t` | Set nominal battery voltage |
+| `libstp/bemf/{0-3}/scale_cmd` | `scalar_f_t` | BEMF scale factor |
+| `libstp/bemf/{0-3}/offset_cmd` | `scalar_f_t` | BEMF offset |
+| `libstp/bemf/nominal_voltage_cmd` | `scalar_i32_t` | Nominal battery voltage |
 | `libstp/system/dump_request` | `scalar_i32_t` | Request full data dump |
 
-## Project Structure
+---
+
+## Network setup for LCM
+
+LCM uses UDP multicast. Enable the loopback route for local-only operation:
+
+```bash
+sudo systemctl enable --now lcm-loopback-multicast
+# or manually:
+sudo ip route add 239.255.76.67/32 dev lo
+```
+
+For network operation, ensure multicast is enabled and UDP port 7667 is open.
+
+---
+
+## Project structure
 
 ```
 stm32-data-reader/
-├── src/
-│   ├── main.cpp                 # Entry point
-│   └── wombat/
-│       ├── Application.cpp      # Main application orchestrator
-│       ├── core/                # Logger, Result, utilities
-│       ├── hardware/            # SPI implementation (real + mock)
-│       ├── messaging/           # LCM broker wrapper
-│       └── services/            # DeviceController, DataPublisher, CommandSubscriber
-├── include/
-│   ├── wombat/                  # Header files matching src/
-│   └── spi/
-│       └── pi_buffer.h          # SPI protocol structures (shared with STM32)
-├── lcm-messages/
-│   └── types/                   # LCM message definitions (.lcm files)
-├── systemd/                     # Systemd service files
-├── build.sh                     # Cross-compilation script
-├── deploy.sh                    # Deployment script
-├── Dockerfile                   # ARM64 build environment
-└── CMakeLists.txt
+├── src/wombat/
+│   ├── Application.cpp
+│   ├── services/            # DataPublisher, CommandSubscriber, DeviceController
+│   ├── hardware/            # Spi, SpiMock
+│   ├── messaging/           # LcmBroker
+│   └── core/                # Logger, Result<T>, utilities
+├── include/wombat/          # Headers matching src/
+├── shared/spi/pi_buffer.h   # SPI protocol (shared with STM32 firmware)
+├── firmware/                # STM32 firmware source
+├── lcm-messages/types/      # LCM message definitions (.lcm files)
+├── systemd/                 # Service files
+├── build.sh                 # Cross-compilation script
+├── deploy.sh                # Build + deploy + flash
+└── Dockerfile               # ARM64 build environment
 ```
 
-## Network Setup for LCM
+---
 
-LCM uses UDP multicast. For local testing or when not using a network:
+## Part of RaccoonOS
 
-```bash
-# Add multicast route to loopback (required for local-only operation)
-sudo ip route add 239.255.76.67/32 dev lo
+| Repository | What it is |
+|:-----------|:-----------|
+| [raccoon-lib](https://github.com/htl-stp-ecer/raccoon-lib) | Core robotics library — consumes LCM data published here |
+| [raccoon-transport](https://github.com/htl-stp-ecer/raccoon-transport) | Shared LCM message types |
+| [botui](https://github.com/htl-stp-ecer/botui) | Flutter UI — visualises sensor data from this service |
+| [documentation](https://raccoon-docs.pages.dev/) | Full platform docs |
 
-# Or use the provided systemd service
-sudo systemctl enable --now lcm-loopback-multicast
-```
-
-For network operation, ensure multicast is enabled on your interface and firewall allows UDP port 7667.
-
-## Troubleshooting
-
-### SPI Not Working
-
-1. Ensure SPI is enabled: `ls /dev/spidev*` should show devices
-2. Check permissions: user must be in `spi` group or run as root
-3. Verify wiring and STM32 firmware
-
-### LCM Messages Not Received
-
-1. Check multicast route: `ip route | grep 239.255`
-2. Verify firewall allows UDP 7667
-3. Use `lcm-spy` to monitor messages: `lcm-spy`
-
-### Service Won't Start
-
-```bash
-# Check service status
-sudo systemctl status stm32_data_reader
-
-# Check dependencies
-sudo systemctl status lcm-loopback-multicast
-
-# View detailed logs
-journalctl -u stm32_data_reader -n 100
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Build and test locally with `USE_SPI_MOCK=ON`
-4. Ensure code compiles without warnings (`-Wall -Wextra -Wpedantic`)
-5. Submit a pull request
-
-### Code Style
-
-- C++20 standard
-- Use the `wombat` namespace
-- Follow existing patterns for new services
-- Use `Result<T>` for error handling instead of exceptions
-- Prefer `std::shared_ptr` for shared ownership
+---
 
 ## License
 
