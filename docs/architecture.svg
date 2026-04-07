@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 340" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+
+  <!-- Background -->
+  <rect width="860" height="340" rx="12" fill="#0d1117"/>
+
+  <!-- Title -->
+  <text x="430" y="24" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="2">S T M 3 2  D A T A  R E A D E R  —  D A T A  F L O W</text>
+
+  <!-- ═══ STM32 ═══ -->
+  <rect x="30" y="44" rx="8" width="120" height="108" fill="#03234b"/>
+  <text x="90" y="88" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">STM32</text>
+  <text x="90" y="106" text-anchor="middle" fill="#a0aec0" font-size="10">IMU · Motors</text>
+  <text x="90" y="120" text-anchor="middle" fill="#a0aec0" font-size="10">Servos · ADC</text>
+  <text x="90" y="134" text-anchor="middle" fill="#a0aec0" font-size="10">Digital I/O</text>
+
+  <!-- SPI arrows -->
+  <line x1="150" y1="82" x2="196" y2="82" stroke="#475569" stroke-width="1.5"/>
+  <polygon points="196,78 204,82 196,86" fill="#475569"/>
+  <line x1="196" y1="118" x2="150" y2="118" stroke="#475569" stroke-width="1.5"/>
+  <polygon points="150,114 142,118 150,122" fill="#475569"/>
+  <text x="173" y="76" text-anchor="middle" fill="#64748b" font-size="9">sensor data</text>
+  <text x="173" y="132" text-anchor="middle" fill="#64748b" font-size="9">commands</text>
+
+  <!-- ═══ SPI Layer ═══ -->
+  <rect x="204" y="44" rx="8" width="140" height="108" fill="#1e3a5f"/>
+  <text x="274" y="80" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">SPI Layer</text>
+  <rect x="220" y="90" rx="4" width="108" height="22" fill="#0d1117" opacity="0.5"/>
+  <text x="274" y="105" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="600">Spi</text>
+  <rect x="220" y="118" rx="4" width="108" height="22" fill="#0d1117" opacity="0.5"/>
+  <text x="274" y="133" text-anchor="middle" fill="#94a3b8" font-size="11">SpiMock</text>
+  <text x="274" y="148" text-anchor="middle" fill="#475569" font-size="9">USE_SPI_MOCK=ON</text>
+
+  <!-- SPI → DeviceController -->
+  <line x1="344" y1="98" x2="390" y2="98" stroke="#475569" stroke-width="1.5"/>
+  <polygon points="390,94 398,98 390,102" fill="#475569"/>
+
+  <!-- ═══ DeviceController ═══ -->
+  <rect x="398" y="44" rx="8" width="160" height="108" fill="#065f46"/>
+  <text x="478" y="72" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">DeviceController</text>
+  <text x="478" y="90" text-anchor="middle" fill="#6ee7b7" font-size="10">Owns device state</text>
+  <text x="478" y="106" text-anchor="middle" fill="#6ee7b7" font-size="10">motors · servos</text>
+  <text x="478" y="122" text-anchor="middle" fill="#6ee7b7" font-size="10">sensors · BEMF</text>
+  <text x="478" y="138" text-anchor="middle" fill="#34d399" font-size="9">pi_buffer.h protocol</text>
+
+  <!-- DeviceController → DataPublisher -->
+  <line x1="558" y1="80" x2="604" y2="80" stroke="#475569" stroke-width="1.5"/>
+  <polygon points="604,76 612,80 604,84" fill="#475569"/>
+
+  <!-- CommandSubscriber → DeviceController -->
+  <line x1="612" y1="128" x2="558" y2="128" stroke="#475569" stroke-width="1.5"/>
+  <polygon points="558,124 550,128 558,132" fill="#475569"/>
+
+  <!-- ═══ DataPublisher ═══ -->
+  <rect x="620" y="44" rx="8" width="160" height="56" fill="#1d4ed8"/>
+  <text x="700" y="68" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">DataPublisher</text>
+  <text x="700" y="86" text-anchor="middle" fill="#93c5fd" font-size="10">change detection · publish</text>
+
+  <!-- ═══ CommandSubscriber ═══ -->
+  <rect x="620" y="112" rx="8" width="160" height="56" fill="#7c3aed"/>
+  <text x="700" y="136" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">CommandSubscriber</text>
+  <text x="700" y="154" text-anchor="middle" fill="#c4b5fd" font-size="10">subscribe · route</text>
+
+  <!-- DataPublisher → LCM -->
+  <line x1="780" y1="72" x2="810" y2="72" stroke="#475569" stroke-width="1.5"/>
+  <polygon points="810,68 818,72 810,76" fill="#475569"/>
+
+  <!-- LCM → CommandSubscriber -->
+  <line x1="818" y1="140" x2="780" y2="140" stroke="#475569" stroke-width="1.5"/>
+  <polygon points="780,136 772,140 780,144" fill="#475569"/>
+
+  <!-- ═══ LCM Bus ═══ -->
+  <rect x="818" y="44" rx="8" width="22" height="152" fill="#d97706"/>
+  <text x="829" y="132" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" transform="rotate(-90,829,132)">LCM  multicast</text>
+
+  <!-- ═══ LcmBroker ═══ -->
+  <rect x="204" y="192" rx="8" width="576" height="52" fill="#1e293b"/>
+  <text x="492" y="214" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">LcmBroker</text>
+  <text x="492" y="232" text-anchor="middle" fill="#64748b" font-size="10">Typed publish/subscribe wrapper (PIMPL) — used by both DataPublisher and CommandSubscriber</text>
+
+  <!-- Bracket lines from services to broker -->
+  <line x1="700" y1="168" x2="700" y2="192" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="478" y1="152" x2="478" y2="192" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
+
+  <!-- ═══ Application orchestrator ═══ -->
+  <rect x="30" y="192" rx="8" width="160" height="52" fill="#374151"/>
+  <text x="110" y="214" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">Application</text>
+  <text x="110" y="232" text-anchor="middle" fill="#9ca3af" font-size="10">lifecycle · signal handling</text>
+
+  <!-- ═══ shared/spi/pi_buffer.h ═══ -->
+  <rect x="30" y="264" rx="8" width="800" height="52" fill="#111827" stroke="#374151" stroke-width="1"/>
+  <text x="430" y="287" text-anchor="middle" fill="#f59e0b" font-size="12" font-weight="700">shared/spi/pi_buffer.h</text>
+  <text x="430" y="305" text-anchor="middle" fill="#6b7280" font-size="10">SPI protocol structs (TxBuffer / RxBuffer) — single source of truth shared with STM32 firmware</text>
+
+  <!-- Footer -->
+  <text x="430" y="328" text-anchor="middle" fill="#1f2937" font-size="10" letter-spacing="3" font-weight="600">htl-stp-ecer / stm32-data-reader</text>
+
+</svg>
