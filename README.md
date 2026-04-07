@@ -107,11 +107,9 @@ cmake --build . -- -j$(nproc)
 
 ## Architecture
 
-```
-STM32 <--SPI--> Spi/SpiMock --> DeviceController --> DataPublisher --> LCM multicast
-                                       ^
-                LCM multicast --> CommandSubscriber ----|
-```
+<div align="center">
+  <img src="https://raw.githubusercontent.com/htl-stp-ecer/stm32-data-reader/main/docs/architecture.svg" alt="stm32-data-reader architecture" width="700"/>
+</div>
 
 | Component | What it does |
 |:----------|:-------------|
