@@ -1,97 +1,123 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 340" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 420" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
 
   <!-- Background -->
-  <rect width="860" height="340" rx="12" fill="#0d1117"/>
+  <rect width="860" height="420" rx="12" fill="#0d1117"/>
 
   <!-- Title -->
-  <text x="430" y="24" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="2">S T M 3 2  D A T A  R E A D E R  —  D A T A  F L O W</text>
+  <text x="430" y="28" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="2">S T M 3 2  D A T A  R E A D E R  —  D A T A  F L O W</text>
 
-  <!-- ═══ STM32 ═══ -->
-  <rect x="30" y="44" rx="8" width="120" height="108" fill="#03234b"/>
-  <text x="90" y="88" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">STM32</text>
-  <text x="90" y="106" text-anchor="middle" fill="#a0aec0" font-size="10">IMU · Motors</text>
-  <text x="90" y="120" text-anchor="middle" fill="#a0aec0" font-size="10">Servos · ADC</text>
-  <text x="90" y="134" text-anchor="middle" fill="#a0aec0" font-size="10">Digital I/O</text>
+  <!-- ── Lane labels ── -->
+  <text x="18" y="108" fill="#334155" font-size="10" font-weight="600" transform="rotate(-90,18,108)">SENSOR DATA</text>
+  <text x="18" y="280" fill="#334155" font-size="10" font-weight="600" transform="rotate(-90,18,280)">COMMANDS</text>
 
-  <!-- SPI arrows -->
-  <line x1="150" y1="82" x2="196" y2="82" stroke="#475569" stroke-width="1.5"/>
-  <polygon points="196,78 204,82 196,86" fill="#475569"/>
-  <line x1="196" y1="118" x2="150" y2="118" stroke="#475569" stroke-width="1.5"/>
-  <polygon points="150,114 142,118 150,122" fill="#475569"/>
-  <text x="173" y="76" text-anchor="middle" fill="#64748b" font-size="9">sensor data</text>
-  <text x="173" y="132" text-anchor="middle" fill="#64748b" font-size="9">commands</text>
+  <!-- ════════════ SENSOR DATA LANE (top) ════════════ -->
 
-  <!-- ═══ SPI Layer ═══ -->
-  <rect x="204" y="44" rx="8" width="140" height="108" fill="#1e3a5f"/>
-  <text x="274" y="80" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">SPI Layer</text>
-  <rect x="220" y="90" rx="4" width="108" height="22" fill="#0d1117" opacity="0.5"/>
-  <text x="274" y="105" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="600">Spi</text>
-  <rect x="220" y="118" rx="4" width="108" height="22" fill="#0d1117" opacity="0.5"/>
-  <text x="274" y="133" text-anchor="middle" fill="#94a3b8" font-size="11">SpiMock</text>
-  <text x="274" y="148" text-anchor="middle" fill="#475569" font-size="9">USE_SPI_MOCK=ON</text>
+  <!-- STM32 -->
+  <rect x="40" y="50" rx="8" width="130" height="80" fill="#03234b"/>
+  <text x="105" y="80" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">STM32</text>
+  <text x="105" y="98" text-anchor="middle" fill="#93c5fd" font-size="10">IMU · Motors · Servos</text>
+  <text x="105" y="114" text-anchor="middle" fill="#93c5fd" font-size="10">ADC · Digital I/O</text>
+
+  <!-- STM32 → SPI -->
+  <line x1="170" y1="82" x2="218" y2="82" stroke="#1d4ed8" stroke-width="2"/>
+  <polygon points="214,77 224,82 214,87" fill="#1d4ed8"/>
+  <text x="196" y="74" text-anchor="middle" fill="#60a5fa" font-size="9">SPI read</text>
+
+  <!-- SPI Layer -->
+  <rect x="224" y="50" rx="8" width="130" height="80" fill="#1e3a5f"/>
+  <text x="289" y="78" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">SPI Layer</text>
+  <text x="289" y="96" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="600">Spi</text>
+  <text x="289" y="112" text-anchor="middle" fill="#475569" font-size="10">SpiMock (testing)</text>
 
   <!-- SPI → DeviceController -->
-  <line x1="344" y1="98" x2="390" y2="98" stroke="#475569" stroke-width="1.5"/>
-  <polygon points="390,94 398,98 390,102" fill="#475569"/>
+  <line x1="354" y1="82" x2="402" y2="82" stroke="#1d4ed8" stroke-width="2"/>
+  <polygon points="398,77 408,82 398,87" fill="#1d4ed8"/>
+  <text x="378" y="74" text-anchor="middle" fill="#60a5fa" font-size="9">decoded</text>
 
-  <!-- ═══ DeviceController ═══ -->
-  <rect x="398" y="44" rx="8" width="160" height="108" fill="#065f46"/>
-  <text x="478" y="72" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">DeviceController</text>
-  <text x="478" y="90" text-anchor="middle" fill="#6ee7b7" font-size="10">Owns device state</text>
-  <text x="478" y="106" text-anchor="middle" fill="#6ee7b7" font-size="10">motors · servos</text>
-  <text x="478" y="122" text-anchor="middle" fill="#6ee7b7" font-size="10">sensors · BEMF</text>
-  <text x="478" y="138" text-anchor="middle" fill="#34d399" font-size="9">pi_buffer.h protocol</text>
+  <!-- DeviceController -->
+  <rect x="408" y="50" rx="8" width="150" height="80" fill="#065f46"/>
+  <text x="483" y="76" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">DeviceController</text>
+  <text x="483" y="94" text-anchor="middle" fill="#6ee7b7" font-size="10">Owns device state</text>
+  <text x="483" y="110" text-anchor="middle" fill="#6ee7b7" font-size="10">motors · servos · sensors</text>
 
   <!-- DeviceController → DataPublisher -->
-  <line x1="558" y1="80" x2="604" y2="80" stroke="#475569" stroke-width="1.5"/>
-  <polygon points="604,76 612,80 604,84" fill="#475569"/>
+  <line x1="558" y1="82" x2="606" y2="82" stroke="#1d4ed8" stroke-width="2"/>
+  <polygon points="602,77 612,82 602,87" fill="#1d4ed8"/>
+  <text x="582" y="74" text-anchor="middle" fill="#60a5fa" font-size="9">sensor values</text>
 
-  <!-- CommandSubscriber → DeviceController -->
-  <line x1="612" y1="128" x2="558" y2="128" stroke="#475569" stroke-width="1.5"/>
-  <polygon points="558,124 550,128 558,132" fill="#475569"/>
-
-  <!-- ═══ DataPublisher ═══ -->
-  <rect x="620" y="44" rx="8" width="160" height="56" fill="#1d4ed8"/>
-  <text x="700" y="68" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">DataPublisher</text>
-  <text x="700" y="86" text-anchor="middle" fill="#93c5fd" font-size="10">change detection · publish</text>
-
-  <!-- ═══ CommandSubscriber ═══ -->
-  <rect x="620" y="112" rx="8" width="160" height="56" fill="#7c3aed"/>
-  <text x="700" y="136" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">CommandSubscriber</text>
-  <text x="700" y="154" text-anchor="middle" fill="#c4b5fd" font-size="10">subscribe · route</text>
+  <!-- DataPublisher -->
+  <rect x="612" y="50" rx="8" width="150" height="80" fill="#1d4ed8"/>
+  <text x="687" y="80" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">DataPublisher</text>
+  <text x="687" y="98" text-anchor="middle" fill="#bfdbfe" font-size="10">change detection</text>
+  <text x="687" y="114" text-anchor="middle" fill="#bfdbfe" font-size="10">publish to LCM</text>
 
   <!-- DataPublisher → LCM -->
-  <line x1="780" y1="72" x2="810" y2="72" stroke="#475569" stroke-width="1.5"/>
-  <polygon points="810,68 818,72 810,76" fill="#475569"/>
+  <line x1="762" y1="82" x2="800" y2="82" stroke="#1d4ed8" stroke-width="2"/>
+  <polygon points="796,77 806,82 796,87" fill="#1d4ed8"/>
+
+  <!-- ════════════ LCM BUS (centre) ════════════ -->
+  <rect x="806" y="50" rx="6" width="36" height="240" fill="#d97706"/>
+  <text x="824" y="178" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" transform="rotate(-90,824,178)">LCM  multicast  bus</text>
+
+  <!-- ════════════ COMMAND LANE (bottom) ════════════ -->
 
   <!-- LCM → CommandSubscriber -->
-  <line x1="818" y1="140" x2="780" y2="140" stroke="#475569" stroke-width="1.5"/>
-  <polygon points="780,136 772,140 780,144" fill="#475569"/>
+  <line x1="806" y1="250" x2="762" y2="250" stroke="#7c3aed" stroke-width="2"/>
+  <polygon points="766,245 756,250 766,255" fill="#7c3aed"/>
 
-  <!-- ═══ LCM Bus ═══ -->
-  <rect x="818" y="44" rx="8" width="22" height="152" fill="#d97706"/>
-  <text x="829" y="132" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" transform="rotate(-90,829,132)">LCM  multicast</text>
+  <!-- CommandSubscriber -->
+  <rect x="612" y="210" rx="8" width="150" height="80" fill="#7c3aed"/>
+  <text x="687" y="240" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">CommandSubscriber</text>
+  <text x="687" y="258" text-anchor="middle" fill="#e9d5ff" font-size="10">subscribe to LCM</text>
+  <text x="687" y="274" text-anchor="middle" fill="#e9d5ff" font-size="10">route to controller</text>
 
-  <!-- ═══ LcmBroker ═══ -->
-  <rect x="204" y="192" rx="8" width="576" height="52" fill="#1e293b"/>
-  <text x="492" y="214" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">LcmBroker</text>
-  <text x="492" y="232" text-anchor="middle" fill="#64748b" font-size="10">Typed publish/subscribe wrapper (PIMPL) — used by both DataPublisher and CommandSubscriber</text>
+  <!-- CommandSubscriber → DeviceController -->
+  <line x1="612" y1="250" x2="558" y2="250" stroke="#7c3aed" stroke-width="2"/>
+  <polygon points="562,245 552,250 562,255" fill="#7c3aed"/>
+  <text x="584" y="242" text-anchor="middle" fill="#a78bfa" font-size="9">command</text>
 
-  <!-- Bracket lines from services to broker -->
-  <line x1="700" y1="168" x2="700" y2="192" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
-  <line x1="478" y1="152" x2="478" y2="192" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
+  <!-- DeviceController (bottom half visual) -->
+  <rect x="408" y="210" rx="8" width="150" height="80" fill="#065f46"/>
+  <text x="483" y="244" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">DeviceController</text>
+  <text x="483" y="262" text-anchor="middle" fill="#6ee7b7" font-size="10">apply motor/servo</text>
+  <text x="483" y="278" text-anchor="middle" fill="#6ee7b7" font-size="10">command</text>
 
-  <!-- ═══ Application orchestrator ═══ -->
-  <rect x="30" y="192" rx="8" width="160" height="52" fill="#374151"/>
-  <text x="110" y="214" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">Application</text>
-  <text x="110" y="232" text-anchor="middle" fill="#9ca3af" font-size="10">lifecycle · signal handling</text>
+  <!-- Vertical connector between two DeviceController boxes -->
+  <line x1="483" y1="130" x2="483" y2="210" stroke="#065f46" stroke-width="2" stroke-dasharray="4,3"/>
 
-  <!-- ═══ shared/spi/pi_buffer.h ═══ -->
-  <rect x="30" y="264" rx="8" width="800" height="52" fill="#111827" stroke="#374151" stroke-width="1"/>
-  <text x="430" y="287" text-anchor="middle" fill="#f59e0b" font-size="12" font-weight="700">shared/spi/pi_buffer.h</text>
-  <text x="430" y="305" text-anchor="middle" fill="#6b7280" font-size="10">SPI protocol structs (TxBuffer / RxBuffer) — single source of truth shared with STM32 firmware</text>
+  <!-- DeviceController → SPI (command direction) -->
+  <line x1="408" y1="250" x2="354" y2="250" stroke="#7c3aed" stroke-width="2"/>
+  <polygon points="358,245 348,250 358,255" fill="#7c3aed"/>
+  <text x="380" y="242" text-anchor="middle" fill="#a78bfa" font-size="9">SPI write</text>
+
+  <!-- SPI Layer (bottom) -->
+  <rect x="224" y="210" rx="8" width="130" height="80" fill="#1e3a5f"/>
+  <text x="289" y="244" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">SPI Layer</text>
+  <text x="289" y="262" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="600">Spi</text>
+  <text x="289" y="278" text-anchor="middle" fill="#475569" font-size="10">SpiMock (testing)</text>
+
+  <!-- SPI → STM32 (command direction) -->
+  <line x1="224" y1="250" x2="170" y2="250" stroke="#7c3aed" stroke-width="2"/>
+  <polygon points="174,245 164,250 174,255" fill="#7c3aed"/>
+  <text x="196" y="242" text-anchor="middle" fill="#a78bfa" font-size="9">SPI write</text>
+
+  <!-- STM32 (bottom) -->
+  <rect x="40" y="210" rx="8" width="130" height="80" fill="#03234b"/>
+  <text x="105" y="244" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">STM32</text>
+  <text x="105" y="262" text-anchor="middle" fill="#93c5fd" font-size="10">apply motor power</text>
+  <text x="105" y="278" text-anchor="middle" fill="#93c5fd" font-size="10">set servo position</text>
+
+  <!-- ════════════ LcmBroker ════════════ -->
+  <rect x="40" y="318" rx="8" width="370" height="44" fill="#1e293b"/>
+  <text x="225" y="337" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">LcmBroker</text>
+  <text x="225" y="353" text-anchor="middle" fill="#64748b" font-size="10">Typed pub/sub wrapper used by DataPublisher and CommandSubscriber</text>
+
+  <!-- ════════════ pi_buffer.h ════════════ -->
+  <rect x="420" y="318" rx="8" width="376" height="44" fill="#111827" stroke="#374151" stroke-width="1"/>
+  <text x="608" y="337" text-anchor="middle" fill="#f59e0b" font-size="12" font-weight="700">shared/spi/pi_buffer.h</text>
+  <text x="608" y="353" text-anchor="middle" fill="#6b7280" font-size="10">TxBuffer / RxBuffer — shared with STM32 firmware</text>
 
   <!-- Footer -->
-  <text x="430" y="328" text-anchor="middle" fill="#1f2937" font-size="10" letter-spacing="3" font-weight="600">htl-stp-ecer / stm32-data-reader</text>
+  <text x="430" y="406" text-anchor="middle" fill="#1f2937" font-size="10" letter-spacing="3" font-weight="600">htl-stp-ecer / stm32-data-reader</text>
 
 </svg>
