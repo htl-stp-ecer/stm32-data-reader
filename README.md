@@ -17,7 +17,7 @@
 
 ---
 
-This service runs on the Raspberry Pi inside the [KIPR Wombat](https://www.kipr.org/kipr/hardware-software) and acts as the hardware bridge between the STM32 microcontroller and the rest of RaccoonOS. It communicates with the STM32 over SPI, reads IMU, analog, and digital sensor data, and publishes everything onto the LCM multicast bus — where [RaccoonLib](https://github.com/htl-stp-ecer/raccoon-lib) and [StpVelox](https://github.com/htl-stp-ecer/botui) can consume it. Motor and servo commands flow the other way: received from LCM and forwarded to the STM32.
+This service runs on the Raspberry Pi inside the [KIPR Wombat](https://www.kipr.org/kipr/hardware-software) and acts as the hardware bridge between the STM32 microcontroller and the rest of RaccoonOS. It communicates with the STM32 over SPI, reads IMU, analog, and digital sensor data, and publishes everything onto the LCM multicast bus — where [RaccoonLib](https://github.com/htl-stp-ecer/raccoon-lib) and [botui](https://github.com/htl-stp-ecer/botui) can consume it. Motor and servo commands flow the other way: received from LCM and forwarded to the STM32.
 
 ---
 
