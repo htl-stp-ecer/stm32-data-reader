@@ -247,4 +247,5 @@ journalctl -u stm32_data_reader -n 100
 
 ## License
 
-This project is licensed under the GPL v3 - see [LICENSE](LICENSE) for details. 
+Copyright (C) 2026 Tobias Madlberger  
+Licensed under the GNU General Public License v3.0 — see [COPYING](COPYING) for details.
