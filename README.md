@@ -6,6 +6,8 @@
 
 **Raspberry Pi ↔ STM32 SPI bridge — reads sensor data and publishes it via LCM for RaccoonOS.**
 
+[![Build & Release](https://github.com/htl-stp-ecer/stm32-data-reader/actions/workflows/build-release.yml/badge.svg)](https://github.com/htl-stp-ecer/stm32-data-reader/actions/workflows/build-release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/htl-stp-ecer/stm32-data-reader)](https://github.com/htl-stp-ecer/stm32-data-reader/releases/latest)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](COPYING)
 ![C++20](https://img.shields.io/badge/C%2B%2B20-00599C?logo=cplusplus&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Raspberry%20Pi%20ARM64-A22846?logo=raspberrypi&logoColor=white)
