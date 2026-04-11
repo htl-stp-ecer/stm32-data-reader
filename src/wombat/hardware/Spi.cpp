@@ -64,6 +64,18 @@ static void reset_stm(void)
     usleep(1 * 1000 * 1000);
 }
 
+static void reflash_stm(void)
+{
+    fprintf(stderr, "[spi] version mismatch – reflashing firmware …\n");
+    int rc = system("bash ~/flashFiles/flash_wombat.sh");
+    if (rc != 0)
+    {
+        fprintf(stderr, "[spi] firmware reflash failed (%d).\n", rc);
+        exit(EXIT_FAILURE);
+    }
+    usleep(2 * 1000 * 1000);
+}
+
 static bool spi_reopen(void)
 {
     if (ctx.fd >= 0)
@@ -143,35 +155,28 @@ bool spi_update(void)
     if (ctx.fd < 0)
         return false;
 
-    const int max_tries = 3;
-    for (int t = 0; t < max_tries; ++t)
+    if (spi_do_transfer())
+        return true;
+
+    fprintf(stderr, "[spi] transfer-version mismatch; Received: %d, Expected: %d – reflashing firmware.\n",
+            ctx.rx.transferVersion,
+            TRANSFER_VERSION);
+
+    reflash_stm();
+
+    if (!spi_reopen())
     {
-        if (spi_do_transfer())
-            return true;
-
-        fprintf(stderr, "[spi] transfer-version mismatch; Received: %d, Expected: %d (attempt %d/%d).\n",
-                ctx.rx.transferVersion,
-                TRANSFER_VERSION,
-                t + 1, max_tries);
-
-        if (t == max_tries - 1)
-        {
-            fprintf(stderr, "[spi] fatal – unable to recover SPI link.\n");
-            exit(EXIT_FAILURE);
-        }
-
-        if (t > 0)
-        {
-            fprintf(stderr, "[spi] resetting STM …\n");
-            reset_stm();
-        }
-
-        if (!spi_reopen())
-        {
-            fprintf(stderr, "[spi] failed to reopen spidev.\n");
-            exit(EXIT_FAILURE);
-        }
+        fprintf(stderr, "[spi] failed to reopen spidev after reflash.\n");
+        exit(EXIT_FAILURE);
     }
+
+    if (spi_do_transfer())
+        return true;
+
+    fprintf(stderr, "[spi] fatal – version mismatch persists after reflash (Received: %d, Expected: %d).\n",
+            ctx.rx.transferVersion,
+            TRANSFER_VERSION);
+    exit(EXIT_FAILURE);
     return false;
 }
 

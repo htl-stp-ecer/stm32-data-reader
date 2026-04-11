@@ -129,6 +129,9 @@ namespace wombat
                 return Result<void>::failure("Failed to publish message on channel: " + channel);
             }
 
+            logger_->debug("Published " + std::string(MessageType::getTypeName())
+                + " on channel: " + channel
+                + (options.retained ? " (retained, dedup)" : " (dedup)"));
             return Result<void>::success();
         }
 
@@ -146,6 +149,9 @@ namespace wombat
                 return Result<void>::failure("Failed to publish message on channel: " + channel);
             }
 
+            logger_->debug("Published " + std::string(MessageType::getTypeName())
+                + " on channel: " + channel
+                + (options.retained ? " (forced, retained)" : " (forced)"));
             return Result<void>::success();
         }
 
