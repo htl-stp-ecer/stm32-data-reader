@@ -84,8 +84,8 @@ namespace wombat
             logger_->warn("Failed to publish digital bits: " + digitalResult.error());
         }
 
-        // Odometry (computed on STM32)
-        logger_->info("Odometry: pos_x=" + std::to_string(data.odometry.pos_x) +
+        // Odometry (computed on STM32) — verbose, keep at debug
+        logger_->debug("Odometry: pos_x=" + std::to_string(data.odometry.pos_x) +
             " pos_y=" + std::to_string(data.odometry.pos_y) +
             " heading=" + std::to_string(data.odometry.heading) +
             " vx=" + std::to_string(data.odometry.vx) +

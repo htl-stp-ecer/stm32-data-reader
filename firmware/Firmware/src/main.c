@@ -119,16 +119,24 @@ int main(void)
 
         if (current_time - last_heartbeat >= HEARTBEAT_INTERVAL)
         {
+            // Decode packed motor control modes (3 bits each)
+            const uint8_t m0 = (rxBuffer.motorControlMode >> 0) & 0x07;
+            const uint8_t m1 = (rxBuffer.motorControlMode >> 3) & 0x07;
+            const uint8_t m2 = (rxBuffer.motorControlMode >> 6) & 0x07;
+            const uint8_t m3 = (rxBuffer.motorControlMode >> 9) & 0x07;
             printf(
-                "[stp] hb #%lu t=%lus conv=%lu st=%d mot=%d adc=[%u,%u] bemf=[%ld,%ld,%ld,%ld] raw=[%d,%d,%d,%d]\r\n",
+                "[stp] hb #%lu t=%lus conv=%lu st=%d bemfMot=%d adc=[%u,%u] "
+                "modes=[%u,%u,%u,%u] pos=[%ld,%ld,%ld,%ld] bemf=[%ld,%ld,%ld,%ld] done=%u\r\n",
                 ++heartbeat_count, current_time / 1000,
                 (unsigned long)bemfConvCount, (int)bemfState,
                 (int)bemfCurrentMotor,
                 adc_dma_bemf_buffer[0], adc_dma_bemf_buffer[1],
+                (unsigned)m0, (unsigned)m1, (unsigned)m2, (unsigned)m3,
+                (long)motor_data.position[0], (long)motor_data.position[1],
+                (long)motor_data.position[2], (long)motor_data.position[3],
                 (long)motor_data.bemf[0], (long)motor_data.bemf[1],
                 (long)motor_data.bemf[2], (long)motor_data.bemf[3],
-                (int)bemfRawReadings[0], (int)bemfRawReadings[1],
-                (int)bemfRawReadings[2], (int)bemfRawReadings[3]);
+                (unsigned)motor_data.done);
             last_heartbeat = current_time;
         }
 

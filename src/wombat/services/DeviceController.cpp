@@ -30,6 +30,7 @@ namespace wombat
         for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
         {
             motorCommands_[port] = 0;
+            motorModes_[port] = MotorMode::Off;
             auto setResult = spi_->setMotorOff(port);
             if (setResult.isFailure())
             {
@@ -102,12 +103,20 @@ namespace wombat
             return validationResult;
         }
 
+        if (motorModes_[port] == MotorMode::Off)
+        {
+            logger_->debug("Motor " + std::to_string(port) + " already OFF, skipping SPI");
+            return Result<void>::success();
+        }
+
         motorCommands_[port] = 0;
+        motorModes_[port] = MotorMode::Off;
 
         auto result = spi_->setMotorOff(port);
         if (result.isFailure())
         {
             logger_->error("Failed to set motor " + std::to_string(port) + " off: " + result.error());
+            motorModes_[port] = MotorMode::Unknown;
             return result;
         }
 
@@ -123,12 +132,20 @@ namespace wombat
             return validationResult;
         }
 
+        if (motorModes_[port] == MotorMode::Brake)
+        {
+            logger_->debug("Motor " + std::to_string(port) + " already BRAKE, skipping SPI");
+            return Result<void>::success();
+        }
+
         motorCommands_[port] = 0;
+        motorModes_[port] = MotorMode::Brake;
 
         auto result = spi_->setMotorBrake(port);
         if (result.isFailure())
         {
             logger_->error("Failed to set motor " + std::to_string(port) + " brake: " + result.error());
+            motorModes_[port] = MotorMode::Unknown;
             return result;
         }
 
@@ -145,6 +162,7 @@ namespace wombat
         }
 
         motorCommands_[port] = duty;
+        motorModes_[port] = MotorMode::Active;
 
         auto result = spi_->setMotorPwm(port, duty);
         if (result.isFailure())
@@ -165,6 +183,8 @@ namespace wombat
             return validationResult;
         }
 
+        motorModes_[port] = MotorMode::Active;
+
         auto result = spi_->setMotorVelocity(port, velocity);
         if (result.isFailure())
         {
@@ -183,6 +203,8 @@ namespace wombat
         {
             return validationResult;
         }
+
+        motorModes_[port] = MotorMode::Active;
 
         auto result = spi_->setMotorPosition(port, velocity, goalPosition);
         if (result.isFailure())
@@ -355,6 +377,7 @@ namespace wombat
             for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
             {
                 motorCommands_[port] = 0;
+                motorModes_[port] = MotorMode::Off;
                 spi_->setMotorOff(port);
             }
             for (PortId port = 0; port < MAX_SERVO_PORTS; ++port)

@@ -66,7 +66,7 @@ void servo_enable(const int servoPort)
 
 void servo_disable(const int servoPort)
 {
-    //HAL_TIM_PWM_Stop(servos[servoPort].timer, servos[servoPort].chanal);
+    HAL_TIM_PWM_Stop(servos[servoPort].timer, servos[servoPort].chanal);
 }
 
 void servo_fullyEnable()
@@ -103,8 +103,15 @@ void update_servo_cmd()
         servo_fullyDisable();
         return;
     }
-    else
-        servo_fullyEnable();
+
+    // Restore 6V rail if it was turned off (e.g. after servo_fullyDisable).
+    // Individual servo PWM channels are controlled per-port in the loop below —
+    // do NOT call servo_fullyEnable() here, as that would start PWM on all servos.
+    if (HAL_GPIO_ReadPin(SERVO_6V0_ENABLE_GPIO_Port, SERVO_6V0_ENABLE_Pin) == GPIO_PIN_RESET)
+    {
+        HAL_GPIO_WritePin(SERVO_6V0_ENABLE_GPIO_Port, SERVO_6V0_ENABLE_Pin, GPIO_PIN_SET);
+        delayus(10);
+    }
 
     //if Servos are fully disabled
     if (rxBuffer.servoMode == ALL_SERVOS_FULLY_DISABLED)
@@ -113,9 +120,6 @@ void update_servo_cmd()
         lastServoModes = rxBuffer.servoMode;
         return;
     }
-
-    if (lastServoModes == ALL_SERVOS_FULLY_DISABLED && rxBuffer.servoMode != ALL_SERVOS_FULLY_DISABLED)
-        servo_fullyEnable();
 
     for (int servoPort = 0; servoPort < NUM_SERVOS; servoPort++)
     {

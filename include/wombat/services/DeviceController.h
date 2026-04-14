@@ -49,11 +49,16 @@ namespace wombat
         Result<void> resetOdometry();
 
     private:
+        // Coarse motor mode tracked on the Pi side to deduplicate mode commands.
+        // Only OFF and BRAKE are deduplicated — active control modes always go through.
+        enum class MotorMode { Unknown, Off, Brake, Active };
+
         std::unique_ptr<ISpi> spi_;
         std::shared_ptr<Logger> logger_;
 
         std::array<std::atomic<int32_t>, MAX_MOTOR_PORTS> motorCommands_{};
         std::array<std::atomic<ServoPosition>, MAX_SERVO_PORTS> servoCommands_{};
+        std::array<MotorMode, MAX_MOTOR_PORTS> motorModes_{};
 
         SensorData lastSensorData_{};
         bool isInitialized_{false};

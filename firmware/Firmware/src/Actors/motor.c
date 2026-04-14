@@ -259,6 +259,9 @@ void update_motor(const uint8_t channel, const int16_t bemf_filtered)
     // Detect mode change and reset state
     if (ctlMode != prevControlMode[channel])
     {
+        printf("[stp] mot%d mode %u->%u pos=%ld\r\n",
+               channel, (unsigned)prevControlMode[channel], (unsigned)ctlMode,
+               (long)motor_data.position[channel]);
         pid_reset(&pidControllers[channel]);
         pid_reset(&posPidControllers[channel]);
         profileVel[channel] = 0;
