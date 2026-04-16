@@ -1,4 +1,6 @@
 #!/bin/bash
+cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
+
 BOOT0=17
 RST=23
 STM32FLASH='stm32flash'
