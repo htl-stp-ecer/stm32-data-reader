@@ -91,9 +91,13 @@ target_precompile_headers(wombat_lib PRIVATE
         <spdlog/sinks/stdout_color_sinks.h>
 )
 
+# ---------- Version header ----------
+configure_file(src/version.h.in ${CMAKE_BINARY_DIR}/version.h)
+
 # ---------- Executable ----------
 add_executable(${PROJECT_NAME} src/main.cpp)
 
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR})
 target_link_libraries(${PROJECT_NAME} PRIVATE wombat_lib)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")

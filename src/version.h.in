@@ -1,0 +1,2 @@
+#pragma once
+#define STMREADER_VERSION "@PROJECT_VERSION@"
