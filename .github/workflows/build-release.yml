@@ -97,3 +97,11 @@ jobs:
           name: v1.0.${{ github.run_number }}
           generate_release_notes: true
           files: stm32_data_reader-v1.0.${{ github.run_number }}.tar.gz
+
+      - name: Trigger raccoon-image bundle
+        run: |
+          curl -s -X POST \
+            -H "Authorization: Bearer ${{ secrets.GH_PAT }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/htl-stp-ecer/raccoon-image/dispatches \
+            -d '{"event_type":"component-released","client_payload":{"component":"stm32-data-reader","version":"v1.0.${{ github.run_number }}"}}'
