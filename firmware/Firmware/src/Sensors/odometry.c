@@ -14,6 +14,7 @@
 
 #include <math.h>
 #include <string.h>
+#include <stdio.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846f
@@ -62,6 +63,12 @@ static float prev_body_vy = 0.0f;
 // Global odometry tick tracking
 static uint32_t last_bemf_conv = 0;
 static uint32_t last_update_us = 0;
+
+// Log rate limiting — at most once per 500ms per slip type
+#define LOG_INTERVAL_US 500000u
+static uint32_t last_log_rot_slip_us = 0;
+static uint32_t last_log_wheel_slip_us = 0;
+static uint32_t last_log_accel_slip_us = 0;
 
 void odometry_configure(const volatile KinematicsConfig* cfg)
 {
@@ -209,6 +216,13 @@ void odometry_update(void)
     {
         vx *= ROTATION_SLIP_VEL_DAMPEN;
         vy *= ROTATION_SLIP_VEL_DAMPEN;
+        if ((now - last_log_rot_slip_us) >= LOG_INTERVAL_US)
+        {
+            last_log_rot_slip_us = now;
+            printf("[odom] rot_slip: wz_wheels=%.3f imu_wz=%.3f err=%.3f -> vx/vy dampened x%.1f\r\n",
+                (double)wz_wheels, (double)imu_wz, (double)wz_error,
+                (double)ROTATION_SLIP_VEL_DAMPEN);
+        }
     }
 
     // ========================================================================
@@ -232,6 +246,15 @@ void odometry_update(void)
     // If 1-2 wheels are slipping, clamp them to predicted and recompute vx/vy
     if (slip_count > 0 && slip_count <= 2)
     {
+        if ((now - last_log_wheel_slip_us) >= LOG_INTERVAL_US)
+        {
+            last_log_wheel_slip_us = now;
+            printf("[odom] wheel_slip: count=%d mask=[%d%d%d%d] w=[%.2f,%.2f,%.2f,%.2f] -> clamping\r\n",
+                slip_count,
+                (int)wheel_slipping[0], (int)wheel_slipping[1],
+                (int)wheel_slipping[2], (int)wheel_slipping[3],
+                (double)w[0], (double)w[1], (double)w[2], (double)w[3]);
+        }
         for (int i = 0; i < 4; i++)
         {
             if (wheel_slipping[i])
@@ -247,6 +270,17 @@ void odometry_update(void)
         {
             vx += kin.inv_matrix[0][i] * w[i];
             vy += kin.inv_matrix[1][i] * w[i];
+        }
+    }
+    else if (slip_count > 2)
+    {
+        if ((now - last_log_wheel_slip_us) >= LOG_INTERVAL_US)
+        {
+            last_log_wheel_slip_us = now;
+            printf("[odom] wheel_slip: count=%d mask=[%d%d%d%d] -> too many, not correcting\r\n",
+                slip_count,
+                (int)wheel_slipping[0], (int)wheel_slipping[1],
+                (int)wheel_slipping[2], (int)wheel_slipping[3]);
         }
     }
 
@@ -270,6 +304,14 @@ void odometry_update(void)
 
     if (accel_error > ACCEL_SLIP_THRESHOLD)
     {
+        if ((now - last_log_accel_slip_us) >= LOG_INTERVAL_US)
+        {
+            last_log_accel_slip_us = now;
+            printf("[odom] accel_slip: err=%.3f dvx=%.3f dvy=%.3f imu_ax=%.3f imu_ay=%.3f -> blending vel\r\n",
+                (double)accel_error,
+                (double)dvx, (double)dvy,
+                (double)imu_ax_body, (double)imu_ay_body);
+        }
         vx = 0.5f * vx + 0.5f * prev_body_vx;
         vy = 0.5f * vy + 0.5f * prev_body_vy;
     }

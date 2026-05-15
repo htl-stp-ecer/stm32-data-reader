@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <cstring>
 #include <algorithm>
+#include <thread>
 
 namespace wombat
 {
@@ -163,6 +164,17 @@ namespace wombat
             lineBuffer_.clear();
         }
 
+        return Result<void>::success();
+    }
+
+    Result<void> UartMonitor::drainFor(std::chrono::milliseconds duration)
+    {
+        auto end = std::chrono::steady_clock::now() + duration;
+        while (std::chrono::steady_clock::now() < end)
+        {
+            processUpdate();
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
         return Result<void>::success();
     }
 

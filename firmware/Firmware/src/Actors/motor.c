@@ -10,6 +10,7 @@
 #include "Hardware/timerInit.h"
 #include "Actors/pid.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #define MTP_DONE_THRESHOLD 40   // position error deadband for "done" in BEMF units

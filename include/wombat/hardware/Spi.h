@@ -21,6 +21,13 @@ void set_spi_mode(bool);
 bool spi_force_update(void);
 void spi_close(void);
 
+/* Reset the STM32 coprocessor via the reset script */
+void spi_reset_stm32(void);
+
+/* One-shot raw SPI transfer that returns the transferVersion byte received
+ * from the STM32.  Does NOT trigger auto-reflash.  Call after spi_init(). */
+uint8_t spi_probe_version(void);
+
 /* ---------------------------------------------------- */
 /*  typed helpers                                       */
 /* ---------------------------------------------------- */

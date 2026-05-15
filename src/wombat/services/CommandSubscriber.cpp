@@ -7,11 +7,13 @@ namespace wombat
     CommandSubscriber::CommandSubscriber(std::shared_ptr<LcmBroker> broker,
                                          std::shared_ptr<DeviceController> deviceController,
                                          std::shared_ptr<DataPublisher> dataPublisher,
-                                         std::shared_ptr<Logger> logger)
+                                         std::shared_ptr<Logger> logger,
+                                         MotorWatchdog& watchdog)
         : broker_{std::move(broker)},
           deviceController_{std::move(deviceController)},
           dataPublisher_{std::move(dataPublisher)},
-          logger_{std::move(logger)}
+          logger_{std::move(logger)},
+          watchdog_{watchdog}
     {
     }
 
@@ -26,7 +28,7 @@ namespace wombat
         for (PortId i = 0; i < maxPorts; ++i)
         {
             const auto channel = channelFn(i);
-            logger_->info("Subscribing to " + description + " channel: " + channel);
+            logger_->debug("Subscribing to " + description + " channel: " + channel);
             auto result = broker_->subscribe<MsgT>(
                 channel,
                 [handler, i](const MsgT& cmd) { handler(i, cmd); },
@@ -112,8 +114,14 @@ namespace wombat
             "servo mode command", reliableOpts);
         if (r.isFailure()) return r;
 
+        r = subscribeForPorts<raccoon::vector3f_t>(
+            MAX_SERVO_PORTS, Channels::servoSmoothPositionCommand,
+            [this](PortId p, const raccoon::vector3f_t& cmd) { onServoSmoothCommand(p, cmd); },
+            "servo smooth command", reliableOpts);
+        if (r.isFailure()) return r;
+
         // System commands (single channels)
-        logger_->info("Subscribing to shutdown command channel: " + std::string(Channels::SHUTDOWN_CMD));
+        logger_->debug("Subscribing to shutdown command channel: " + std::string(Channels::SHUTDOWN_CMD));
         auto shutdownResult = broker_->subscribe<raccoon::scalar_i32_t>(
             Channels::SHUTDOWN_CMD,
             [this](const raccoon::scalar_i32_t& cmd) { onShutdownCommand(cmd); },
@@ -125,7 +133,7 @@ namespace wombat
         }
 
         // Kinematics config command (one-shot, reliable)
-        logger_->info("Subscribing to kinematics config channel: " + std::string(Channels::KINEMATICS_CONFIG_CMD));
+        logger_->debug("Subscribing to kinematics config channel: " + std::string(Channels::KINEMATICS_CONFIG_CMD));
         auto kinResult = broker_->subscribe<raccoon::kinematics_config_t>(
             Channels::KINEMATICS_CONFIG_CMD,
             [this](const raccoon::kinematics_config_t& cmd) { onKinematicsConfigCommand(cmd); },
@@ -137,7 +145,7 @@ namespace wombat
         }
 
         // Odometry reset command (one-shot, reliable)
-        logger_->info("Subscribing to odometry reset channel: " + std::string(Channels::ODOM_RESET_CMD));
+        logger_->debug("Subscribing to odometry reset channel: " + std::string(Channels::ODOM_RESET_CMD));
         auto odomResetResult = broker_->subscribe<raccoon::scalar_i32_t>(
             Channels::ODOM_RESET_CMD,
             [this](const raccoon::scalar_i32_t& cmd) { onOdometryResetCommand(cmd); },
@@ -146,6 +154,17 @@ namespace wombat
         if (odomResetResult.isFailure())
         {
             return Result<void>::failure("Failed to subscribe to odometry reset: " + odomResetResult.error());
+        }
+
+        // Heartbeat from raccoon-lib — feeds the MotorWatchdog
+        logger_->debug("Subscribing to heartbeat channel: " + std::string(Channels::HEARTBEAT_CMD));
+        auto heartbeatResult = broker_->subscribe<raccoon::scalar_i32_t>(
+            Channels::HEARTBEAT_CMD,
+            [this](const raccoon::scalar_i32_t& cmd) { onHeartbeatCommand(cmd); }
+        );
+        if (heartbeatResult.isFailure())
+        {
+            return Result<void>::failure("Failed to subscribe to heartbeat: " + heartbeatResult.error());
         }
 
         isInitialized_ = true;
@@ -383,6 +402,29 @@ namespace wombat
             "Received servo position_cmd on port " + std::to_string(port) + ": " + std::to_string(degrees) + " deg");
     }
 
+    void CommandSubscriber::onServoSmoothCommand(const PortId port, const raccoon::vector3f_t& command)
+    {
+        if (!isInitialized_)
+            return;
+
+        if (!isTimestampNewer(Channels::servoSmoothPositionCommand(port), command.timestamp))
+            return;
+
+        const float targetAngle = command.x;
+        const float speed = command.y;
+        const int easingType = static_cast<int>(command.z);
+
+        auto result = deviceController_->startSmoothServo(port, targetAngle, speed, easingType);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to start smooth servo on port " + std::to_string(port) + ": " + result.error());
+            return;
+        }
+
+        logger_->info("Smooth servo port " + std::to_string(port) + ": target=" +
+            std::to_string(targetAngle) + " deg, speed=" + std::to_string(speed) + " deg/s");
+    }
+
     void CommandSubscriber::onServoModeCommand(const PortId port, const raccoon::scalar_i8_t& command)
     {
         if (!isInitialized_)
@@ -538,5 +580,10 @@ namespace wombat
         }
 
         logger_->info("STM32 odometry reset");
+    }
+
+    void CommandSubscriber::onHeartbeatCommand(const raccoon::scalar_i32_t& /*command*/)
+    {
+        watchdog_.feed();
     }
 } // namespace wombat

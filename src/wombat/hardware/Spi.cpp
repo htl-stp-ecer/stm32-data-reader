@@ -140,6 +140,25 @@ bool spi_init(uint32_t speed_hz)
     return spi_reopen();
 }
 
+void spi_reset_stm32(void)
+{
+    reset_stm();
+}
+
+uint8_t spi_probe_version(void)
+{
+    if (ctx.fd < 0) return 0;
+    // Retry for up to 3 seconds — the STM32 may still be booting
+    for (int attempt = 0; attempt < 30; ++attempt)
+    {
+        spi_do_transfer();
+        if (ctx.rx.transferVersion != 0)
+            return ctx.rx.transferVersion;
+        usleep(100 * 1000); // 100 ms
+    }
+    return ctx.rx.transferVersion;
+}
+
 void set_spi_mode(bool mode)
 {
     allowUpdates = mode;

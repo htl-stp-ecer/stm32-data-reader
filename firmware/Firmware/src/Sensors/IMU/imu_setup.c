@@ -27,9 +27,11 @@ void setupImu(void)
     unsigned char accel_fsr;
     unsigned short gyro_rate, gyro_fsr, compass_fsr;
 
+    printf("[IMU] step: self-test\r\n");
     imu_run_self_test();
+    printf("[IMU] step: mpu_init\r\n");
     mpu_init(&int_param);
-
+    printf("[IMU] step: inv_init_mpl\r\n");
     inv_init_mpl();
     inv_enable_quaternion();
     inv_enable_fast_nomot();
@@ -37,15 +39,15 @@ void setupImu(void)
     inv_enable_in_use_auto_calibration();
     inv_enable_heading_from_gyro();
     inv_enable_eMPL_outputs();
-    //inv_init_9x_fusion();
-    //inv_enable_9x_sensor_fusion();
 
     /* Calibration loading disabled — flash erase blocks main loop.
      * TODO: re-enable once flash ops run from RAM or use a smaller sector. */
     printf("[IMU] Calibration loading disabled\r\n");
 
+    printf("[IMU] step: inv_start_mpl\r\n");
     inv_start_mpl();
 
+    printf("[IMU] step: mpu_set_sensors\r\n");
     mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL | INV_XYZ_COMPASS);
     mpu_configure_fifo(INV_XYZ_GYRO | INV_XYZ_ACCEL);
     mpu_set_sample_rate(DEFAULT_MPU_HZ);
@@ -73,6 +75,7 @@ void setupImu(void)
 
     hal_get_tick_count(&imu_timestamp);
 
+    printf("[IMU] step: dmp_load_motion_driver_firmware\r\n");
     dmp_load_motion_driver_firmware();
     dmp_set_orientation(
         inv_orientation_matrix_to_scalar(gyro_pdata.orientation));
@@ -80,6 +83,8 @@ void setupImu(void)
     unsigned short dmp_features = DMP_FEATURE_6X_LP_QUAT | DMP_FEATURE_SEND_RAW_ACCEL
         | DMP_FEATURE_SEND_CAL_GYRO | DMP_FEATURE_GYRO_CAL;
     dmp_enable_feature(dmp_features);
+    printf("[IMU] step: dmp_set_fifo_rate / mpu_set_dmp_state\r\n");
     dmp_set_fifo_rate(DEFAULT_MPU_HZ);
     mpu_set_dmp_state(1);
+    printf("[IMU] step: setupImu done\r\n");
 }

@@ -5,6 +5,8 @@
 #include "inv_mpu_dmp_motion_driver.h"
 #include "invensense.h"
 #include "Sensors/IMU/mpu9250_config.h"
+#include <stdio.h>
+
 
 struct platform_data_s gyro_pdata = {
     .orientation = IMU_GYRO_ORIENTATION_MATRIX
@@ -20,6 +22,7 @@ int imu_run_self_test(void)
 
     if ((result == 0x7) || (result == 0x3))
     {
+        printf("[IMU] Self-test passed (result=0x%02X) — applying bias correction\r\n", result);
         for (int i = 0; i < 3; ++i)
         {
             gyro[i] = (long)(gyro[i] * 32.8f);   // to +/-1000 dps
@@ -29,6 +32,10 @@ int imu_run_self_test(void)
         }
         mpu_set_gyro_bias_reg(gyro);
         mpu_set_accel_bias_6500_reg(accel);
+    }
+    else
+    {
+        printf("[IMU] Self-test failed or timed out (result=0x%02X) — no bias correction applied\r\n", result);
     }
     return result;
 }

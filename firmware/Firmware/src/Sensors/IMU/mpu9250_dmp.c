@@ -71,7 +71,9 @@ inv_error_t MPU9250_begin(void)
 
 inv_error_t MPU9250_enableInterrupt(unsigned char enable)
 {
-    return set_int_enable(enable);
+    // Route through the public API: set interrupt active-low flag
+    // (set_int_enable is internal to inv_mpu.c)
+    return mpu_set_int_level(enable ? 0 : 1);
 }
 
 inv_error_t MPU9250_setIntLevel(unsigned char active_low)

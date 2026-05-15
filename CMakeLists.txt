@@ -50,6 +50,7 @@ set(CORE_SOURCES
         src/wombat/services/DeviceController.cpp
         src/wombat/services/DataPublisher.cpp
         src/wombat/services/CommandSubscriber.cpp
+        src/wombat/services/MotorWatchdog.cpp
         src/wombat/services/SystemMonitor.cpp
         src/wombat/services/UartMonitor.cpp
         src/wombat/Application.cpp
@@ -93,6 +94,7 @@ target_precompile_headers(wombat_lib PRIVATE
 
 # ---------- Version header ----------
 configure_file(src/version.h.in ${CMAKE_BINARY_DIR}/version.h)
+target_include_directories(wombat_lib PRIVATE ${CMAKE_BINARY_DIR})
 
 # ---------- Executable ----------
 add_executable(${PROJECT_NAME} src/main.cpp)
