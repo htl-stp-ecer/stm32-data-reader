@@ -41,7 +41,6 @@
 #include "Storage/flash_cal.h"
 #include "Utillity/utillity.h"
 
-#define SERVO_UPDATE_INTERVAL 100 //ms (only update the servos with 10Hz to avoid servo jitter)
 #define HEARTBEAT_INTERVAL 5000 //ms
 
 /* Private includes ----------------------------------------------------------*/
@@ -103,7 +102,6 @@ int main(void)
     initMotors();
     setupImu();
 
-    uint32_t last_update = HAL_GetTick();
     uint32_t last_heartbeat = HAL_GetTick();
     uint32_t heartbeat_count = 0;
 
@@ -111,11 +109,9 @@ int main(void)
     while (1)
     {
         const uint32_t current_time = HAL_GetTick();
-        if (current_time - last_update >= SERVO_UPDATE_INTERVAL)
-        {
-            update_servo_cmd();
-            last_update = current_time;
-        }
+        // CCR writes are shadowed (OCxPE=1), so the duty cycle the servo sees still
+        // updates only at the start of each 20 ms PWM period regardless of call rate.
+        update_servo_cmd();
 
         if (current_time - last_heartbeat >= HEARTBEAT_INTERVAL)
         {
