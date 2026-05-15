@@ -13,6 +13,8 @@
 #include "wombat/services/CommandSubscriber.h"
 #include "wombat/services/SystemMonitor.h"
 #include "wombat/services/UartMonitor.h"
+#include "wombat/services/MotorWatchdog.h"
+#include <chrono>
 #include <memory>
 #include <atomic>
 
@@ -47,9 +49,11 @@ namespace wombat
         std::shared_ptr<CommandSubscriber> commandSubscriber_;
         std::unique_ptr<SystemMonitor> systemMonitor_;
         std::unique_ptr<UartMonitor> uartMonitor_;
+        MotorWatchdog motorWatchdog_;
 
         std::atomic<bool> shouldShutdown_{false};
         bool isInitialized_{false};
+
 
         Result<void> createServices();
         Result<void> initializeServices();

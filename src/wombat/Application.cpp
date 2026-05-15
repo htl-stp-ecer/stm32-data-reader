@@ -137,7 +137,7 @@ namespace wombat
         dataPublisher_ = std::make_shared<DataPublisher>(messageBroker_, logger_);
         systemMonitor_ = std::make_unique<SystemMonitor>(messageBroker_, logger_);
         commandSubscriber_ = std::make_shared<CommandSubscriber>(messageBroker_, deviceController_, dataPublisher_,
-                                                                 logger_);
+                                                                 logger_, motorWatchdog_);
 
         if (config_.uart.enabled)
         {
@@ -240,6 +240,9 @@ namespace wombat
                 logger_->warn("Failed to process messages: " + messageResult.error());
             }
         }
+
+        // Update motor watchdog (fires hardware shutdown if heartbeat is missing)
+        motorWatchdog_.update(*deviceController_);
 
         // Update device controller
         auto deviceResult = deviceController_->processUpdate();

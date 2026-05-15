@@ -17,6 +17,7 @@
 #include <raccoon/kinematics_config_t.hpp>
 #include "wombat/services/DeviceController.h"
 #include "wombat/services/DataPublisher.h"
+#include "wombat/services/MotorWatchdog.h"
 #include <memory>
 #include <unordered_map>
 #include <string>
@@ -33,7 +34,8 @@ namespace wombat
         CommandSubscriber(std::shared_ptr<LcmBroker> broker,
                           std::shared_ptr<DeviceController> deviceController,
                           std::shared_ptr<DataPublisher> dataPublisher,
-                          std::shared_ptr<Logger> logger);
+                          std::shared_ptr<Logger> logger,
+                          MotorWatchdog& watchdog);
 
         Result<void> initialize();
         Result<void> shutdown();
@@ -43,6 +45,7 @@ namespace wombat
         std::shared_ptr<DeviceController> deviceController_;
         std::shared_ptr<DataPublisher> dataPublisher_;
         std::shared_ptr<Logger> logger_;
+        MotorWatchdog& watchdog_;
 
         void onMotorPowerCommand(PortId port, const raccoon::scalar_i32_t& command);
         void onMotorModeCommand(PortId port, const raccoon::scalar_i32_t& command);
@@ -56,6 +59,7 @@ namespace wombat
         void onMotorPositionResetCommand(PortId port, const raccoon::scalar_i32_t& command);
         void onMotorPidCommand(PortId port, const raccoon::vector3f_t& command);
         void onShutdownCommand(const raccoon::scalar_i32_t& command);
+        void onHeartbeatCommand(const raccoon::scalar_i32_t& command);
         void onKinematicsConfigCommand(const raccoon::kinematics_config_t& command);
         void onOdometryResetCommand(const raccoon::scalar_i32_t& command);
 

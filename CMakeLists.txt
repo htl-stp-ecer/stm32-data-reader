@@ -50,6 +50,7 @@ set(CORE_SOURCES
         src/wombat/services/DeviceController.cpp
         src/wombat/services/DataPublisher.cpp
         src/wombat/services/CommandSubscriber.cpp
+        src/wombat/services/MotorWatchdog.cpp
         src/wombat/services/SystemMonitor.cpp
         src/wombat/services/UartMonitor.cpp
         src/wombat/Application.cpp

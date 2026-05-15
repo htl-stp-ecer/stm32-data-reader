@@ -7,11 +7,13 @@ namespace wombat
     CommandSubscriber::CommandSubscriber(std::shared_ptr<LcmBroker> broker,
                                          std::shared_ptr<DeviceController> deviceController,
                                          std::shared_ptr<DataPublisher> dataPublisher,
-                                         std::shared_ptr<Logger> logger)
+                                         std::shared_ptr<Logger> logger,
+                                         MotorWatchdog& watchdog)
         : broker_{std::move(broker)},
           deviceController_{std::move(deviceController)},
           dataPublisher_{std::move(dataPublisher)},
-          logger_{std::move(logger)}
+          logger_{std::move(logger)},
+          watchdog_{watchdog}
     {
     }
 
@@ -152,6 +154,17 @@ namespace wombat
         if (odomResetResult.isFailure())
         {
             return Result<void>::failure("Failed to subscribe to odometry reset: " + odomResetResult.error());
+        }
+
+        // Heartbeat from raccoon-lib — feeds the MotorWatchdog
+        logger_->debug("Subscribing to heartbeat channel: " + std::string(Channels::HEARTBEAT_CMD));
+        auto heartbeatResult = broker_->subscribe<raccoon::scalar_i32_t>(
+            Channels::HEARTBEAT_CMD,
+            [this](const raccoon::scalar_i32_t& cmd) { onHeartbeatCommand(cmd); }
+        );
+        if (heartbeatResult.isFailure())
+        {
+            return Result<void>::failure("Failed to subscribe to heartbeat: " + heartbeatResult.error());
         }
 
         isInitialized_ = true;
@@ -567,5 +580,10 @@ namespace wombat
         }
 
         logger_->info("STM32 odometry reset");
+    }
+
+    void CommandSubscriber::onHeartbeatCommand(const raccoon::scalar_i32_t& /*command*/)
+    {
+        watchdog_.feed();
     }
 } // namespace wombat
