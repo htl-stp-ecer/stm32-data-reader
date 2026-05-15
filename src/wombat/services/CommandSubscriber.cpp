@@ -112,6 +112,12 @@ namespace wombat
             "servo mode command", reliableOpts);
         if (r.isFailure()) return r;
 
+        r = subscribeForPorts<raccoon::vector3f_t>(
+            MAX_SERVO_PORTS, Channels::servoSmoothPositionCommand,
+            [this](PortId p, const raccoon::vector3f_t& cmd) { onServoSmoothCommand(p, cmd); },
+            "servo smooth command", reliableOpts);
+        if (r.isFailure()) return r;
+
         // System commands (single channels)
         logger_->info("Subscribing to shutdown command channel: " + std::string(Channels::SHUTDOWN_CMD));
         auto shutdownResult = broker_->subscribe<raccoon::scalar_i32_t>(
@@ -381,6 +387,29 @@ namespace wombat
 
         logger_->info(
             "Received servo position_cmd on port " + std::to_string(port) + ": " + std::to_string(degrees) + " deg");
+    }
+
+    void CommandSubscriber::onServoSmoothCommand(const PortId port, const raccoon::vector3f_t& command)
+    {
+        if (!isInitialized_)
+            return;
+
+        if (!isTimestampNewer(Channels::servoSmoothPositionCommand(port), command.timestamp))
+            return;
+
+        const float targetAngle = command.x;
+        const float speed = command.y;
+        const int easingType = static_cast<int>(command.z);
+
+        auto result = deviceController_->startSmoothServo(port, targetAngle, speed, easingType);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to start smooth servo on port " + std::to_string(port) + ": " + result.error());
+            return;
+        }
+
+        logger_->info("Smooth servo port " + std::to_string(port) + ": target=" +
+            std::to_string(targetAngle) + " deg, speed=" + std::to_string(speed) + " deg/s");
     }
 
     void CommandSubscriber::onServoModeCommand(const PortId port, const raccoon::scalar_i8_t& command)
