@@ -92,11 +92,11 @@ void MX_TIM3_Init(void)
     TIM_OC_InitTypeDef sConfigOC = {0};
 
     htim3.Instance = TIM3;
-    htim3.Init.Prescaler = 180 / 2;
+    htim3.Init.Prescaler = 89; // 90MHz / 90 / 20000 = 50Hz
     htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
     htim3.Init.Period = 20000;
     htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-    htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+    htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
     if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
     {
         Error_Handler();
@@ -119,6 +119,9 @@ void MX_TIM3_Init(void)
     {
         Error_Handler();
     }
+    // CCR writes are buffered until next update event (no mid-period glitches on rapid servo updates).
+    TIM3->CCMR1 |= TIM_CCMR1_OC2PE;
+    TIM3->CCMR2 |= TIM_CCMR2_OC3PE;
     HAL_TIM_MspPostInit(&htim3);
 }
 
@@ -201,11 +204,11 @@ void MX_TIM9_Init(void)
     TIM_OC_InitTypeDef sConfigOC = {0};
 
     htim9.Instance = TIM9;
-    htim9.Init.Prescaler = 180;
+    htim9.Init.Prescaler = 89; // 90MHz / 90 / 20000 = 50Hz
     htim9.Init.CounterMode = TIM_COUNTERMODE_UP;
     htim9.Init.Period = 20000;
     htim9.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-    htim9.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+    htim9.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
     if (HAL_TIM_PWM_Init(&htim9) != HAL_OK)
     {
         Error_Handler();
@@ -217,6 +220,9 @@ void MX_TIM9_Init(void)
 
     if (HAL_TIM_PWM_ConfigChannel(&htim9, &sConfigOC, TIM_CHANNEL_1) != HAL_OK) { Error_Handler(); }
     if (HAL_TIM_PWM_ConfigChannel(&htim9, &sConfigOC, TIM_CHANNEL_2) != HAL_OK) { Error_Handler(); }
+
+    // CCR writes are buffered until next update event (no mid-period glitches on rapid servo updates).
+    TIM9->CCMR1 |= TIM_CCMR1_OC1PE | TIM_CCMR1_OC2PE;
 
     HAL_TIM_MspPostInit(&htim9);
 }
