@@ -4,7 +4,13 @@
 #include "wombat/hardware/SpiMock.h"
 #else
 #include "wombat/hardware/SpiReal.h"
+extern "C" {
+#include "wombat/hardware/Spi.h"
+#include "spi/pi_buffer.h"
+}
 #endif
+
+#include "version.h"
 
 #include <thread>
 #include <chrono>
@@ -150,28 +156,14 @@ namespace wombat
 
     Result<void> Application::initializeServices()
     {
-        // Initialize message broker first
+        // 1. Message broker
         auto messageBrokerResult = messageBroker_->initialize();
         if (messageBrokerResult.isFailure())
         {
             return Result<void>::failure("Failed to initialize message broker: " + messageBrokerResult.error());
         }
 
-        // Initialize device controller
-        auto deviceControllerResult = deviceController_->initialize();
-        if (deviceControllerResult.isFailure())
-        {
-            return Result<void>::failure("Failed to initialize device controller: " + deviceControllerResult.error());
-        }
-
-        // Initialize command subscriber
-        auto commandSubscriberResult = commandSubscriber_->initialize();
-        if (commandSubscriberResult.isFailure())
-        {
-            logger_->warn("Failed to initialize command subscriber: " + commandSubscriberResult.error());
-        }
-
-
+        // 2. UART monitor — must be up before reset so boot output is captured
         if (uartMonitor_)
         {
             auto uartResult = uartMonitor_->initialize();
@@ -179,6 +171,60 @@ namespace wombat
             {
                 logger_->warn("Failed to initialize UART monitor: " + uartResult.error());
             }
+        }
+
+#ifndef USE_SPI_MOCK
+        // 3. Reset STM32 and capture boot output
+        logger_->info("Resetting STM32 coprocessor...");
+        spi_reset_stm32(); // calls reset script + 1 s sleep
+
+        if (uartMonitor_)
+        {
+            logger_->info("Waiting for STM32 boot output...");
+            uartMonitor_->drainFor(std::chrono::milliseconds(2000));
+        }
+        else
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+        }
+#endif
+
+        // 4. Initialize device controller (opens SPI fd)
+        auto deviceControllerResult = deviceController_->initialize();
+        if (deviceControllerResult.isFailure())
+        {
+            return Result<void>::failure("Failed to initialize device controller: " + deviceControllerResult.error());
+        }
+
+#ifndef USE_SPI_MOCK
+        // 5. Probe the protocol version actually running on the STM32
+        {
+            const uint8_t stm32Version = spi_probe_version();
+            const bool versionMatch = (stm32Version == TRANSFER_VERSION);
+
+            logger_->info("=== Startup version report ===");
+            logger_->info("  Reader version      : " + std::string(STMREADER_VERSION));
+            logger_->info("  SPI protocol expected: " + std::to_string(TRANSFER_VERSION));
+            logger_->info("  SPI protocol from STM32: " + std::to_string(stm32Version));
+            if (versionMatch)
+            {
+                logger_->info("  Version check       : OK — no reflash needed");
+            }
+            else
+            {
+                logger_->warn("  Version check       : MISMATCH — firmware reflash will be triggered on first update");
+            }
+            logger_->info("==============================");
+        }
+#else
+        logger_->info("Reader version: " + std::string(STMREADER_VERSION) + " (SPI mock — no STM32 version check)");
+#endif
+
+        // 6. Initialize command subscriber
+        auto commandSubscriberResult = commandSubscriber_->initialize();
+        if (commandSubscriberResult.isFailure())
+        {
+            logger_->warn("Failed to initialize command subscriber: " + commandSubscriberResult.error());
         }
 
         logger_->debug("All services initialized successfully");
@@ -272,6 +318,9 @@ namespace wombat
             }
         }
 
+        // STM32 health check: updateTime must change within 10 seconds
+        checkStm32Health();
+
         // Publish current data
         auto publishResult = publishCurrentData();
         if (publishResult.isFailure())
@@ -280,6 +329,37 @@ namespace wombat
         }
 
         return Result<void>::success();
+    }
+
+    void Application::checkStm32Health()
+    {
+        auto sensorDataResult = deviceController_->getCurrentSensorData();
+        if (sensorDataResult.isFailure())
+            return;
+
+        const Timestamp ts = sensorDataResult.value().lastUpdate;
+        const auto now = std::chrono::steady_clock::now();
+
+        if (ts != lastStm32Timestamp_)
+        {
+            lastStm32Timestamp_ = ts;
+            lastStm32Activity_ = now;
+            stm32HealthArmed_ = true;
+            return;
+        }
+
+        if (!stm32HealthArmed_)
+        {
+            lastStm32Activity_ = now;
+            return;
+        }
+
+        constexpr auto kTimeout = std::chrono::seconds(10);
+        if (now - lastStm32Activity_ > kTimeout)
+        {
+            logger_->error("STM32 health check failed: updateTime has not changed for >10s — shutting down");
+            requestShutdown();
+        }
     }
 
     Result<void> Application::publishCurrentData()

@@ -3,6 +3,7 @@
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
 #include "wombat/core/Configuration.h"
+#include <chrono>
 #include <memory>
 #include <string>
 
@@ -16,6 +17,9 @@ namespace wombat
         Result<void> initialize();
         Result<void> processUpdate();
         Result<void> shutdown();
+
+        // Pump UART output for the given duration, logging all received lines.
+        Result<void> drainFor(std::chrono::milliseconds duration);
 
     private:
         std::shared_ptr<Logger> logger_;

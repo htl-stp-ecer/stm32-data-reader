@@ -54,6 +54,10 @@ namespace wombat
         std::atomic<bool> shouldShutdown_{false};
         bool isInitialized_{false};
 
+        // STM32 health monitoring
+        Timestamp lastStm32Timestamp_{0};
+        std::chrono::steady_clock::time_point lastStm32Activity_{};
+        bool stm32HealthArmed_{false};
 
         Result<void> createServices();
         Result<void> initializeServices();
@@ -61,6 +65,7 @@ namespace wombat
 
         Result<void> processMainLoop();
         Result<void> publishCurrentData();
+        void checkStm32Health();
 
         Timestamp lastPublishedTimestamp_{0};
     };

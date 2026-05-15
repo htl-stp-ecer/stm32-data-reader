@@ -28,7 +28,7 @@ namespace wombat
         for (PortId i = 0; i < maxPorts; ++i)
         {
             const auto channel = channelFn(i);
-            logger_->info("Subscribing to " + description + " channel: " + channel);
+            logger_->debug("Subscribing to " + description + " channel: " + channel);
             auto result = broker_->subscribe<MsgT>(
                 channel,
                 [handler, i](const MsgT& cmd) { handler(i, cmd); },
@@ -121,7 +121,7 @@ namespace wombat
         if (r.isFailure()) return r;
 
         // System commands (single channels)
-        logger_->info("Subscribing to shutdown command channel: " + std::string(Channels::SHUTDOWN_CMD));
+        logger_->debug("Subscribing to shutdown command channel: " + std::string(Channels::SHUTDOWN_CMD));
         auto shutdownResult = broker_->subscribe<raccoon::scalar_i32_t>(
             Channels::SHUTDOWN_CMD,
             [this](const raccoon::scalar_i32_t& cmd) { onShutdownCommand(cmd); },
@@ -133,7 +133,7 @@ namespace wombat
         }
 
         // Kinematics config command (one-shot, reliable)
-        logger_->info("Subscribing to kinematics config channel: " + std::string(Channels::KINEMATICS_CONFIG_CMD));
+        logger_->debug("Subscribing to kinematics config channel: " + std::string(Channels::KINEMATICS_CONFIG_CMD));
         auto kinResult = broker_->subscribe<raccoon::kinematics_config_t>(
             Channels::KINEMATICS_CONFIG_CMD,
             [this](const raccoon::kinematics_config_t& cmd) { onKinematicsConfigCommand(cmd); },
@@ -145,7 +145,7 @@ namespace wombat
         }
 
         // Odometry reset command (one-shot, reliable)
-        logger_->info("Subscribing to odometry reset channel: " + std::string(Channels::ODOM_RESET_CMD));
+        logger_->debug("Subscribing to odometry reset channel: " + std::string(Channels::ODOM_RESET_CMD));
         auto odomResetResult = broker_->subscribe<raccoon::scalar_i32_t>(
             Channels::ODOM_RESET_CMD,
             [this](const raccoon::scalar_i32_t& cmd) { onOdometryResetCommand(cmd); },
