@@ -19,6 +19,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+
+#ifndef __no_operation
+#define __no_operation() __asm__("nop")
+#endif
 #include "inv_mpu.h"
 #include "inv_mpu_dmp_motion_driver.h"
 #include "dmpKey.h"

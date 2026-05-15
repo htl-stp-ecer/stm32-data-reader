@@ -1,4 +1,6 @@
 #include <stdlib.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 #include "motion_driver_hal.h"
 #include "MPU9250.h"
@@ -57,6 +59,9 @@ int _MLPrintLog(int priority, const char* tag, const char* fmt, ...)
 {
     (void)priority;
     (void)tag;
-    (void)fmt;
-    // Do nothing - logging disabled
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+    return 0;
 }
