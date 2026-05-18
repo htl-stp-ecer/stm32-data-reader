@@ -140,8 +140,29 @@ void readImu(void)
         inv_execute_on_data();
         imu_read_from_mpl();
 
-        /* Calibration saving disabled — flash erase blocks main loop.
-         * TODO: re-enable once flash ops run from RAM or use a smaller sector. */
+        /* Trigger save when any sensor accuracy improves */
+        if (imu.gyro.accuracy > best_gyro_accuracy ||
+            imu.accel.accuracy > best_accel_accuracy ||
+            imu.compass.accuracy > best_compass_accuracy)
+        {
+            best_gyro_accuracy = imu.gyro.accuracy > best_gyro_accuracy
+                                     ? imu.gyro.accuracy
+                                     : best_gyro_accuracy;
+            best_accel_accuracy = imu.accel.accuracy > best_accel_accuracy
+                                      ? imu.accel.accuracy
+                                      : best_accel_accuracy;
+            best_compass_accuracy = imu.compass.accuracy > best_compass_accuracy
+                                        ? imu.compass.accuracy
+                                        : best_compass_accuracy;
+            cal_needs_save = 1;
+        }
+
+        if (cal_needs_save && imu_timestamp >= next_cal_save_ms)
+        {
+            cal_needs_save = 0;
+            next_cal_save_ms = imu_timestamp + CAL_PERIODIC_SAVE_MS;
+            cal_save_to_flash();
+        }
 
         if (!spi2_wait_idle())
             return; // SPI2 stuck — skip this IMU buffer update

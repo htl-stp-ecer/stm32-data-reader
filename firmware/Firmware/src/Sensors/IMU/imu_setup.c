@@ -40,9 +40,10 @@ void setupImu(void)
     inv_enable_heading_from_gyro();
     inv_enable_eMPL_outputs();
 
-    /* Calibration loading disabled — flash erase blocks main loop.
-     * TODO: re-enable once flash ops run from RAM or use a smaller sector. */
-    printf("[IMU] Calibration loading disabled\r\n");
+    if (cal_load_from_flash() == INV_SUCCESS)
+        printf("[IMU] Calibration loaded from flash\r\n");
+    else
+        printf("[IMU] No valid calibration in flash — starting fresh\r\n");
 
     printf("[IMU] step: inv_start_mpl\r\n");
     inv_start_mpl();

@@ -40,6 +40,8 @@ namespace wombat
                                           const float fwd_matrix[4][3]) override;
         Result<void> resetOdometry() override;
 
+        Result<void> setFeatureFlags(uint8_t flags) override;
+
     private:
         Configuration::Spi cfg_;
         std::shared_ptr<Logger> logger_;

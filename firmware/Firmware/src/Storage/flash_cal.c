@@ -24,7 +24,7 @@ static HAL_StatusTypeDef flash_erase_cal_sector(void)
     uint32_t sector_error = 0;
 
     erase.TypeErase = FLASH_TYPEERASE_SECTORS;
-    erase.Banks = FLASH_BANK_1;
+    erase.Banks = FLASH_BANK_2;
     erase.Sector = CAL_FLASH_SECTOR;
     erase.NbSectors = 1;
     erase.VoltageRange = FLASH_VOLTAGE_RANGE_3; /* 2.7-3.6V */

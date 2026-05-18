@@ -281,4 +281,12 @@ namespace wombat
         if (logger_) logger_->info("SPI: STM32 odometry reset requested");
         return Result<void>::success();
     }
+
+    Result<void> SpiReal::setFeatureFlags(uint8_t flags)
+    {
+        set_feature_flags(flags);
+        if (logger_)
+            logger_->info("SPI: featureFlags=" + std::to_string(static_cast<unsigned>(flags)));
+        return Result<void>::success();
+    }
 }

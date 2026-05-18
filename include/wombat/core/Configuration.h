@@ -38,5 +38,11 @@ namespace wombat
         } uart;
 
         std::chrono::milliseconds mainLoopDelay{5};
+
+        // Opt-in "speed mode": disable BEMF measurement on STM32 at startup.
+        // When true, the reader pushes FEATURE_BEMF_DISABLE on the first SPI
+        // transfer after init. MAV (velocity PID) commands are rejected while
+        // BEMF is disabled — only PWM (open-loop) commands are valid.
+        bool disableBemfOnStartup{false};
     };
 }

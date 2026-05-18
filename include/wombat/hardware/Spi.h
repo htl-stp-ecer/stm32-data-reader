@@ -65,6 +65,11 @@ void set_kinematics_config(const float inv_matrix[3][4], const float ticks_to_ra
 /* Odometry: request STM32 to reset its integrated pose */
 void reset_stm32_odometry(void);
 
+/* Feature flags: opt-in runtime toggles (e.g. FEATURE_BEMF_DISABLE).
+ * Replaces the full featureFlags byte and triggers a force_update so the
+ * STM32 sees the new mask on the next transfer. */
+void set_feature_flags(uint8_t flags);
+
 /* ---------------- bulk read (RX) -------------------- */
 /* Returns pointer to the internal RX buffer (last received data).
  * Does NOT trigger an SPI transfer – call spi_update() first. */

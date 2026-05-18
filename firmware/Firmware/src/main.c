@@ -98,6 +98,11 @@ int main(void)
 
     printf("[stp] Booted, firmware ready\r\n");
 
+    /* DB1M (bit 30 of OPTCR) must be 1 for dual-bank RWW on 2MB STM32F427.
+     * If 0, cal flash erase will stall Bank-1 code fetch — reprogram option byte. */
+    uint32_t optcr = FLASH->OPTCR;
+    printf("[stp] FLASH->OPTCR=0x%08lX  DB1M=%lu\r\n", optcr, (optcr >> 30) & 1u);
+
     initPiCommunication();
     initMotors();
     setupImu();
@@ -145,7 +150,7 @@ int main(void)
         if (updateFlags & PI_BUFFER_UPDATE_MOTOR_PID_POS)
         {
             updateFlags &= ~PI_BUFFER_UPDATE_MOTOR_PID_POS;
-            update_motor_pidSettings();
+            update_motor_posPidSettings();
         }
 
         if (updateFlags & PI_BUFFER_UPDATE_IMU_ORIENTATION)
@@ -159,8 +164,8 @@ int main(void)
         if (updateFlags & PI_BUFFER_UPDATE_SAVE_IMU_CAL)
         {
             updateFlags &= ~PI_BUFFER_UPDATE_SAVE_IMU_CAL;
-            printf("[stp] Save calibration requested by Pi (DISABLED)\r\n");
-            /* cal_save_to_flash() disabled — flash erase blocks main loop */
+            printf("[stp] Save calibration requested by Pi\r\n");
+            cal_save_to_flash();
         }
 
         if (updateFlags & PI_BUFFER_UPDATE_KINEMATICS)
@@ -187,6 +192,14 @@ int main(void)
                 }
             }
             rxBuffer.motorPositionReset = 0;
+        }
+
+        if (updateFlags & PI_BUFFER_UPDATE_FEATURE_FLAGS)
+        {
+            updateFlags &= ~PI_BUFFER_UPDATE_FEATURE_FLAGS;
+            printf("[stp] feature flags updated: 0x%02X (BEMF_DISABLE=%d)\r\n",
+                   rxBuffer.featureFlags,
+                   (rxBuffer.featureFlags & FEATURE_BEMF_DISABLE) ? 1 : 0);
         }
 
         readImu();

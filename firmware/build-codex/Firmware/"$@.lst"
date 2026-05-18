@@ -1,0 +1,120 @@
+   1              		.cpu cortex-m4
+   2              		.arch armv7e-m
+   3              		.fpu fpv4-sp-d16
+   4              		.eabi_attribute 27, 1
+   5              		.eabi_attribute 28, 1
+   6              		.eabi_attribute 20, 1
+   7              		.eabi_attribute 21, 1
+   8              		.eabi_attribute 23, 3
+   9              		.eabi_attribute 24, 1
+  10              		.eabi_attribute 25, 1
+  11              		.eabi_attribute 26, 1
+  12              		.eabi_attribute 30, 2
+  13              		.eabi_attribute 34, 1
+  14              		.eabi_attribute 18, 4
+  15              		.file	"utillity.c"
+  16              		.text
+  17              	.Ltext0:
+  18              		.cfi_sections	.debug_frame
+  19              		.file 1 "/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/firmware/Firmware/src
+  20              		.section	.text.delayus,"ax",%progbits
+  21              		.align	1
+  22              		.p2align 2,,3
+  23              		.global	delayus
+  24              		.syntax unified
+  25              		.thumb
+  26              		.thumb_func
+  28              	delayus:
+  29              	.LVL0:
+  30              	.LFB239:
+   1:/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/firmware/Firmware/src/Utility/utillity.c **** #include "stm32f4xx_hal.h"
+   2:/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/firmware/Firmware/src/Utility/utillity.c **** 
+   3:/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/firmware/Firmware/src/Utility/utillity.c **** #include "Utillity/utillity.h"
+   4:/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/firmware/Firmware/src/Utility/utillity.c **** #include "Hardware/timer.h"
+   5:/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/firmware/Firmware/src/Utility/utillity.c **** 
+   6:/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/firmware/Firmware/src/Utility/utillity.c **** void delayus(uint32_t delay)
+   7:/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/firmware/Firmware/src/Utility/utillity.c **** {
+  31              		.loc 1 7 1 view -0
+  32              		.cfi_startproc
+  33              		@ args = 0, pretend = 0, frame = 0
+  34              		@ frame_needed = 0, uses_anonymous_args = 0
+  35              		@ link register save eliminated.
+   8:/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/firmware/Firmware/src/Utility/utillity.c ****     uint32_t startTime = microSeconds;
+  36              		.loc 1 8 5 view .LVU1
+  37              		.loc 1 8 14 is_stmt 0 view .LVU2
+  38 0000 034A     		ldr	r2, .L5
+  39 0002 1368     		ldr	r3, [r2]
+  40              	.LVL1:
+   9:/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/firmware/Firmware/src/Utility/utillity.c **** 
+  10:/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/firmware/Firmware/src/Utility/utillity.c ****     while (startTime + delay > microSeconds);
+  41              		.loc 1 10 5 is_stmt 1 view .LVU3
+  42              		.loc 1 10 22 is_stmt 0 discriminator 1 view .LVU4
+  43 0004 1844     		add	r0, r0, r3
+  44              	.LVL2:
+  45              	.L2:
+  46              		.loc 1 10 30 is_stmt 1 discriminator 1 view .LVU5
+  47 0006 1368     		ldr	r3, [r2]
+  48 0008 8342     		cmp	r3, r0
+  49 000a FCD3     		bcc	.L2
+  11:/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/firmware/Firmware/src/Utility/utillity.c **** }...
+  50              		.loc 1 11 1 is_stmt 0 view .LVU6
+  51 000c 7047     		bx	lr
+  52              	.L6:
+  53 000e 00BF     		.align	2
+  54              	.L5:
+  55 0010 00000000 		.word	microSeconds
+  56              		.cfi_endproc
+  57              	.LFE239:
+  59              		.text
+  60              	.Letext0:
+  61              		.file 2 "/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/firmware/Firmware/inc
+  62              		.file 3 "/usr/lib/gcc/arm-none-eabi/14.2.1/include/stdint.h"
+DEFINED SYMBOLS
+                            *ABS*:00000000 utillity.c
+     /tmp/ccuFJ0zD.s:21     .text.delayus:00000000 $t
+     /tmp/ccuFJ0zD.s:28     .text.delayus:00000000 delayus
+     /tmp/ccuFJ0zD.s:55     .text.delayus:00000010 $d
+                           .group:00000000 wm4.0.3b26f946aa1e0bc142b321c8716995ce
+                           .group:00000000 wm4.stm32f4xx_hal_conf.h.25.c137c9941359ef2468c877d4a20925cd
+                           .group:00000000 wm4.stm32f4xx.h.38.2956b03293d481438ad652a758ea7efd
+                           .group:00000000 wm4.stm32f427xx.h.34.d7c1dde964d05ec9e31bc1063bbf769a
+                           .group:00000000 wm4.stdint.h.29.6d480f4ba0f60596e88234283d42444f
+                           .group:00000000 wm4.cmsis_version.h.32.0ac195c83bb4537824e6ad1c47474b79
+                           .group:00000000 wm4.core_cm4.h.66.c8ab32f64b50dc5eaa86d6099b20fb7f
+                           .group:00000000 wm4.cmsis_gcc.h.26.6b2a669b0704797bc68e248cc7d16857
+                           .group:00000000 wm4.core_cm4.h.176.a1f7a8857e259bfd57b8721ef2a3b8a8
+                           .group:00000000 wm4.mpu_armv7.h.32.83326921a797fa9d6f70449916b4b839
+                           .group:00000000 wm4.stm32f427xx.h.979.a6cac4c0d34652abc1aee1ebe0277af4
+                           .group:00000000 wm4.stm32f4xx.h.208.3b7533d5689314fd17912f62864cddcb
+                           .group:00000000 wm4.stm32_hal_legacy.h.22.949f71c8305ec51c6c6eee60fedff895
+                           .group:00000000 wm4.stddef.h.39.38eb7ec030421799c657b13be5aa21c7
+                           .group:00000000 wm4.stm32f4xx_hal_def.h.59.07b7865c4ef82ec92764805ab0184fda
+                           .group:00000000 wm4.stm32f4xx_hal_rcc_ex.h.20.c45627d2b7bdf47db38e5f3c2d10deb4
+                           .group:00000000 wm4.stm32f4xx_hal_rcc.h.105.a3f3cfee6c5c1eabf18a56d15efad9e0
+                           .group:00000000 wm4.stm32f4xx_hal_gpio.h.21.aa257a18e0a4d54e69a5757c3eb34ada
+                           .group:00000000 wm4.stm32f4xx_hal_gpio_ex.h.21.6ff7dafc6e083e98b41f2e40a62ecc9d
+                           .group:00000000 wm4.stm32f4xx_hal_gpio.h.270.f9c855fe37efa8d09cc23e9dc4ca7a24
+                           .group:00000000 wm4.stm32f4xx_hal_exti.h.21.221d933badd40977a86024eae40c09a0
+                           .group:00000000 wm4.stm32f4xx_hal_dma.h.21.d712bbf82bc929fcc9eb0673bdd04782
+                           .group:00000000 wm4.stm32f4xx_hal_dma.h.727.3e2b1c2cab5b7ab6fae477a3b3db5cbd
+                           .group:00000000 wm4.stm32f4xx_hal_cortex.h.20.03673e4f79386680bf73ba399c19306b
+                           .group:00000000 wm4.stm32f4xx_ll_adc.h.55.c36a2f5c78c5804c0a25df366664f486
+                           .group:00000000 wm4.stm32f4xx_hal_adc.h.165.81dc149cbed7ebe7cfda0954af0f97fd
+                           .group:00000000 wm4.stm32f4xx_hal_adc_ex.h.21.cf779ab8a3de4b544b27692f9d56d66a
+                           .group:00000000 wm4.stm32f4xx_hal_adc.h.653.7bed7204f1fe513b3cb4f167bf503875
+                           .group:00000000 wm4.stm32f4xx_hal_flash.h.20.2f1e0d1b7010b3a81a7980aaf712e7e5
+                           .group:00000000 wm4.stm32f4xx_hal_flash_ex.h.20.b45bc5fa2d15888146bfa9dd7bf77f04
+                           .group:00000000 wm4.stm32f4xx_hal_flash.h.361.23bc19b9eac79b0956d913651841ede8
+                           .group:00000000 wm4.stm32f4xx_hal_pwr.h.20.089cb4fd2fa3ab6b80a9af96364576cf
+                           .group:00000000 wm4.stm32f4xx_hal_pwr_ex.h.20.089ef46ea531ef9f9304006f9385760c
+                           .group:00000000 wm4.stm32f4xx_hal_pwr.h.341.ab2d4b35c31600c55aff1fa569fb3da5
+                           .group:00000000 wm4.stm32f4xx_hal_spi.h.21.1de241b9aa1b888ebba6876c05376c38
+                           .group:00000000 wm4.stm32f4xx_hal_tim.h.21.62926e370fc1ba44a2e1224be66b5cf1
+                           .group:00000000 wm4.stm32f4xx_hal_tim_ex.h.21.ad89f7fa9d515f17628e7d0f0dfe3c0b
+                           .group:00000000 wm4.stm32f4xx_hal_uart.h.21.ba8e24dd05c77faac3f3d48472e636ba
+                           .group:00000000 wm4.stm32f4xx_hal.h.72.eb74cef44a933f3811e1af2158aac184
+                           .group:00000000 wm4.main.h.23.bf5ffbcc37e26d168c1621f9691c06d6
+                           .group:00000000 wm4.timer.h.19.3b28c6c8d10fe5a71ef2058e3e84a259
+
+UNDEFINED SYMBOLS
+microSeconds

@@ -271,6 +271,15 @@ void update_motor(const uint8_t channel, const int16_t bemf_filtered)
         motor_data.done &= ~(1u << channel);
     }
 
+    if (ctlMode == MOT_MODE_MAV && (rxBuffer.featureFlags & FEATURE_BEMF_DISABLE))
+    {
+        // MAV requires BEMF feedback — ignore command, hold motor off.
+        // The Pi-side reader is the actual guard; this is defense in depth.
+        motor_setDirection(channel, OFF);
+        motor_setDutycycle(channel, 0);
+        return;
+    }
+
     switch (ctlMode)
     {
     case MOT_MODE_OFF:
