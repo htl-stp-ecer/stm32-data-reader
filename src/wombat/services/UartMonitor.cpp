@@ -12,6 +12,7 @@ namespace wombat
 {
     static constexpr size_t MAX_LINE_BUFFER = 4096;
     static constexpr size_t READ_BUFFER_SIZE = 256;
+    static constexpr std::string_view HEARTBEAT_MARKER = "[stp] hb #";
 
     UartMonitor::UartMonitor(std::shared_ptr<Logger> logger, const Configuration::Uart& config)
         : logger_{std::move(logger)}, config_{config}
@@ -136,24 +137,7 @@ namespace wombat
 
             if (!line.empty())
             {
-                std::string tagged = "[STM32] " + line;
-
-                // Route error/warning lines through appropriate log levels
-                // so they get published to the LCM error channel
-                if (line.find("[ERROR]") != std::string::npos
-                    || line.find("Error") != std::string::npos
-                    || line.find("FAULT") != std::string::npos)
-                {
-                    logger_->error(tagged);
-                }
-                else if (line.find("[WARN]") != std::string::npos)
-                {
-                    logger_->warn(tagged);
-                }
-                else
-                {
-                    logger_->info(tagged);
-                }
+                processLine(line);
             }
         }
 
@@ -167,6 +151,21 @@ namespace wombat
         return Result<void>::success();
     }
 
+    void UartMonitor::noteLoopTime(const std::chrono::steady_clock::time_point now)
+    {
+        lastLoopTime_ = now;
+    }
+
+    bool UartMonitor::heartbeatEverSeen() const
+    {
+        return lastHeartbeatTime_.has_value();
+    }
+
+    std::optional<std::chrono::steady_clock::time_point> UartMonitor::lastHeartbeatTime() const
+    {
+        return lastHeartbeatTime_;
+    }
+
     Result<void> UartMonitor::drainFor(std::chrono::milliseconds duration)
     {
         auto end = std::chrono::steady_clock::now() + duration;
@@ -176,6 +175,40 @@ namespace wombat
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
         return Result<void>::success();
+    }
+
+    void UartMonitor::processLine(const std::string& line)
+    {
+        if (line.find(HEARTBEAT_MARKER) != std::string::npos)
+        {
+            if (lastLoopTime_ != std::chrono::steady_clock::time_point{})
+            {
+                lastHeartbeatTime_ = lastLoopTime_;
+            }
+            else
+            {
+                lastHeartbeatTime_ = std::chrono::steady_clock::now();
+            }
+        }
+
+        std::string tagged = "[STM32] " + line;
+
+        // Route error/warning lines through appropriate log levels
+        // so they get published to the LCM error channel
+        if (line.find("[ERROR]") != std::string::npos
+            || line.find("Error") != std::string::npos
+            || line.find("FAULT") != std::string::npos)
+        {
+            logger_->error(tagged);
+        }
+        else if (line.find("[WARN]") != std::string::npos)
+        {
+            logger_->warn(tagged);
+        }
+        else
+        {
+            logger_->info(tagged);
+        }
     }
 
     Result<void> UartMonitor::shutdown()

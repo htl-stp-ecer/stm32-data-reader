@@ -6,6 +6,7 @@
 #include <chrono>
 #include <memory>
 #include <string>
+#include <optional>
 
 namespace wombat
 {
@@ -21,12 +22,20 @@ namespace wombat
         // Pump UART output for the given duration, logging all received lines.
         Result<void> drainFor(std::chrono::milliseconds duration);
 
+        void noteLoopTime(std::chrono::steady_clock::time_point now);
+        bool heartbeatEverSeen() const;
+        std::optional<std::chrono::steady_clock::time_point> lastHeartbeatTime() const;
+
     private:
+        void processLine(const std::string& line);
+
         std::shared_ptr<Logger> logger_;
         Configuration::Uart config_;
 
         int fd_{-1};
         bool isOpen_{false};
         std::string lineBuffer_;
+        std::chrono::steady_clock::time_point lastLoopTime_{};
+        std::optional<std::chrono::steady_clock::time_point> lastHeartbeatTime_{};
     };
 }
