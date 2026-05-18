@@ -5,6 +5,7 @@
 #include "Sensors/adcPorts-batteryVoltage.h"
 #include "Sensors/adcInit.h"
 #include "Sensors/bemf.h"
+#include "Actors/motor.h"
 #include "Hardware/timer.h"
 #include "communication_with_pi.h"
 #include "Hardware/timerInit.h"
@@ -63,6 +64,22 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
             {
                 HAL_ADC_Stop_DMA(&hadc2);
                 bemfState = STOPPED;
+            }
+
+            // Normally update_motor() runs from the BEMF ADC-DMA callback
+            // (once per motor per BEMF cycle). With BEMF off that callback
+            // never fires, so motorControlMode / motorTarget changes from
+            // the Pi never reach the PWM peripheral. Drive a synthetic
+            // refresh here at the same cadence (~BEMF_SAMPLING_INTERVAL)
+            // so PWM-mode setSpeed commands actually take effect.
+            static uint32_t bemfDisabledMotorRefreshLast = 0;
+            if (microSeconds - bemfDisabledMotorRefreshLast >= BEMF_SAMPLING_INTERVAL)
+            {
+                bemfDisabledMotorRefreshLast = microSeconds;
+                for (uint8_t ch = 0; ch < MOTOR_COUNT; ++ch)
+                {
+                    update_motor(ch, 0); // bemf_filtered unused outside MAV
+                }
             }
         }
 
