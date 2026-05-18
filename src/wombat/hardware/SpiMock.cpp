@@ -256,4 +256,10 @@ namespace wombat
         if (logger_) logger_->info("SPI Mock: Odometry reset (no-op)");
         return Result<void>::success();
     }
+
+    Result<void> SpiMock::setFeatureFlags(uint8_t flags)
+    {
+        if (logger_) logger_->info("SPI Mock: featureFlags=" + std::to_string(static_cast<unsigned>(flags)));
+        return Result<void>::success();
+    }
 }

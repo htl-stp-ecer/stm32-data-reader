@@ -99,6 +99,11 @@ void startBemfReading()
 
 void processBEMF()
 {
+    if (rxBuffer.featureFlags & FEATURE_BEMF_DISABLE)
+    {
+        bemfState = STOPPED;
+        return;
+    }
     if (bemfState == CONVERSION_DONE)
     {
         bemfConvCount++;
@@ -165,5 +170,11 @@ void updatingMotorsInSpiBuffer()
     if (!spi2_wait_idle())
         return; // SPI2 stuck — skip this update rather than hang
 
+    if (rxBuffer.featureFlags & FEATURE_BEMF_DISABLE)
+    {
+        // BEMF measurements disabled — surface zeros instead of stale values.
+        // motor_data.position[] keeps its last frozen value as a stable anchor.
+        for (int i = 0; i < MOTOR_COUNT; i++) motor_data.bemf[i] = 0;
+    }
     txBuffer.motor = motor_data;
 }

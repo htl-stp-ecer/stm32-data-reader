@@ -16,6 +16,7 @@ extern "C" {
 #include <chrono>
 #include <cmath>
 #include <csignal>
+#include <stdexcept>
 
 namespace wombat
 {
@@ -227,6 +228,24 @@ namespace wombat
             logger_->warn("Failed to initialize command subscriber: " + commandSubscriberResult.error());
         }
 
+        // 7. Apply startup-only opt-in feature flags.
+        // disableBemfOnStartup is the "speed mode" toggle — push it to the STM32 on the
+        // very first SPI transfer so the firmware skips BEMF measurement from the start.
+        if (config_.disableBemfOnStartup)
+        {
+            logger_->warn("Startup config: disableBemfOnStartup=true — entering speed mode "
+                "(no BEMF, no encoder ticks, MAV commands will be rejected).");
+            auto bemfResult = deviceController_->setBemfEnabled(false);
+            if (bemfResult.isFailure())
+            {
+                logger_->error("Failed to apply startup BEMF disable: " + bemfResult.error());
+            }
+            else if (dataPublisher_)
+            {
+                dataPublisher_->publishBemfEnabled(false);
+            }
+        }
+
         logger_->debug("All services initialized successfully");
         return Result<void>::success();
     }
@@ -277,13 +296,34 @@ namespace wombat
 
     Result<void> Application::processMainLoop()
     {
-        // Process incoming messages
+        // Process incoming messages. SPI guards (e.g. BEMF-disable MAV reject)
+        // throw std::runtime_error from inside command handlers — catch here so
+        // the loop survives, log, and force the affected motor(s) to OFF.
         if (messageBroker_)
         {
-            auto messageResult = messageBroker_->processMessages();
-            if (messageResult.isFailure())
+            try
             {
-                logger_->warn("Failed to process messages: " + messageResult.error());
+                auto messageResult = messageBroker_->processMessages();
+                if (messageResult.isFailure())
+                {
+                    logger_->warn("Failed to process messages: " + messageResult.error());
+                }
+            }
+            catch (const std::runtime_error& ex)
+            {
+                logger_->error(std::string("SPI guard rejected command: ") + ex.what());
+                // Recovery: force all motors to OFF so the rejected command can't
+                // get re-driven on the next transfer. Caller (raccoon-lib) gets the
+                // motor/done channel back at zero and can re-issue a valid command.
+                for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
+                {
+                    auto offResult = deviceController_->setMotorOff(port);
+                    if (offResult.isFailure())
+                    {
+                        logger_->warn("Recovery: failed to OFF motor " + std::to_string(port) +
+                            ": " + offResult.error());
+                    }
+                }
             }
         }
 

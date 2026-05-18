@@ -28,6 +28,8 @@ namespace wombat
         Result<void> publishMotorDone(PortId port, bool done);
         Result<void> publishServoState(PortId port, const ServoState& state);
         Result<void> publishShutdownStatus(uint8_t shutdownFlags);
+        // Publishes the BEMF-enabled state as retained scalar_i32_t (1 = enabled, 0 = disabled).
+        Result<void> publishBemfEnabled(bool enabled);
 
     private:
         std::shared_ptr<LcmBroker> broker_;

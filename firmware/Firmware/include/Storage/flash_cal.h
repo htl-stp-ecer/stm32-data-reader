@@ -6,8 +6,9 @@
 /**
  * @brief Calibration flash storage for MPL state persistence.
  *
- * Uses the last 128KB sector of flash bank 1 (sector 11) at 0x080E0000.
- * Firmware is ~101KB and fits in sectors 0-4, so sector 11 is safe.
+ * Uses sector 12 (first 16KB sector of Bank 2) at 0x08100000.
+ * Bank 2 can be erased while the CPU executes code from Bank 1 (dual-bank RWW).
+ * Requires DB1M option byte = 1, which is the factory default on 2MB STM32F427VI parts.
  *
  * Data layout in flash:
  *   [4 bytes magic] [4 bytes version] [4 bytes data_len] [data_len bytes MPL state]
@@ -17,8 +18,8 @@
  * Old cal data with a mismatched version is silently rejected on load.
  */
 
-#define CAL_FLASH_SECTOR       11
-#define CAL_FLASH_ADDR         0x080E0000U
+#define CAL_FLASH_SECTOR       12
+#define CAL_FLASH_ADDR         0x08100000U
 #define CAL_FLASH_MAGIC        0xCA1BDA7AU  /* "CALBDATA" */
 #define CAL_VERSION            2            /* v2: 6-axis DMP quat + MPL compass */
 #define CAL_MAX_SIZE           4096         /* Max bytes for MPL state */

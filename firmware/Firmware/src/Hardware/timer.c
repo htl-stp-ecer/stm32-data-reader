@@ -3,6 +3,7 @@
 //
 #include "main.h"
 #include "Sensors/adcPorts-batteryVoltage.h"
+#include "Sensors/adcInit.h"
 #include "Sensors/bemf.h"
 #include "Hardware/timer.h"
 #include "communication_with_pi.h"
@@ -26,7 +27,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
     {
         microSeconds++;
 
-        if (!(rxBuffer.systemShutdown & SHUTDOWN_MOTOR))
+        if (!(rxBuffer.systemShutdown & SHUTDOWN_MOTOR) && !(rxBuffer.featureFlags & FEATURE_BEMF_DISABLE))
         {
             bemf_watchdog_check(microSeconds);
 
@@ -53,6 +54,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
                        (int)bemfState, (int)bemfCurrentMotor,
                        (unsigned long)bemfConvCount);
                 bemfStallStart = microSeconds; // rate-limit to once per 2*interval
+            }
+        }
+        else if (rxBuffer.featureFlags & FEATURE_BEMF_DISABLE)
+        {
+            // BEMF disabled — ensure ADC isn't stuck mid-conversion
+            if (bemfState != STOPPED)
+            {
+                HAL_ADC_Stop_DMA(&hadc2);
+                bemfState = STOPPED;
             }
         }
 

@@ -50,6 +50,12 @@ namespace wombat
         // Odometry: reset STM32 integrated pose
         Result<void> resetOdometry();
 
+        // Feature: enable/disable BEMF measurement on the firmware ("speed mode" opt-in).
+        // enabled==true -> FEATURE_BEMF_DISABLE bit cleared (default).
+        // enabled==false -> FEATURE_BEMF_DISABLE bit set (firmware skips BEMF, no encoder ticks).
+        Result<void> setBemfEnabled(bool enabled);
+        [[nodiscard]] bool isBemfEnabled() const { return (featureFlags_ & 0x01) == 0; }
+
     private:
         // Coarse motor mode tracked on the Pi side to deduplicate mode commands.
         // Only OFF and BRAKE are deduplicated — active control modes always go through.
@@ -75,6 +81,9 @@ namespace wombat
 
         SensorData lastSensorData_{};
         bool isInitialized_{false};
+
+        // Cached opt-in feature flags pushed to STM32 (see FEATURE_* in pi_buffer.h).
+        uint8_t featureFlags_{0};
 
         [[nodiscard]] Result<void> validatePortId(PortId port, PortId maxPort) const;
     };

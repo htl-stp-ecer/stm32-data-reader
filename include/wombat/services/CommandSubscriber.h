@@ -62,6 +62,7 @@ namespace wombat
         void onHeartbeatCommand(const raccoon::scalar_i32_t& command);
         void onKinematicsConfigCommand(const raccoon::kinematics_config_t& command);
         void onOdometryResetCommand(const raccoon::scalar_i32_t& command);
+        void onBemfEnabledCommand(const raccoon::scalar_i32_t& command);
 
         bool isTimestampNewer(const std::string& channel, int64_t timestamp);
 

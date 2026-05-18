@@ -1,6 +1,10 @@
 #include "wombat/services/DeviceController.h"
 #include <cmath>
 
+extern "C" {
+#include "spi/pi_buffer.h"
+}
+
 namespace wombat
 {
     namespace
@@ -277,6 +281,9 @@ namespace wombat
             return validationResult;
         }
 
+        // A direct position command takes ownership immediately and cancels any
+        // in-flight smooth trajectory for this servo.
+        smoothServoStates_[port].active = false;
         servoCommands_[port] = position;
 
         ServoState state{ServoMode::Enabled, position};
@@ -307,6 +314,7 @@ namespace wombat
         const float delta = std::abs(targetAngle - startAngle);
         if (delta < 0.5f)
         {
+            smoothServoStates_[port].active = false;
             spi_->setServoState(port, {ServoMode::Enabled, targetAngle});
             return Result<void>::success();
         }
@@ -331,6 +339,11 @@ namespace wombat
         if (validationResult.isFailure())
         {
             return validationResult;
+        }
+
+        if (mode != ServoMode::Enabled)
+        {
+            smoothServoStates_[port].active = false;
         }
 
         // Get current position to preserve it when changing mode
@@ -483,6 +496,26 @@ namespace wombat
             return Result<void>::failure("Device controller not initialized");
         }
         return spi_->resetOdometry();
+    }
+
+    Result<void> DeviceController::setBemfEnabled(bool enabled)
+    {
+        // FEATURE_BEMF_DISABLE is inverted: enabled=true clears the bit, enabled=false sets it.
+        if (enabled)
+            featureFlags_ &= static_cast<uint8_t>(~FEATURE_BEMF_DISABLE);
+        else
+            featureFlags_ |= static_cast<uint8_t>(FEATURE_BEMF_DISABLE);
+
+        auto result = spi_->setFeatureFlags(featureFlags_);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to push feature flags to STM32: " + result.error());
+            return result;
+        }
+
+        logger_->info(std::string("BEMF ") + (enabled ? "enabled" : "disabled (speed mode)") +
+            " — featureFlags=0x" + std::to_string(static_cast<unsigned>(featureFlags_)));
+        return Result<void>::success();
     }
 
     Result<void> DeviceController::validatePortId(PortId port, PortId maxPort) const

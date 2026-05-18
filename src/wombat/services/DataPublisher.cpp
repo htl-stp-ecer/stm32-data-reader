@@ -299,4 +299,18 @@ namespace wombat
 
         return Result<void>::success();
     }
+
+    Result<void> DataPublisher::publishBemfEnabled(bool enabled)
+    {
+        auto message = toLcmScalarI32(enabled ? 1 : 0);
+
+        auto result = broker_->publishRetained(Channels::BEMF_ENABLED, message);
+        if (result.isFailure())
+        {
+            return Result<void>::failure("Failed to publish BEMF enabled status: " + result.error());
+        }
+
+        logger_->info(std::string("Published BEMF enabled status: ") + (enabled ? "enabled" : "disabled"));
+        return Result<void>::success();
+    }
 } // namespace wombat

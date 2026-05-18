@@ -1,0 +1,5 @@
+if (EXISTS "/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/build-codex/tests/wombat_tests[1]_tests.cmake")
+    include("/media/tobias/TobiasSSD1/projects/Botball/raccoon/stm32-data-reader/build-codex/tests/wombat_tests[1]_tests.cmake")
+else ()
+    add_test(wombat_tests_NOT_BUILT wombat_tests_NOT_BUILT)
+endif ()

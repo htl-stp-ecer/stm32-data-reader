@@ -13,7 +13,7 @@ extern "C" {
 
 #include <stdint.h>
 
-#define TRANSFER_VERSION 17
+#define TRANSFER_VERSION 18
 
 #define PI_BUFFER_UPDATE_MOTOR_PID_SPEED 0x01
 #define PI_BUFFER_UPDATE_MOTOR_PID_POS   0x02
@@ -22,9 +22,13 @@ extern "C" {
 #define PI_BUFFER_UPDATE_KINEMATICS      0x10
 #define PI_BUFFER_UPDATE_ODOM_RESET      0x20
 #define PI_BUFFER_UPDATE_MOTOR_POS_RESET 0x40
+#define PI_BUFFER_UPDATE_FEATURE_FLAGS   0x80
 
 #define SHUTDOWN_SERVO 0x01
 #define SHUTDOWN_MOTOR 0x02
+
+/* --- Feature flags (runtime opt-in toggles) --- */
+#define FEATURE_BEMF_DISABLE 0x01
 
 #define MOTOR_CONTR_MOD_LENGTH 3 // Bits per motor in motorControlMode
 
@@ -198,6 +202,9 @@ typedef struct __attribute__ ((packed))
 
     /* --- KINEMATICS CONFIG (sent once at startup from Pi) --- */
     KinematicsConfig kinematics;
+
+    /* --- FEATURE FLAGS / runtime opt-in toggles --- */
+    uint8_t featureFlags; // Bit 0: FEATURE_BEMF_DISABLE — opt-in speed mode (no encoder ticks!)
 }
 
 RxBuffer;

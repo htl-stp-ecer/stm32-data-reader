@@ -156,6 +156,18 @@ namespace wombat
             return Result<void>::failure("Failed to subscribe to odometry reset: " + odomResetResult.error());
         }
 
+        // Feature: BEMF enabled toggle (1=enabled/default, 0=disabled/speed-mode) — reliable
+        logger_->debug("Subscribing to BEMF enabled command channel: " + std::string(Channels::BEMF_ENABLED_CMD));
+        auto bemfEnabledResult = broker_->subscribe<raccoon::scalar_i32_t>(
+            Channels::BEMF_ENABLED_CMD,
+            [this](const raccoon::scalar_i32_t& cmd) { onBemfEnabledCommand(cmd); },
+            reliableOpts
+        );
+        if (bemfEnabledResult.isFailure())
+        {
+            return Result<void>::failure("Failed to subscribe to BEMF enabled command: " + bemfEnabledResult.error());
+        }
+
         // Heartbeat from raccoon-lib — feeds the MotorWatchdog
         logger_->debug("Subscribing to heartbeat channel: " + std::string(Channels::HEARTBEAT_CMD));
         auto heartbeatResult = broker_->subscribe<raccoon::scalar_i32_t>(
@@ -585,5 +597,30 @@ namespace wombat
     void CommandSubscriber::onHeartbeatCommand(const raccoon::scalar_i32_t& /*command*/)
     {
         watchdog_.feed();
+    }
+
+    void CommandSubscriber::onBemfEnabledCommand(const raccoon::scalar_i32_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received BEMF enabled command while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::BEMF_ENABLED_CMD, command.timestamp))
+            return;
+
+        const bool enabled = command.value != 0;
+        const auto result = deviceController_->setBemfEnabled(enabled);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set BEMF enabled state: " + result.error());
+            return;
+        }
+
+        // Publish ACK on retained status channel so subscribers (UI, raccoon-lib) see the truth.
+        dataPublisher_->publishBemfEnabled(enabled);
+
+        logger_->info(std::string("BEMF ") + (enabled ? "enabled" : "disabled (speed mode)"));
     }
 } // namespace wombat

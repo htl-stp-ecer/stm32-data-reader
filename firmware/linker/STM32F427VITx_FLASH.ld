@@ -47,8 +47,8 @@ MEMORY
 {
   CCMRAM    (xrw)    : ORIGIN = 0x10000000,   LENGTH = 64K
   RAM    (xrw)    : ORIGIN = 0x20000000,   LENGTH = 192K
-  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 896K    /* Sectors 0-10; sector 11 (0x080E0000, 128K) reserved for calibration */
-  CAL_DATA (rw)    : ORIGIN = 0x80E0000,   LENGTH = 128K   /* Calibration storage - do not place code here */
+  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 1024K   /* Sectors 0-11 (Bank 1) */
+  CAL_DATA (rw)    : ORIGIN = 0x8100000,   LENGTH = 16K    /* Sector 12, Bank 2 — erase does not block Bank 1 code fetch */
 }
 
 /* Sections */
