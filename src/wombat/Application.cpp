@@ -336,7 +336,7 @@ namespace wombat
         }
 
         // Update motor watchdog (fires hardware shutdown if heartbeat is missing)
-        motorWatchdog_.update(*deviceController_);
+        motorWatchdog_.update(*deviceController_, *dataPublisher_);
 
         // Update device controller
         auto deviceResult = deviceController_->processUpdate();

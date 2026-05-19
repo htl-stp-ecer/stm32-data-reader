@@ -295,7 +295,8 @@ namespace wombat
 
         logger_->info("Published shutdown status: " + std::to_string(shutdownFlags) +
             " (servo=" + (shutdownFlags & 0x01 ? "on" : "off") +
-            ", motor=" + (shutdownFlags & 0x02 ? "on" : "off") + ")");
+            ", motor=" + (shutdownFlags & 0x02 ? "on" : "off") +
+            ", source=" + (shutdownFlags & 0x04 ? "watchdog" : "user") + ")");
 
         return Result<void>::success();
     }

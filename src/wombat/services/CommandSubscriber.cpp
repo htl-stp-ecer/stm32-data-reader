@@ -528,8 +528,17 @@ namespace wombat
             return;
         }
 
-        // Publish shutdown status so subscribers (like the UI) can react
-        // Bitmask: bit 0 = servo shutdown, bit 1 = motor shutdown (both enabled/disabled together)
+        // When the user clears a shutdown via the UI, drop any latched
+        // watchdog state so it can re-arm and trigger again if needed.
+        if (!enabled && watchdog_.hasFired())
+        {
+            watchdog_.resetAfterManualClear();
+            logger_->info("Watchdog-triggered shutdown cleared by user — watchdog re-armed");
+        }
+
+        // Publish shutdown status so subscribers (like the UI) can react.
+        // Bitmask: bit 0 = servo shutdown, bit 1 = motor shutdown, bit 2 = source watchdog.
+        // User-initiated commands always clear the source bit.
         const uint8_t shutdownFlags = enabled ? 0x03 : 0x00;
         dataPublisher_->publishShutdownStatus(shutdownFlags);
 
