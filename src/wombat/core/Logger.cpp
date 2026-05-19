@@ -69,7 +69,7 @@ namespace wombat
             errorMsg.timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count();
             errorMsg.value = message;
-            lcmBroker_->publish(Channels::ERROR_MESSAGES, errorMsg);
+            lcmBroker_->publishRetained(Channels::ERROR_MESSAGES, errorMsg);
         }
 
         static spdlog::level::level_enum convertLogLevel(Configuration::Logging::Level level)
