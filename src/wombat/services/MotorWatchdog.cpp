@@ -42,10 +42,10 @@ namespace wombat
     {
         fired_ = false;
         recoveryCount_ = 0;
-        // Keep armed_ as-is: if heartbeats had been arriving, the watchdog
-        // stays armed and will re-fire on the next gap. If they never arrived
-        // (armed_ still false), the watchdog stays dormant — same as boot.
-        lastFeed_ = Clock::now();
+        // Drop back to boot-like dormant state: the user cleared the shutdown
+        // explicitly, presumably because no program is running. The watchdog
+        // re-arms automatically on the next heartbeat via feed().
+        armed_ = false;
     }
 
     void MotorWatchdog::update(DeviceController& controller, DataPublisher& publisher)
