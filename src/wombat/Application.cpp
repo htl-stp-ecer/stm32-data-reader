@@ -84,12 +84,18 @@ namespace wombat
             if (result.isFailure())
             {
                 logger_->error("Main loop error: " + result.error());
+                fatalShutdown_ = true;
+                shouldShutdown_ = true;
             }
 
             std::this_thread::sleep_for(config_.mainLoopDelay);
         }
 
         logger_->info("Application main loop finished");
+        if (fatalShutdown_)
+        {
+            return Result<void>::failure("Fatal STM32 health failure");
+        }
         return Result<void>::success();
     }
 
@@ -296,6 +302,8 @@ namespace wombat
 
     Result<void> Application::processMainLoop()
     {
+        const auto loopNow = std::chrono::steady_clock::now();
+
         // Process incoming messages. SPI guards (e.g. BEMF-disable MAV reject)
         // throw std::runtime_error from inside command handlers — catch here so
         // the loop survives, log, and force the affected motor(s) to OFF.
@@ -351,6 +359,7 @@ namespace wombat
         // Read STM32 UART debug output
         if (uartMonitor_)
         {
+            uartMonitor_->noteLoopTime(loopNow);
             auto uartResult = uartMonitor_->processUpdate();
             if (uartResult.isFailure())
             {
@@ -360,6 +369,12 @@ namespace wombat
 
         // STM32 health check: updateTime must change within 10 seconds
         checkStm32Health();
+
+        auto heartbeatResult = checkStm32Heartbeat(loopNow);
+        if (heartbeatResult.isFailure())
+        {
+            return heartbeatResult;
+        }
 
         // Publish current data
         auto publishResult = publishCurrentData();
@@ -398,8 +413,39 @@ namespace wombat
         if (now - lastStm32Activity_ > kTimeout)
         {
             logger_->error("STM32 health check failed: updateTime has not changed for >10s — shutting down");
-            requestShutdown();
+            fatalShutdown_ = true;
+            shouldShutdown_ = true;
         }
+    }
+
+    Result<void> Application::checkStm32Heartbeat(const std::chrono::steady_clock::time_point now)
+    {
+        if (!uartMonitor_)
+        {
+            return Result<void>::success();
+        }
+
+        if (!uartMonitor_->heartbeatEverSeen())
+        {
+            return Result<void>::success();
+        }
+
+        constexpr auto kHeartbeatTimeout = std::chrono::seconds(12);
+        const auto lastHeartbeat = uartMonitor_->lastHeartbeatTime();
+        if (!lastHeartbeat.has_value())
+        {
+            return Result<void>::success();
+        }
+
+        if (now - *lastHeartbeat <= kHeartbeatTimeout)
+        {
+            return Result<void>::success();
+        }
+
+        logger_->error("STM32 heartbeat watchdog failed: no UART heartbeat for >12s — terminating service");
+        fatalShutdown_ = true;
+        shouldShutdown_ = true;
+        return Result<void>::failure("STM32 heartbeat watchdog timeout");
     }
 
     Result<void> Application::publishCurrentData()

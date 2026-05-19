@@ -204,7 +204,7 @@ void MX_TIM9_Init(void)
     TIM_OC_InitTypeDef sConfigOC = {0};
 
     htim9.Instance = TIM9;
-    htim9.Init.Prescaler = 89; // 90MHz / 90 / 20000 = 50Hz
+    htim9.Init.Prescaler = 179; // 180MHz / 180 / 20000 = 50Hz, 1us timer ticks
     htim9.Init.CounterMode = TIM_COUNTERMODE_UP;
     htim9.Init.Period = 20000;
     htim9.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;

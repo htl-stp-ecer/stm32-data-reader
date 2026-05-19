@@ -477,7 +477,7 @@ Servo 6V enable: PE10
 | TIM1  | 18        | 400    | 25 kHz    | Motor PWM (duty 0-399)         |
 | TIM8  | 18        | 400    | 25 kHz    | Motor 3 PWM                    |
 | TIM3  | 90        | 20000  | 50 Hz     | Servo 0-1 PWM                  |
-| TIM9  | 181       | 20000  | 50 Hz     | Servo 2-3 PWM                  |
+| TIM9  | 180       | 20000  | 50 Hz     | Servo 2-3 PWM                  |
 
 ---
 
