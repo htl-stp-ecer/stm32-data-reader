@@ -230,9 +230,22 @@ namespace wombat
         }
         set_servo_mode(port, mode);
 
-        // Convert degrees to microseconds for the PWM timer (10µs per degree, centered at 1500µs)
-        const auto microseconds = static_cast<uint16_t>(std::round(600.0f + st.position * 10.0f));
+        // Convert degrees to microseconds for the PWM timer. Keep the angle
+        // range open, but prevent negative/non-finite values from wrapping
+        // through the uint16_t SPI field into a huge CCR value.
+        const float computedPulse = 600.0f + st.position * 10.0f;
+        const auto microseconds = static_cast<uint16_t>(
+            std::clamp(std::isfinite(computedPulse) ? std::round(computedPulse) : 0.0f,
+                       0.0f,
+                       20000.0f));
         set_servo_pos(port, microseconds);
+        if (logger_)
+        {
+            logger_->debug("SPI servo " + std::to_string(port) + " state: mode=" +
+                std::to_string(static_cast<int>(st.mode)) + " deg=" +
+                std::to_string(st.position) + " pulse_us=" +
+                std::to_string(microseconds));
+        }
 
         servos_[port] = st;
         return Result<void>::success();

@@ -456,6 +456,9 @@ namespace wombat
             logger_->error("Failed to set servo mode: " + result.error());
             return;
         }
+
+        logger_->info("Received servo mode on port " + std::to_string(port) +
+            ": " + std::to_string(static_cast<int>(command.dir)));
     }
 
     void CommandSubscriber::onMotorPositionResetCommand(const PortId port, const raccoon::scalar_i32_t& command)
