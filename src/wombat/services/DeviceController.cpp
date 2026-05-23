@@ -48,9 +48,8 @@ namespace wombat
         // Initialize all motors to off state
         for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
         {
-            motorCommands_[port] = 0;
-            motorModes_[port] = MotorMode::Off;
-            auto setResult = spi_->setMotorOff(port);
+            motorStates_[port] = MotorState{};
+            auto setResult = spi_->setMotorState(port, motorStates_[port]);
             if (setResult.isFailure())
             {
                 logger_->warn("Failed to initialize motor " + std::to_string(port) + ": " + setResult.error());
@@ -132,7 +131,7 @@ namespace wombat
         return Result<void>::success();
     }
 
-    Result<void> DeviceController::setMotorOff(PortId port)
+    Result<void> DeviceController::setMotorState(PortId port, const MotorState& state)
     {
         auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
         if (validationResult.isFailure())
@@ -140,119 +139,65 @@ namespace wombat
             return validationResult;
         }
 
-        if (motorModes_[port] == MotorMode::Off)
+        if (motorStates_[port].hasSameCommand(state))
         {
-            logger_->debug("Motor " + std::to_string(port) + " already OFF, skipping SPI");
+            logger_->debug("Motor " + std::to_string(port) + " state unchanged, skipping SPI");
             return Result<void>::success();
         }
 
-        motorCommands_[port] = 0;
-        motorModes_[port] = MotorMode::Off;
+        const auto previousState = motorStates_[port];
+        motorStates_[port].controlMode = state.controlMode;
+        motorStates_[port].target = state.target;
+        motorStates_[port].goalPosition = state.goalPosition;
 
-        auto result = spi_->setMotorOff(port);
+        auto result = spi_->setMotorState(port, state);
         if (result.isFailure())
         {
-            logger_->error("Failed to set motor " + std::to_string(port) + " off: " + result.error());
-            motorModes_[port] = MotorMode::Unknown;
+            logger_->error("Failed to set motor " + std::to_string(port) + " state: " + result.error());
+            motorStates_[port] = previousState;
             return result;
         }
 
-        logger_->debug("Motor " + std::to_string(port) + " set to OFF");
+        logger_->debug("Motor " + std::to_string(port) + " state set: mode=" +
+            std::to_string(static_cast<int>(state.controlMode)) +
+            " target=" + std::to_string(state.target) +
+            " goal=" + std::to_string(state.goalPosition));
         return Result<void>::success();
+    }
+
+    Result<void> DeviceController::setMotorOff(PortId port)
+    {
+        return setMotorState(port, MotorState{.controlMode = MotorControlMode::Off});
     }
 
     Result<void> DeviceController::setMotorBrake(PortId port)
     {
-        auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
-        if (validationResult.isFailure())
-        {
-            return validationResult;
-        }
-
-        if (motorModes_[port] == MotorMode::Brake)
-        {
-            logger_->debug("Motor " + std::to_string(port) + " already BRAKE, skipping SPI");
-            return Result<void>::success();
-        }
-
-        motorCommands_[port] = 0;
-        motorModes_[port] = MotorMode::Brake;
-
-        auto result = spi_->setMotorBrake(port);
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set motor " + std::to_string(port) + " brake: " + result.error());
-            motorModes_[port] = MotorMode::Unknown;
-            return result;
-        }
-
-        logger_->debug("Motor " + std::to_string(port) + " set to PASSIVE BRAKE");
-        return Result<void>::success();
+        return setMotorState(port, MotorState{.controlMode = MotorControlMode::PassiveBrake});
     }
 
     Result<void> DeviceController::setMotorPwm(PortId port, int32_t duty)
     {
-        auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
-        if (validationResult.isFailure())
-        {
-            return validationResult;
-        }
-
-        motorCommands_[port] = duty;
-        motorModes_[port] = MotorMode::Active;
-
-        auto result = spi_->setMotorPwm(port, duty);
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set motor " + std::to_string(port) + " PWM: " + result.error());
-            return result;
-        }
-
-        logger_->debug("Motor " + std::to_string(port) + " PWM set: duty=" + std::to_string(duty));
-        return Result<void>::success();
+        return setMotorState(port, MotorState{
+                                 .controlMode = MotorControlMode::Pwm,
+                                 .target = duty
+                             });
     }
 
     Result<void> DeviceController::setMotorVelocity(PortId port, int32_t velocity)
     {
-        auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
-        if (validationResult.isFailure())
-        {
-            return validationResult;
-        }
-
-        motorModes_[port] = MotorMode::Active;
-
-        auto result = spi_->setMotorVelocity(port, velocity);
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set motor " + std::to_string(port) + " velocity: " + result.error());
-            return result;
-        }
-
-        logger_->debug("Motor " + std::to_string(port) + " velocity set: " + std::to_string(velocity));
-        return Result<void>::success();
+        return setMotorState(port, MotorState{
+                                 .controlMode = MotorControlMode::MoveAtVelocity,
+                                 .target = velocity
+                             });
     }
 
     Result<void> DeviceController::setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition)
     {
-        auto validationResult = validatePortId(port, MAX_MOTOR_PORTS);
-        if (validationResult.isFailure())
-        {
-            return validationResult;
-        }
-
-        motorModes_[port] = MotorMode::Active;
-
-        auto result = spi_->setMotorPosition(port, velocity, goalPosition);
-        if (result.isFailure())
-        {
-            logger_->error("Failed to set motor " + std::to_string(port) + " position: " + result.error());
-            return result;
-        }
-
-        logger_->debug("Motor " + std::to_string(port) + " position set: velocity=" +
-            std::to_string(velocity) + ", goal=" + std::to_string(goalPosition));
-        return Result<void>::success();
+        return setMotorState(port, MotorState{
+                                 .controlMode = MotorControlMode::MoveToPosition,
+                                 .target = velocity,
+                                 .goalPosition = goalPosition
+                             });
     }
 
     Result<int32_t> DeviceController::getMotorPosition(PortId port) const
@@ -456,9 +401,8 @@ namespace wombat
             // re-activate actuators when shutdown is later disabled
             for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
             {
-                motorCommands_[port] = 0;
-                motorModes_[port] = MotorMode::Off;
-                spi_->setMotorOff(port);
+                motorStates_[port] = MotorState{};
+                spi_->setMotorState(port, motorStates_[port]);
             }
             for (PortId port = 0; port < MAX_SERVO_PORTS; ++port)
             {

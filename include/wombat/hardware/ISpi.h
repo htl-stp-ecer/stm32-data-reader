@@ -17,6 +17,7 @@ namespace wombat
 
         virtual Result<SensorData> readSensorData() = 0;
 
+        virtual Result<void> setMotorState(PortId port, const MotorState& state) = 0;
         virtual Result<void> setMotorOff(PortId port) = 0;
         virtual Result<void> setMotorBrake(PortId port) = 0;
         virtual Result<void> setMotorPwm(PortId port, int32_t duty) = 0;

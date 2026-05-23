@@ -18,6 +18,8 @@ namespace wombat::test
         MOCK_METHOD(Result<SensorData>, readSensorData, (), (override)
         );
 
+        MOCK_METHOD(Result<void>, setMotorState, (PortId port, const MotorState& state), (override)
+        );
         MOCK_METHOD(Result<void>, setMotorOff, (PortId port), (override)
         );
         MOCK_METHOD(Result<void>, setMotorBrake, (PortId port), (override)
