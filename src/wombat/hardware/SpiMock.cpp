@@ -153,45 +153,42 @@ namespace wombat
         return Result<SensorData>::success(d);
     }
 
-    Result<void> SpiMock::setMotorOff(PortId port)
+    Result<void> SpiMock::setMotorState(PortId port, const MotorState& state)
     {
         if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        motors_[port].controlMode = MotorControlMode::Off;
-        motors_[port].target = 0;
+        motors_[port].controlMode = state.controlMode;
+        motors_[port].target = state.target;
+        motors_[port].goalPosition = state.goalPosition;
         return Result<void>::success();
+    }
+
+    Result<void> SpiMock::setMotorOff(PortId port)
+    {
+        return setMotorState(port, MotorState{.controlMode = MotorControlMode::Off});
     }
 
     Result<void> SpiMock::setMotorBrake(PortId port)
     {
-        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        motors_[port].controlMode = MotorControlMode::PassiveBrake;
-        motors_[port].target = 0;
-        return Result<void>::success();
+        return setMotorState(port, MotorState{.controlMode = MotorControlMode::PassiveBrake});
     }
 
     Result<void> SpiMock::setMotorPwm(PortId port, int32_t duty)
     {
-        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        motors_[port].controlMode = MotorControlMode::Pwm;
-        motors_[port].target = duty;
-        return Result<void>::success();
+        return setMotorState(port, MotorState{.controlMode = MotorControlMode::Pwm, .target = duty});
     }
 
     Result<void> SpiMock::setMotorVelocity(PortId port, int32_t velocity)
     {
-        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        motors_[port].controlMode = MotorControlMode::MoveAtVelocity;
-        motors_[port].target = velocity;
-        return Result<void>::success();
+        return setMotorState(port, MotorState{.controlMode = MotorControlMode::MoveAtVelocity, .target = velocity});
     }
 
     Result<void> SpiMock::setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition)
     {
-        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        motors_[port].controlMode = MotorControlMode::MoveToPosition;
-        motors_[port].target = velocity;
-        motors_[port].goalPosition = goalPosition;
-        return Result<void>::success();
+        return setMotorState(port, MotorState{
+                                 .controlMode = MotorControlMode::MoveToPosition,
+                                 .target = velocity,
+                                 .goalPosition = goalPosition
+                             });
     }
 
     Result<int32_t> SpiMock::getMotorPosition(PortId port)

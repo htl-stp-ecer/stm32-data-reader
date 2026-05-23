@@ -23,7 +23,7 @@ protected:
         ON_CALL(*mockSpi_, initialize()).WillByDefault(Return(Result<void>::success()));
         ON_CALL(*mockSpi_, shutdown()).WillByDefault(Return(Result<void>::success()));
         ON_CALL(*mockSpi_, setShutdown(_)).WillByDefault(Return(Result<void>::success()));
-        ON_CALL(*mockSpi_, setMotorOff(_)).WillByDefault(Return(Result<void>::success()));
+        ON_CALL(*mockSpi_, setMotorState(_, _)).WillByDefault(Return(Result<void>::success()));
         ON_CALL(*mockSpi_, setServoState(_, _)).WillByDefault(Return(Result<void>::success()));
 
         controller_ = std::make_unique<DeviceController>(std::move(mockSpi), logger_);
@@ -33,7 +33,7 @@ protected:
     {
         EXPECT_CALL(*mockSpi_, initialize())
             .WillOnce(Return(Result<void>::success()));
-        EXPECT_CALL(*mockSpi_, setMotorOff(_))
+        EXPECT_CALL(*mockSpi_, setMotorState(_, _))
             .Times(MAX_MOTOR_PORTS)
             .WillRepeatedly(Return(Result<void>::success()));
         EXPECT_CALL(*mockSpi_, setServoState(_, _))
@@ -134,11 +134,26 @@ TEST_F(DeviceControllerTest, ProcessUpdateSpiFailure)
 
 // --- Motor commands ---
 
+TEST_F(DeviceControllerTest, SetMotorStateSuccess)
+{
+    initializeController();
+
+    EXPECT_CALL(*mockSpi_, setMotorState(0, _))
+        .WillOnce(Return(Result<void>::success()));
+
+    auto result = controller_->setMotorState(0, MotorState{
+                                                 .controlMode = MotorControlMode::MoveToPosition,
+                                                 .target = 120,
+                                                 .goalPosition = 5000
+                                             });
+    EXPECT_TRUE(result.isSuccess());
+}
+
 TEST_F(DeviceControllerTest, SetMotorPwmSuccess)
 {
     initializeController();
 
-    EXPECT_CALL(*mockSpi_, setMotorPwm(0, 400))
+    EXPECT_CALL(*mockSpi_, setMotorState(0, _))
         .WillOnce(Return(Result<void>::success()));
 
     auto result = controller_->setMotorPwm(0, 400);
@@ -157,8 +172,22 @@ TEST_F(DeviceControllerTest, SetMotorOffSuccess)
 {
     initializeController();
 
-    EXPECT_CALL(*mockSpi_, setMotorOff(0))
+    EXPECT_CALL(*mockSpi_, setMotorState(0, _))
         .WillOnce(Return(Result<void>::success()));
+    ASSERT_TRUE(controller_->setMotorPwm(0, 400).isSuccess());
+
+    EXPECT_CALL(*mockSpi_, setMotorState(0, _))
+        .WillOnce(Return(Result<void>::success()));
+
+    auto result = controller_->setMotorOff(0);
+    EXPECT_TRUE(result.isSuccess());
+}
+
+TEST_F(DeviceControllerTest, SetMotorOffWhenAlreadyOffSkipsSpi)
+{
+    initializeController();
+
+    EXPECT_CALL(*mockSpi_, setMotorState(0, _)).Times(0);
 
     auto result = controller_->setMotorOff(0);
     EXPECT_TRUE(result.isSuccess());
@@ -168,7 +197,7 @@ TEST_F(DeviceControllerTest, SetMotorBrakeSuccess)
 {
     initializeController();
 
-    EXPECT_CALL(*mockSpi_, setMotorBrake(1))
+    EXPECT_CALL(*mockSpi_, setMotorState(1, _))
         .WillOnce(Return(Result<void>::success()));
 
     auto result = controller_->setMotorBrake(1);
@@ -179,7 +208,7 @@ TEST_F(DeviceControllerTest, SetMotorVelocitySuccess)
 {
     initializeController();
 
-    EXPECT_CALL(*mockSpi_, setMotorVelocity(1, 500))
+    EXPECT_CALL(*mockSpi_, setMotorState(1, _))
         .WillOnce(Return(Result<void>::success()));
 
     auto result = controller_->setMotorVelocity(1, 500);
@@ -190,7 +219,7 @@ TEST_F(DeviceControllerTest, SetMotorPositionSuccess)
 {
     initializeController();
 
-    EXPECT_CALL(*mockSpi_, setMotorPosition(2, 100, 5000))
+    EXPECT_CALL(*mockSpi_, setMotorState(2, _))
         .WillOnce(Return(Result<void>::success()));
 
     auto result = controller_->setMotorPosition(2, 100, 5000);
@@ -316,7 +345,7 @@ TEST_F(DeviceControllerTest, SetShutdownSuccess)
 
     // setShutdown(true) clears all motor/servo commands before setting the flag;
     // destructor also calls setShutdown(true), so allow additional calls
-    EXPECT_CALL(*mockSpi_, setMotorOff(_))
+    EXPECT_CALL(*mockSpi_, setMotorState(_, _))
         .Times(::testing::AtLeast(MAX_MOTOR_PORTS))
         .WillRepeatedly(Return(Result<void>::success()));
     EXPECT_CALL(*mockSpi_, setServoState(_, _))

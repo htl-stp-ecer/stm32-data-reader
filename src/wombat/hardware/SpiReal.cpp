@@ -151,51 +151,73 @@ namespace wombat
         return Result<SensorData>::success(d);
     }
 
-    Result<void> SpiReal::setMotorOff(PortId port)
+    Result<void> SpiReal::setMotorState(PortId port, const MotorState& state)
     {
         if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        set_motor_off(port);
-        motors_[port].controlMode = MotorControlMode::Off;
-        motors_[port].target = 0;
+
+        switch (state.controlMode)
+        {
+        case MotorControlMode::Off:
+            set_motor_off(port);
+            motors_[port].target = 0;
+            motors_[port].goalPosition = 0;
+            break;
+        case MotorControlMode::PassiveBrake:
+            set_motor_brake(port);
+            motors_[port].target = 0;
+            motors_[port].goalPosition = 0;
+            break;
+        case MotorControlMode::Pwm:
+            SPDLOG_TRACE("SPI setMotorState PWM port={} duty={}", static_cast<int>(port), state.target);
+            set_motor_pwm(port, state.target);
+            motors_[port].target = state.target;
+            motors_[port].goalPosition = 0;
+            break;
+        case MotorControlMode::MoveAtVelocity:
+            set_motor_velocity(port, state.target);
+            motors_[port].target = state.target;
+            motors_[port].goalPosition = 0;
+            break;
+        case MotorControlMode::MoveToPosition:
+            set_motor_position(port, state.target, state.goalPosition);
+            motors_[port].target = state.target;
+            motors_[port].goalPosition = state.goalPosition;
+            break;
+        default:
+            return Result<void>::failure("unsupported motor control mode");
+        }
+
+        motors_[port].controlMode = state.controlMode;
         return Result<void>::success();
+    }
+
+    Result<void> SpiReal::setMotorOff(PortId port)
+    {
+        return setMotorState(port, MotorState{.controlMode = MotorControlMode::Off});
     }
 
     Result<void> SpiReal::setMotorBrake(PortId port)
     {
-        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        set_motor_brake(port);
-        motors_[port].controlMode = MotorControlMode::PassiveBrake;
-        motors_[port].target = 0;
-        return Result<void>::success();
+        return setMotorState(port, MotorState{.controlMode = MotorControlMode::PassiveBrake});
     }
 
     Result<void> SpiReal::setMotorPwm(PortId port, int32_t duty)
     {
-        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        SPDLOG_TRACE("SPI setMotorPwm port={} duty={}", static_cast<int>(port), duty);
-        set_motor_pwm(port, duty);
-        motors_[port].controlMode = MotorControlMode::Pwm;
-        motors_[port].target = duty;
-        return Result<void>::success();
+        return setMotorState(port, MotorState{.controlMode = MotorControlMode::Pwm, .target = duty});
     }
 
     Result<void> SpiReal::setMotorVelocity(PortId port, int32_t velocity)
     {
-        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        set_motor_velocity(port, velocity);
-        motors_[port].controlMode = MotorControlMode::MoveAtVelocity;
-        motors_[port].target = velocity;
-        return Result<void>::success();
+        return setMotorState(port, MotorState{.controlMode = MotorControlMode::MoveAtVelocity, .target = velocity});
     }
 
     Result<void> SpiReal::setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition)
     {
-        if (port >= MAX_MOTOR_PORTS) return Result<void>::failure("motor port out of range");
-        set_motor_position(port, velocity, goalPosition);
-        motors_[port].controlMode = MotorControlMode::MoveToPosition;
-        motors_[port].target = velocity;
-        motors_[port].goalPosition = goalPosition;
-        return Result<void>::success();
+        return setMotorState(port, MotorState{
+                                 .controlMode = MotorControlMode::MoveToPosition,
+                                 .target = velocity,
+                                 .goalPosition = goalPosition
+                             });
     }
 
     Result<int32_t> SpiReal::getMotorPosition(PortId port)

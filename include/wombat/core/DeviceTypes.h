@@ -95,6 +95,13 @@ namespace wombat
         mutable int32_t backEmf{0};
         int32_t position{0};
         bool done{false};
+
+        bool hasSameCommand(const MotorState& other) const noexcept
+        {
+            return controlMode == other.controlMode &&
+                target == other.target &&
+                goalPosition == other.goalPosition;
+        }
     };
 
     struct ServoState
