@@ -24,6 +24,7 @@ namespace wombat
         Result<void> shutdown();
         Result<void> processUpdate();
 
+        Result<void> setMotorState(PortId port, const MotorState& state);
         Result<void> setMotorOff(PortId port);
         Result<void> setMotorBrake(PortId port);
         Result<void> setMotorPwm(PortId port, int32_t duty);
@@ -57,10 +58,6 @@ namespace wombat
         [[nodiscard]] bool isBemfEnabled() const { return (featureFlags_ & 0x01) == 0; }
 
     private:
-        // Coarse motor mode tracked on the Pi side to deduplicate mode commands.
-        // Only OFF and BRAKE are deduplicated — active control modes always go through.
-        enum class MotorMode { Unknown, Off, Brake, Active };
-
         struct SmoothServoState
         {
             float startAngle{0.0f};
@@ -74,9 +71,8 @@ namespace wombat
         std::unique_ptr<ISpi> spi_;
         std::shared_ptr<Logger> logger_;
 
-        std::array<std::atomic<int32_t>, MAX_MOTOR_PORTS> motorCommands_{};
+        std::array<MotorState, MAX_MOTOR_PORTS> motorStates_{};
         std::array<std::atomic<ServoPosition>, MAX_SERVO_PORTS> servoCommands_{};
-        std::array<MotorMode, MAX_MOTOR_PORTS> motorModes_{};
         std::array<SmoothServoState, MAX_SERVO_PORTS> smoothServoStates_{};
 
         SensorData lastSensorData_{};

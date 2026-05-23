@@ -100,6 +100,25 @@ TEST_F(SpiMockTest, QuaternionIsNormalized)
 
 // --- Motor mode tracking ---
 
+TEST_F(SpiMockTest, SetMotorStateSuccess)
+{
+    initializeSpi();
+
+    const MotorState state{
+        .controlMode = MotorControlMode::MoveToPosition,
+        .target = 120,
+        .goalPosition = 3456
+    };
+    auto result = spiMock_->setMotorState(0, state);
+    EXPECT_TRUE(result.isSuccess());
+
+    auto getResult = spiMock_->getMotorState(0);
+    ASSERT_TRUE(getResult.isSuccess());
+    EXPECT_EQ(getResult.value().controlMode, MotorControlMode::MoveToPosition);
+    EXPECT_EQ(getResult.value().target, 120);
+    EXPECT_EQ(getResult.value().goalPosition, 3456);
+}
+
 TEST_F(SpiMockTest, SetMotorPwmSuccess)
 {
     initializeSpi();

@@ -19,6 +19,7 @@ namespace wombat
 
         Result<SensorData> readSensorData() override;
 
+        Result<void> setMotorState(PortId port, const MotorState& state) override;
         Result<void> setMotorOff(PortId port) override;
         Result<void> setMotorBrake(PortId port) override;
         Result<void> setMotorPwm(PortId port, int32_t duty) override;
