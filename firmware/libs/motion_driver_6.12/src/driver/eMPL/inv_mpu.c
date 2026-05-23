@@ -2619,7 +2619,6 @@ static int get_st_6500_biases(long* gyro, long* accel, unsigned char hw_test, in
 
     delay_ms(test.wait_ms); //wait 200ms for sensors to stabilize
 
-    /* Enable FIFO */
     data[0] = BIT_FIFO_EN;
     if (i2c_write(st.hw->addr, st.reg->user_ctrl, 1, data))
         return -1;
@@ -2635,9 +2634,11 @@ static int get_st_6500_biases(long* gyro, long* accel, unsigned char hw_test, in
         log_i("Starting Bias Loop Reads\n");
 
     //start reading samples
-    while (s < test.packet_thresh)
+    int timeout_ms = 5000; /* 5-second safety timeout */
+    while (s < test.packet_thresh && timeout_ms > 0)
     {
         delay_ms(test.sample_wait_ms); //wait 10ms to fill FIFO
+        timeout_ms -= test.sample_wait_ms;
         if (i2c_read(st.hw->addr, st.reg->fifo_count_h, 2, data))
             return -1;
         fifo_count = (data[0] << 8) | data[1];
@@ -2645,9 +2646,13 @@ static int get_st_6500_biases(long* gyro, long* accel, unsigned char hw_test, in
         if ((test.packet_thresh - s) < packet_count)
             packet_count = test.packet_thresh - s;
         read_size = packet_count * MAX_PACKET_LENGTH;
+        if (read_size > HWST_MAX_PACKET_LENGTH) {
+            packet_count = HWST_MAX_PACKET_LENGTH / MAX_PACKET_LENGTH;
+            read_size = packet_count * MAX_PACKET_LENGTH;
+        }
 
         //burst read from FIFO
-        if (i2c_read(st.hw->addr, st.reg->fifo_r_w, read_size, data))
+        if (read_size > 0 && i2c_read(st.hw->addr, st.reg->fifo_r_w, read_size, data))
             return -1;
         ind = 0;
         for (ii = 0; ii < packet_count; ii++)
@@ -2669,6 +2674,8 @@ static int get_st_6500_biases(long* gyro, long* accel, unsigned char hw_test, in
         }
         s += packet_count;
     }
+    if (timeout_ms <= 0)
+        return -1; /* timed out — treated as I2C/SPI failure by caller */
 
     if (debug)
         log_i("Samples: %d\n", s);

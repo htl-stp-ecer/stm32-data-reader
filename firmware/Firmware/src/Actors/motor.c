@@ -10,6 +10,7 @@
 #include "Hardware/timerInit.h"
 #include "Actors/pid.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #define MTP_DONE_THRESHOLD 40   // position error deadband for "done" in BEMF units
@@ -268,6 +269,15 @@ void update_motor(const uint8_t channel, const int16_t bemf_filtered)
         prevControlMode[channel] = ctlMode;
         // Clear done flag on mode change
         motor_data.done &= ~(1u << channel);
+    }
+
+    if (ctlMode == MOT_MODE_MAV && (rxBuffer.featureFlags & FEATURE_BEMF_DISABLE))
+    {
+        // MAV requires BEMF feedback — ignore command, hold motor off.
+        // The Pi-side reader is the actual guard; this is defense in depth.
+        motor_setDirection(channel, OFF);
+        motor_setDutycycle(channel, 0);
+        return;
     }
 
     switch (ctlMode)

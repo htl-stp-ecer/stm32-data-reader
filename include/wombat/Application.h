@@ -13,6 +13,8 @@
 #include "wombat/services/CommandSubscriber.h"
 #include "wombat/services/SystemMonitor.h"
 #include "wombat/services/UartMonitor.h"
+#include "wombat/services/MotorWatchdog.h"
+#include <chrono>
 #include <memory>
 #include <atomic>
 
@@ -47,9 +49,16 @@ namespace wombat
         std::shared_ptr<CommandSubscriber> commandSubscriber_;
         std::unique_ptr<SystemMonitor> systemMonitor_;
         std::unique_ptr<UartMonitor> uartMonitor_;
+        MotorWatchdog motorWatchdog_;
 
         std::atomic<bool> shouldShutdown_{false};
         bool isInitialized_{false};
+        bool fatalShutdown_{false};
+
+        // STM32 health monitoring
+        Timestamp lastStm32Timestamp_{0};
+        std::chrono::steady_clock::time_point lastStm32Activity_{};
+        bool stm32HealthArmed_{false};
 
         Result<void> createServices();
         Result<void> initializeServices();
@@ -57,6 +66,8 @@ namespace wombat
 
         Result<void> processMainLoop();
         Result<void> publishCurrentData();
+        void checkStm32Health();
+        Result<void> checkStm32Heartbeat(std::chrono::steady_clock::time_point now);
 
         Timestamp lastPublishedTimestamp_{0};
     };

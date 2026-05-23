@@ -7,11 +7,13 @@ namespace wombat
     CommandSubscriber::CommandSubscriber(std::shared_ptr<LcmBroker> broker,
                                          std::shared_ptr<DeviceController> deviceController,
                                          std::shared_ptr<DataPublisher> dataPublisher,
-                                         std::shared_ptr<Logger> logger)
+                                         std::shared_ptr<Logger> logger,
+                                         MotorWatchdog& watchdog)
         : broker_{std::move(broker)},
           deviceController_{std::move(deviceController)},
           dataPublisher_{std::move(dataPublisher)},
-          logger_{std::move(logger)}
+          logger_{std::move(logger)},
+          watchdog_{watchdog}
     {
     }
 
@@ -26,7 +28,7 @@ namespace wombat
         for (PortId i = 0; i < maxPorts; ++i)
         {
             const auto channel = channelFn(i);
-            logger_->info("Subscribing to " + description + " channel: " + channel);
+            logger_->debug("Subscribing to " + description + " channel: " + channel);
             auto result = broker_->subscribe<MsgT>(
                 channel,
                 [handler, i](const MsgT& cmd) { handler(i, cmd); },
@@ -112,8 +114,14 @@ namespace wombat
             "servo mode command", reliableOpts);
         if (r.isFailure()) return r;
 
+        r = subscribeForPorts<raccoon::vector3f_t>(
+            MAX_SERVO_PORTS, Channels::servoSmoothPositionCommand,
+            [this](PortId p, const raccoon::vector3f_t& cmd) { onServoSmoothCommand(p, cmd); },
+            "servo smooth command", reliableOpts);
+        if (r.isFailure()) return r;
+
         // System commands (single channels)
-        logger_->info("Subscribing to shutdown command channel: " + std::string(Channels::SHUTDOWN_CMD));
+        logger_->debug("Subscribing to shutdown command channel: " + std::string(Channels::SHUTDOWN_CMD));
         auto shutdownResult = broker_->subscribe<raccoon::scalar_i32_t>(
             Channels::SHUTDOWN_CMD,
             [this](const raccoon::scalar_i32_t& cmd) { onShutdownCommand(cmd); },
@@ -125,7 +133,7 @@ namespace wombat
         }
 
         // Kinematics config command (one-shot, reliable)
-        logger_->info("Subscribing to kinematics config channel: " + std::string(Channels::KINEMATICS_CONFIG_CMD));
+        logger_->debug("Subscribing to kinematics config channel: " + std::string(Channels::KINEMATICS_CONFIG_CMD));
         auto kinResult = broker_->subscribe<raccoon::kinematics_config_t>(
             Channels::KINEMATICS_CONFIG_CMD,
             [this](const raccoon::kinematics_config_t& cmd) { onKinematicsConfigCommand(cmd); },
@@ -137,7 +145,7 @@ namespace wombat
         }
 
         // Odometry reset command (one-shot, reliable)
-        logger_->info("Subscribing to odometry reset channel: " + std::string(Channels::ODOM_RESET_CMD));
+        logger_->debug("Subscribing to odometry reset channel: " + std::string(Channels::ODOM_RESET_CMD));
         auto odomResetResult = broker_->subscribe<raccoon::scalar_i32_t>(
             Channels::ODOM_RESET_CMD,
             [this](const raccoon::scalar_i32_t& cmd) { onOdometryResetCommand(cmd); },
@@ -146,6 +154,29 @@ namespace wombat
         if (odomResetResult.isFailure())
         {
             return Result<void>::failure("Failed to subscribe to odometry reset: " + odomResetResult.error());
+        }
+
+        // Feature: BEMF enabled toggle (1=enabled/default, 0=disabled/speed-mode) — reliable
+        logger_->debug("Subscribing to BEMF enabled command channel: " + std::string(Channels::BEMF_ENABLED_CMD));
+        auto bemfEnabledResult = broker_->subscribe<raccoon::scalar_i32_t>(
+            Channels::BEMF_ENABLED_CMD,
+            [this](const raccoon::scalar_i32_t& cmd) { onBemfEnabledCommand(cmd); },
+            reliableOpts
+        );
+        if (bemfEnabledResult.isFailure())
+        {
+            return Result<void>::failure("Failed to subscribe to BEMF enabled command: " + bemfEnabledResult.error());
+        }
+
+        // Heartbeat from raccoon-lib — feeds the MotorWatchdog
+        logger_->debug("Subscribing to heartbeat channel: " + std::string(Channels::HEARTBEAT_CMD));
+        auto heartbeatResult = broker_->subscribe<raccoon::scalar_i32_t>(
+            Channels::HEARTBEAT_CMD,
+            [this](const raccoon::scalar_i32_t& cmd) { onHeartbeatCommand(cmd); }
+        );
+        if (heartbeatResult.isFailure())
+        {
+            return Result<void>::failure("Failed to subscribe to heartbeat: " + heartbeatResult.error());
         }
 
         isInitialized_ = true;
@@ -383,6 +414,29 @@ namespace wombat
             "Received servo position_cmd on port " + std::to_string(port) + ": " + std::to_string(degrees) + " deg");
     }
 
+    void CommandSubscriber::onServoSmoothCommand(const PortId port, const raccoon::vector3f_t& command)
+    {
+        if (!isInitialized_)
+            return;
+
+        if (!isTimestampNewer(Channels::servoSmoothPositionCommand(port), command.timestamp))
+            return;
+
+        const float targetAngle = command.x;
+        const float speed = command.y;
+        const int easingType = static_cast<int>(command.z);
+
+        auto result = deviceController_->startSmoothServo(port, targetAngle, speed, easingType);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to start smooth servo on port " + std::to_string(port) + ": " + result.error());
+            return;
+        }
+
+        logger_->info("Smooth servo port " + std::to_string(port) + ": target=" +
+            std::to_string(targetAngle) + " deg, speed=" + std::to_string(speed) + " deg/s");
+    }
+
     void CommandSubscriber::onServoModeCommand(const PortId port, const raccoon::scalar_i8_t& command)
     {
         if (!isInitialized_)
@@ -402,6 +456,9 @@ namespace wombat
             logger_->error("Failed to set servo mode: " + result.error());
             return;
         }
+
+        logger_->info("Received servo mode on port " + std::to_string(port) +
+            ": " + std::to_string(static_cast<int>(command.dir)));
     }
 
     void CommandSubscriber::onMotorPositionResetCommand(const PortId port, const raccoon::scalar_i32_t& command)
@@ -474,8 +531,17 @@ namespace wombat
             return;
         }
 
-        // Publish shutdown status so subscribers (like the UI) can react
-        // Bitmask: bit 0 = servo shutdown, bit 1 = motor shutdown (both enabled/disabled together)
+        // When the user clears a shutdown via the UI, drop any latched
+        // watchdog state so it can re-arm and trigger again if needed.
+        if (!enabled && watchdog_.hasFired())
+        {
+            watchdog_.resetAfterManualClear();
+            logger_->info("Watchdog-triggered shutdown cleared by user — watchdog re-armed");
+        }
+
+        // Publish shutdown status so subscribers (like the UI) can react.
+        // Bitmask: bit 0 = servo shutdown, bit 1 = motor shutdown, bit 2 = source watchdog.
+        // User-initiated commands always clear the source bit.
         const uint8_t shutdownFlags = enabled ? 0x03 : 0x00;
         dataPublisher_->publishShutdownStatus(shutdownFlags);
 
@@ -538,5 +604,35 @@ namespace wombat
         }
 
         logger_->info("STM32 odometry reset");
+    }
+
+    void CommandSubscriber::onHeartbeatCommand(const raccoon::scalar_i32_t& /*command*/)
+    {
+        watchdog_.feed();
+    }
+
+    void CommandSubscriber::onBemfEnabledCommand(const raccoon::scalar_i32_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received BEMF enabled command while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::BEMF_ENABLED_CMD, command.timestamp))
+            return;
+
+        const bool enabled = command.value != 0;
+        const auto result = deviceController_->setBemfEnabled(enabled);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set BEMF enabled state: " + result.error());
+            return;
+        }
+
+        // Publish ACK on retained status channel so subscribers (UI, raccoon-lib) see the truth.
+        dataPublisher_->publishBemfEnabled(enabled);
+
+        logger_->info(std::string("BEMF ") + (enabled ? "enabled" : "disabled (speed mode)"));
     }
 } // namespace wombat

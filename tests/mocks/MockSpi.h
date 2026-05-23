@@ -63,5 +63,7 @@ namespace wombat::test
         );
         MOCK_METHOD(Result<void>, resetOdometry, (), (override)
         );
+        MOCK_METHOD(Result<void>, setFeatureFlags, (uint8_t flags), (override)
+        );
     };
 }

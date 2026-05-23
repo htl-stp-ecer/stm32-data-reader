@@ -22,8 +22,22 @@
 #include <linux/spi/spidev.h>
 #include <sys/ioctl.h>
 
+#include <stdexcept>
+#include <string>
+
 #include "spdlog/spdlog.h"
 #include "spi/pi_buffer.h"
+
+namespace
+{
+    constexpr uint8_t kMotorCtlModeBits = MOTOR_CONTR_MOD_LENGTH; // 3 bits per motor
+    constexpr uint8_t kMotorCtlModeMask = 0x07;
+
+    inline bool isMavMode(uint16_t controlMode, int motor)
+    {
+        return ((controlMode >> (kMotorCtlModeBits * motor)) & kMotorCtlModeMask) == MOT_MODE_MAV;
+    }
+} // namespace
 
 #ifndef SPI_DEVICE
 #define SPI_DEVICE "/dev/spidev0.0"
@@ -115,6 +129,24 @@ static bool spi_reopen(void)
 
 static bool spi_do_transfer(void)
 {
+    // Speed-mode safety guard: when BEMF is disabled on the firmware, the
+    // STM32 has no encoder ticks and the velocity PID cannot close the loop.
+    // Reject MAV commands at the Pi side before they hit the wire — let the
+    // caller recover (e.g. switch the motor to OFF / PWM).
+    if (ctx.tx.featureFlags & FEATURE_BEMF_DISABLE)
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            if (isMavMode(ctx.tx.motorControlMode, i))
+            {
+                throw std::runtime_error(
+                    "Motor " + std::to_string(i) +
+                    ": MAV (velocity) command rejected — BEMF measurement is disabled (speed mode). "
+                    "Use MOT_MODE_PWM with explicit duty cycle instead.");
+            }
+        }
+    }
+
     memset(ctx.tx_frame, 0, sizeof(ctx.tx_frame));
     memcpy(ctx.tx_frame, &ctx.tx, sizeof(ctx.tx));
 
@@ -138,6 +170,25 @@ bool spi_init(uint32_t speed_hz)
 {
     ctx.speed_hz = speed_hz;
     return spi_reopen();
+}
+
+void spi_reset_stm32(void)
+{
+    reset_stm();
+}
+
+uint8_t spi_probe_version(void)
+{
+    if (ctx.fd < 0) return 0;
+    // Retry for up to 3 seconds — the STM32 may still be booting
+    for (int attempt = 0; attempt < 30; ++attempt)
+    {
+        spi_do_transfer();
+        if (ctx.rx.transferVersion != 0)
+            return ctx.rx.transferVersion;
+        usleep(100 * 1000); // 100 ms
+    }
+    return ctx.rx.transferVersion;
 }
 
 void set_spi_mode(bool mode)
@@ -542,9 +593,24 @@ void set_motor_pid(uint8_t port, float kp, float ki, float kd)
 {
     if (port > 3)
         return;
-    ctx.tx.motorPidSettings.pids[port].Kp = kp;
-    ctx.tx.motorPidSettings.pids[port].Ki = ki;
-    ctx.tx.motorPidSettings.pids[port].Kd = kd;
+
+    static MotorPidSettings cached_pid_settings = {};
+    static bool cached_pid_settings_initialized = false;
+    if (!cached_pid_settings_initialized)
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            cached_pid_settings.pids[i].Kp = 1.22f;
+            cached_pid_settings.pids[i].Ki = 0.045f;
+            cached_pid_settings.pids[i].Kd = 0.0f;
+        }
+        cached_pid_settings_initialized = true;
+    }
+
+    cached_pid_settings.pids[port].Kp = kp;
+    cached_pid_settings.pids[port].Ki = ki;
+    cached_pid_settings.pids[port].Kd = kd;
+    ctx.tx.motorPidSettings = cached_pid_settings;
     ctx.tx.updates |= PI_BUFFER_UPDATE_MOTOR_PID_SPEED;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
@@ -563,6 +629,14 @@ void set_kinematics_config(const float inv_matrix[3][4], const float ticks_to_ra
 void reset_stm32_odometry(void)
 {
     ctx.tx.updates |= PI_BUFFER_UPDATE_ODOM_RESET;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}
+
+void set_feature_flags(uint8_t flags)
+{
+    ctx.tx.featureFlags = flags;
+    ctx.tx.updates |= PI_BUFFER_UPDATE_FEATURE_FLAGS;
     if (!spi_force_update())
         exit(EXIT_FAILURE);
 }

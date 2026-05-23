@@ -1,7 +1,26 @@
 #include "wombat/services/DeviceController.h"
+#include <cmath>
+
+extern "C" {
+#include "spi/pi_buffer.h"
+}
 
 namespace wombat
 {
+    namespace
+    {
+        float applyEasing(const float t, const int type)
+        {
+            switch (type)
+            {
+            case 1: return t * t;
+            case 2: return t * (2.0f - t);
+            case 3: { const float tt = t * t; return tt * (3.0f - 2.0f * t); }
+            case 4: return (1.0f - std::cos(t * 3.14159265f)) * 0.5f;
+            default: return t;
+            }
+        }
+    }
     DeviceController::DeviceController(std::unique_ptr<ISpi> spi, std::shared_ptr<Logger> logger)
         : spi_{std::move(spi)}, logger_{std::move(logger)}
     {
@@ -82,6 +101,24 @@ namespace wombat
         if (!isInitialized_)
         {
             return Result<void>::failure("Device controller not initialized");
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        for (PortId port = 0; port < MAX_SERVO_PORTS; ++port)
+        {
+            auto& s = smoothServoStates_[port];
+            if (!s.active)
+                continue;
+
+            const float elapsed = std::chrono::duration<float>(now - s.startTime).count();
+            const float t = std::min(elapsed / s.durationSec, 1.0f);
+            const float eased = applyEasing(t, s.easingType);
+            const float pos = s.startAngle + (s.targetAngle - s.startAngle) * eased;
+
+            spi_->setServoState(port, {ServoMode::Enabled, pos});
+
+            if (t >= 1.0f)
+                s.active = false;
         }
 
         auto sensorResult = spi_->readSensorData();
@@ -244,6 +281,9 @@ namespace wombat
             return validationResult;
         }
 
+        // A direct position command takes ownership immediately and cancels any
+        // in-flight smooth trajectory for this servo.
+        smoothServoStates_[port].active = false;
         servoCommands_[port] = position;
 
         ServoState state{ServoMode::Enabled, position};
@@ -258,12 +298,52 @@ namespace wombat
         return Result<void>::success();
     }
 
+    Result<void> DeviceController::startSmoothServo(PortId port, float targetAngle, float speedDegPerSec,
+                                                    int easingType)
+    {
+        auto validationResult = validatePortId(port, MAX_SERVO_PORTS);
+        if (validationResult.isFailure())
+            return validationResult;
+
+        if (speedDegPerSec <= 0.0f)
+            return Result<void>::failure("Speed must be > 0");
+
+        auto currentStateResult = spi_->getServoState(port);
+        const float startAngle = currentStateResult.isSuccess() ? currentStateResult.value().position : 0.0f;
+
+        const float delta = std::abs(targetAngle - startAngle);
+        if (delta < 0.5f)
+        {
+            smoothServoStates_[port].active = false;
+            spi_->setServoState(port, {ServoMode::Enabled, targetAngle});
+            return Result<void>::success();
+        }
+
+        auto& s = smoothServoStates_[port];
+        s.startAngle = startAngle;
+        s.targetAngle = targetAngle;
+        s.durationSec = delta / speedDegPerSec;
+        s.easingType = easingType;
+        s.startTime = std::chrono::steady_clock::now();
+        s.active = true;
+
+        logger_->debug("Smooth servo " + std::to_string(port) + ": " +
+            std::to_string(startAngle) + " -> " + std::to_string(targetAngle) +
+            " deg, " + std::to_string(s.durationSec) + "s");
+        return Result<void>::success();
+    }
+
     Result<void> DeviceController::setServoMode(PortId port, ServoMode mode)
     {
         auto validationResult = validatePortId(port, MAX_SERVO_PORTS);
         if (validationResult.isFailure())
         {
             return validationResult;
+        }
+
+        if (mode != ServoMode::Enabled)
+        {
+            smoothServoStates_[port].active = false;
         }
 
         // Get current position to preserve it when changing mode
@@ -383,6 +463,7 @@ namespace wombat
             for (PortId port = 0; port < MAX_SERVO_PORTS; ++port)
             {
                 servoCommands_[port] = 0;
+                smoothServoStates_[port].active = false;
                 spi_->setServoState(port, {ServoMode::Disabled, 0.0f});
             }
         }
@@ -415,6 +496,26 @@ namespace wombat
             return Result<void>::failure("Device controller not initialized");
         }
         return spi_->resetOdometry();
+    }
+
+    Result<void> DeviceController::setBemfEnabled(bool enabled)
+    {
+        // FEATURE_BEMF_DISABLE is inverted: enabled=true clears the bit, enabled=false sets it.
+        if (enabled)
+            featureFlags_ &= static_cast<uint8_t>(~FEATURE_BEMF_DISABLE);
+        else
+            featureFlags_ |= static_cast<uint8_t>(FEATURE_BEMF_DISABLE);
+
+        auto result = spi_->setFeatureFlags(featureFlags_);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to push feature flags to STM32: " + result.error());
+            return result;
+        }
+
+        logger_->info(std::string("BEMF ") + (enabled ? "enabled" : "disabled (speed mode)") +
+            " — featureFlags=0x" + std::to_string(static_cast<unsigned>(featureFlags_)));
+        return Result<void>::success();
     }
 
     Result<void> DeviceController::validatePortId(PortId port, PortId maxPort) const

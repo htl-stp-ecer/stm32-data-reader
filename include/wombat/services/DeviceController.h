@@ -10,6 +10,7 @@
 #include <memory>
 #include <array>
 #include <atomic>
+#include <chrono>
 
 namespace wombat
 {
@@ -32,6 +33,7 @@ namespace wombat
         Result<uint8_t> getMotorDone() const;
         Result<void> setServoCommand(PortId port, ServoPosition position);
         Result<void> setServoMode(PortId port, ServoMode mode);
+        Result<void> startSmoothServo(PortId port, float targetAngle, float speedDegPerSec, int easingType);
         Result<void> resetMotorPosition(PortId port);
         Result<void> setMotorPid(PortId port, float kp, float ki, float kd);
 
@@ -48,10 +50,26 @@ namespace wombat
         // Odometry: reset STM32 integrated pose
         Result<void> resetOdometry();
 
+        // Feature: enable/disable BEMF measurement on the firmware ("speed mode" opt-in).
+        // enabled==true -> FEATURE_BEMF_DISABLE bit cleared (default).
+        // enabled==false -> FEATURE_BEMF_DISABLE bit set (firmware skips BEMF, no encoder ticks).
+        Result<void> setBemfEnabled(bool enabled);
+        [[nodiscard]] bool isBemfEnabled() const { return (featureFlags_ & 0x01) == 0; }
+
     private:
         // Coarse motor mode tracked on the Pi side to deduplicate mode commands.
         // Only OFF and BRAKE are deduplicated — active control modes always go through.
         enum class MotorMode { Unknown, Off, Brake, Active };
+
+        struct SmoothServoState
+        {
+            float startAngle{0.0f};
+            float targetAngle{0.0f};
+            float durationSec{0.0f};
+            int easingType{0};
+            bool active{false};
+            std::chrono::steady_clock::time_point startTime{};
+        };
 
         std::unique_ptr<ISpi> spi_;
         std::shared_ptr<Logger> logger_;
@@ -59,9 +77,13 @@ namespace wombat
         std::array<std::atomic<int32_t>, MAX_MOTOR_PORTS> motorCommands_{};
         std::array<std::atomic<ServoPosition>, MAX_SERVO_PORTS> servoCommands_{};
         std::array<MotorMode, MAX_MOTOR_PORTS> motorModes_{};
+        std::array<SmoothServoState, MAX_SERVO_PORTS> smoothServoStates_{};
 
         SensorData lastSensorData_{};
         bool isInitialized_{false};
+
+        // Cached opt-in feature flags pushed to STM32 (see FEATURE_* in pi_buffer.h).
+        uint8_t featureFlags_{0};
 
         [[nodiscard]] Result<void> validatePortId(PortId port, PortId maxPort) const;
     };

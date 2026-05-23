@@ -4,12 +4,19 @@
 #include "wombat/hardware/SpiMock.h"
 #else
 #include "wombat/hardware/SpiReal.h"
+extern "C" {
+#include "wombat/hardware/Spi.h"
+#include "spi/pi_buffer.h"
+}
 #endif
+
+#include "version.h"
 
 #include <thread>
 #include <chrono>
 #include <cmath>
 #include <csignal>
+#include <stdexcept>
 
 namespace wombat
 {
@@ -77,12 +84,18 @@ namespace wombat
             if (result.isFailure())
             {
                 logger_->error("Main loop error: " + result.error());
+                fatalShutdown_ = true;
+                shouldShutdown_ = true;
             }
 
             std::this_thread::sleep_for(config_.mainLoopDelay);
         }
 
         logger_->info("Application main loop finished");
+        if (fatalShutdown_)
+        {
+            return Result<void>::failure("Fatal STM32 health failure");
+        }
         return Result<void>::success();
     }
 
@@ -137,7 +150,7 @@ namespace wombat
         dataPublisher_ = std::make_shared<DataPublisher>(messageBroker_, logger_);
         systemMonitor_ = std::make_unique<SystemMonitor>(messageBroker_, logger_);
         commandSubscriber_ = std::make_shared<CommandSubscriber>(messageBroker_, deviceController_, dataPublisher_,
-                                                                 logger_);
+                                                                 logger_, motorWatchdog_);
 
         if (config_.uart.enabled)
         {
@@ -150,34 +163,92 @@ namespace wombat
 
     Result<void> Application::initializeServices()
     {
-        // Initialize message broker first
+        // 1. Message broker
         auto messageBrokerResult = messageBroker_->initialize();
         if (messageBrokerResult.isFailure())
         {
             return Result<void>::failure("Failed to initialize message broker: " + messageBrokerResult.error());
         }
 
-        // Initialize device controller
-        auto deviceControllerResult = deviceController_->initialize();
-        if (deviceControllerResult.isFailure())
-        {
-            return Result<void>::failure("Failed to initialize device controller: " + deviceControllerResult.error());
-        }
-
-        // Initialize command subscriber
-        auto commandSubscriberResult = commandSubscriber_->initialize();
-        if (commandSubscriberResult.isFailure())
-        {
-            logger_->warn("Failed to initialize command subscriber: " + commandSubscriberResult.error());
-        }
-
-
+        // 2. UART monitor — must be up before reset so boot output is captured
         if (uartMonitor_)
         {
             auto uartResult = uartMonitor_->initialize();
             if (uartResult.isFailure())
             {
                 logger_->warn("Failed to initialize UART monitor: " + uartResult.error());
+            }
+        }
+
+#ifndef USE_SPI_MOCK
+        // 3. Reset STM32 and capture boot output
+        logger_->info("Resetting STM32 coprocessor...");
+        spi_reset_stm32(); // calls reset script + 1 s sleep
+
+        if (uartMonitor_)
+        {
+            logger_->info("Waiting for STM32 boot output...");
+            uartMonitor_->drainFor(std::chrono::milliseconds(2000));
+        }
+        else
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+        }
+#endif
+
+        // 4. Initialize device controller (opens SPI fd)
+        auto deviceControllerResult = deviceController_->initialize();
+        if (deviceControllerResult.isFailure())
+        {
+            return Result<void>::failure("Failed to initialize device controller: " + deviceControllerResult.error());
+        }
+
+#ifndef USE_SPI_MOCK
+        // 5. Probe the protocol version actually running on the STM32
+        {
+            const uint8_t stm32Version = spi_probe_version();
+            const bool versionMatch = (stm32Version == TRANSFER_VERSION);
+
+            logger_->info("=== Startup version report ===");
+            logger_->info("  Reader version      : " + std::string(STMREADER_VERSION));
+            logger_->info("  SPI protocol expected: " + std::to_string(TRANSFER_VERSION));
+            logger_->info("  SPI protocol from STM32: " + std::to_string(stm32Version));
+            if (versionMatch)
+            {
+                logger_->info("  Version check       : OK — no reflash needed");
+            }
+            else
+            {
+                logger_->warn("  Version check       : MISMATCH — firmware reflash will be triggered on first update");
+            }
+            logger_->info("==============================");
+        }
+#else
+        logger_->info("Reader version: " + std::string(STMREADER_VERSION) + " (SPI mock — no STM32 version check)");
+#endif
+
+        // 6. Initialize command subscriber
+        auto commandSubscriberResult = commandSubscriber_->initialize();
+        if (commandSubscriberResult.isFailure())
+        {
+            logger_->warn("Failed to initialize command subscriber: " + commandSubscriberResult.error());
+        }
+
+        // 7. Apply startup-only opt-in feature flags.
+        // disableBemfOnStartup is the "speed mode" toggle — push it to the STM32 on the
+        // very first SPI transfer so the firmware skips BEMF measurement from the start.
+        if (config_.disableBemfOnStartup)
+        {
+            logger_->warn("Startup config: disableBemfOnStartup=true — entering speed mode "
+                "(no BEMF, no encoder ticks, MAV commands will be rejected).");
+            auto bemfResult = deviceController_->setBemfEnabled(false);
+            if (bemfResult.isFailure())
+            {
+                logger_->error("Failed to apply startup BEMF disable: " + bemfResult.error());
+            }
+            else if (dataPublisher_)
+            {
+                dataPublisher_->publishBemfEnabled(false);
             }
         }
 
@@ -231,15 +302,41 @@ namespace wombat
 
     Result<void> Application::processMainLoop()
     {
-        // Process incoming messages
+        const auto loopNow = std::chrono::steady_clock::now();
+
+        // Process incoming messages. SPI guards (e.g. BEMF-disable MAV reject)
+        // throw std::runtime_error from inside command handlers — catch here so
+        // the loop survives, log, and force the affected motor(s) to OFF.
         if (messageBroker_)
         {
-            auto messageResult = messageBroker_->processMessages();
-            if (messageResult.isFailure())
+            try
             {
-                logger_->warn("Failed to process messages: " + messageResult.error());
+                auto messageResult = messageBroker_->processMessages();
+                if (messageResult.isFailure())
+                {
+                    logger_->warn("Failed to process messages: " + messageResult.error());
+                }
+            }
+            catch (const std::runtime_error& ex)
+            {
+                logger_->error(std::string("SPI guard rejected command: ") + ex.what());
+                // Recovery: force all motors to OFF so the rejected command can't
+                // get re-driven on the next transfer. Caller (raccoon-lib) gets the
+                // motor/done channel back at zero and can re-issue a valid command.
+                for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
+                {
+                    auto offResult = deviceController_->setMotorOff(port);
+                    if (offResult.isFailure())
+                    {
+                        logger_->warn("Recovery: failed to OFF motor " + std::to_string(port) +
+                            ": " + offResult.error());
+                    }
+                }
             }
         }
+
+        // Update motor watchdog (fires hardware shutdown if heartbeat is missing)
+        motorWatchdog_.update(*deviceController_, *dataPublisher_);
 
         // Update device controller
         auto deviceResult = deviceController_->processUpdate();
@@ -262,11 +359,21 @@ namespace wombat
         // Read STM32 UART debug output
         if (uartMonitor_)
         {
+            uartMonitor_->noteLoopTime(loopNow);
             auto uartResult = uartMonitor_->processUpdate();
             if (uartResult.isFailure())
             {
                 logger_->debug("UART monitor update failed: " + uartResult.error());
             }
+        }
+
+        // STM32 health check: updateTime must change within 10 seconds
+        checkStm32Health();
+
+        auto heartbeatResult = checkStm32Heartbeat(loopNow);
+        if (heartbeatResult.isFailure())
+        {
+            return heartbeatResult;
         }
 
         // Publish current data
@@ -277,6 +384,68 @@ namespace wombat
         }
 
         return Result<void>::success();
+    }
+
+    void Application::checkStm32Health()
+    {
+        auto sensorDataResult = deviceController_->getCurrentSensorData();
+        if (sensorDataResult.isFailure())
+            return;
+
+        const Timestamp ts = sensorDataResult.value().lastUpdate;
+        const auto now = std::chrono::steady_clock::now();
+
+        if (ts != lastStm32Timestamp_)
+        {
+            lastStm32Timestamp_ = ts;
+            lastStm32Activity_ = now;
+            stm32HealthArmed_ = true;
+            return;
+        }
+
+        if (!stm32HealthArmed_)
+        {
+            lastStm32Activity_ = now;
+            return;
+        }
+
+        constexpr auto kTimeout = std::chrono::seconds(10);
+        if (now - lastStm32Activity_ > kTimeout)
+        {
+            logger_->error("STM32 health check failed: updateTime has not changed for >10s — shutting down");
+            fatalShutdown_ = true;
+            shouldShutdown_ = true;
+        }
+    }
+
+    Result<void> Application::checkStm32Heartbeat(const std::chrono::steady_clock::time_point now)
+    {
+        if (!uartMonitor_)
+        {
+            return Result<void>::success();
+        }
+
+        if (!uartMonitor_->heartbeatEverSeen())
+        {
+            return Result<void>::success();
+        }
+
+        constexpr auto kHeartbeatTimeout = std::chrono::seconds(12);
+        const auto lastHeartbeat = uartMonitor_->lastHeartbeatTime();
+        if (!lastHeartbeat.has_value())
+        {
+            return Result<void>::success();
+        }
+
+        if (now - *lastHeartbeat <= kHeartbeatTimeout)
+        {
+            return Result<void>::success();
+        }
+
+        logger_->error("STM32 heartbeat watchdog failed: no UART heartbeat for >12s — terminating service");
+        fatalShutdown_ = true;
+        shouldShutdown_ = true;
+        return Result<void>::failure("STM32 heartbeat watchdog timeout");
     }
 
     Result<void> Application::publishCurrentData()

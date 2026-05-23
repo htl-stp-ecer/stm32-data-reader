@@ -3,7 +3,9 @@
 //
 #include "main.h"
 #include "Sensors/adcPorts-batteryVoltage.h"
+#include "Sensors/adcInit.h"
 #include "Sensors/bemf.h"
+#include "Actors/motor.h"
 #include "Hardware/timer.h"
 #include "communication_with_pi.h"
 #include "Hardware/timerInit.h"
@@ -26,7 +28,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
     {
         microSeconds++;
 
-        if (!(rxBuffer.systemShutdown & SHUTDOWN_MOTOR))
+        if (!(rxBuffer.systemShutdown & SHUTDOWN_MOTOR) && !(rxBuffer.featureFlags & FEATURE_BEMF_DISABLE))
         {
             bemf_watchdog_check(microSeconds);
 
@@ -53,6 +55,31 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
                        (int)bemfState, (int)bemfCurrentMotor,
                        (unsigned long)bemfConvCount);
                 bemfStallStart = microSeconds; // rate-limit to once per 2*interval
+            }
+        }
+        else if (rxBuffer.featureFlags & FEATURE_BEMF_DISABLE)
+        {
+            // BEMF disabled — ensure ADC isn't stuck mid-conversion
+            if (bemfState != STOPPED)
+            {
+                HAL_ADC_Stop_DMA(&hadc2);
+                bemfState = STOPPED;
+            }
+
+            // Normally update_motor() runs from the BEMF ADC-DMA callback
+            // (once per motor per BEMF cycle). With BEMF off that callback
+            // never fires, so motorControlMode / motorTarget changes from
+            // the Pi never reach the PWM peripheral. Drive a synthetic
+            // refresh here at the same cadence (~BEMF_SAMPLING_INTERVAL)
+            // so PWM-mode setSpeed commands actually take effect.
+            static uint32_t bemfDisabledMotorRefreshLast = 0;
+            if (microSeconds - bemfDisabledMotorRefreshLast >= BEMF_SAMPLING_INTERVAL)
+            {
+                bemfDisabledMotorRefreshLast = microSeconds;
+                for (uint8_t ch = 0; ch < MOTOR_COUNT; ++ch)
+                {
+                    update_motor(ch, 0); // bemf_filtered unused outside MAV
+                }
             }
         }
 

@@ -281,6 +281,13 @@ namespace wombat
         return impl_->publishIfChanged(ch, m, retainedOpts);
     }
 
+    template <>
+    Result<void> LcmBroker::publishRetained<raccoon::string_t>(const std::string& ch,
+                                                               const raccoon::string_t& m)
+    {
+        return impl_->publishIfChanged(ch, m, retainedOpts);
+    }
+
     // Explicit template instantiations — subscribe
     template <>
     Result<void> LcmBroker::subscribe<raccoon::vector3f_t>(const std::string& ch,

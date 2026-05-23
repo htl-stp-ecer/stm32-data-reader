@@ -359,11 +359,12 @@ uint8_t MPU9250_Init()
     HAL_Delay(100);
 
     // read the AK8963 ASA registers and compute magnetometer scale factors
-    readAK8963Registers(AK8963_ASA, 3, mag_adjust);
+    uint8_t asa[3];
+    readAK8963Registers(AK8963_ASA, 3, asa);
 
-    mag_adjust[0] = (mag_adjust[0] - 128) / 256.0f + 1.0f;
-    mag_adjust[1] = (mag_adjust[1] - 128) / 256.0f + 1.0f;
-    mag_adjust[2] = (mag_adjust[2] - 128) / 256.0f + 1.0f;
+    mag_adjust[0] = (asa[0] - 128) / 256.0f + 1.0f;
+    mag_adjust[1] = (asa[1] - 128) / 256.0f + 1.0f;
+    mag_adjust[2] = (asa[2] - 128) / 256.0f + 1.0f;
 
     // set AK8963 to Power Down
     writeAK8963Register(AK8963_CNTL1, AK8963_PWR_DOWN);
