@@ -17,12 +17,16 @@ if ! bash ./init_gpio.sh; then
     exit 1
 fi
 
-# Set BOOT0 high so we stay in the bootloader on reboot
-echo "Setting BOOT0 high..."
-pinctrl set ${BOOT0} dh
-
-# Reset co-processor
-bash ./reset_coprocessor.sh
+# Enter bootloader: BOOT0 high during reset.
+# NOTE: We can't use reset_coprocessor.sh here — it's a standalone normal-boot
+# reset and forces BOOT0 low. We inline the RST toggle while holding BOOT0 high.
+echo "Setting BOOT0 high and resetting into bootloader..."
+pinctrl set ${BOOT0} op dh
+pinctrl set ${RST} op dh
+sleep 0.1
+pinctrl set ${RST} dl
+sleep 0.1
+pinctrl set ${RST} dh
 
 # Program the device
 sleep 1
