@@ -28,10 +28,15 @@ pinctrl set ${RST} dl
 sleep 0.1
 pinctrl set ${RST} dh
 
-# Program the device
+# Program the device.
+# Use sector erase (-e 8) instead of mass erase: stm32flash 0.7 times out
+# waiting for the ACK byte after the F4 mass-erase command, even though the
+# chip eventually finishes. -e and -S are mutually exclusive, so we drop -S
+# (the binary parser writes from 0x08000000 by default).
+# 8 sectors on F4 = 4x16K + 1x64K + 3x128K = 512K — plenty of headroom.
 sleep 1
 echo "Flashing firmware..."
-CMD="${STM32FLASH} -v -S 0x08000000 -w ${BINFILE} ${DEV}"
+CMD="${STM32FLASH} -v -e 8 -w ${BINFILE} ${DEV}"
 echo $CMD
 eval $CMD
 
