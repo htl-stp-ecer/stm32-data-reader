@@ -7,15 +7,32 @@
 #include <raccoon/scalar_i32_t.hpp>
 #include <raccoon/scalar_i8_t.hpp>
 #include <raccoon/string_t.hpp>
+#include <raccoon/Channels.h>
 #include <raccoon/orientation_matrix_t.hpp>
 #include <raccoon/kinematics_config_t.hpp>
+#include <algorithm>
 #include <chrono>
+#include <map>
+#include <sstream>
+#include <vector>
 
 namespace wombat
 {
     class LcmBroker::Impl
     {
     public:
+        static constexpr int64_t kLatencyAlertThresholdUs = 10'000;
+
+        struct ChannelTimingStats
+        {
+            uint64_t intervalCount{0};
+            uint64_t totalCount{0};
+            uint64_t intervalTotalUs{0};
+            uint64_t totalTotalUs{0};
+            uint64_t intervalMaxUs{0};
+            uint64_t totalMaxUs{0};
+        };
+
         explicit Impl(std::shared_ptr<Logger> logger)
             : logger_{std::move(logger)}
         {
@@ -83,20 +100,28 @@ namespace wombat
                     {
                         latencyStr = "min=" + std::to_string(stats.latency.minUs / 1000) + "ms"
                             + " avg=" + std::to_string(stats.latency.avgUs / 1000) + "ms"
+                            + " p99=" + std::to_string(stats.latency.p99Us / 1000) + "ms"
                             + " max=" + std::to_string(stats.latency.maxUs / 1000) + "ms"
                             + " (n=" + std::to_string(stats.latency.count) + ")";
+
+                        handleLatencyAlert(stats.latency);
                     }
                     std::string dedupStr;
                     if (stats.publishesDeduplicated > 0)
                     {
                         dedupStr = ", dedup=" + std::to_string(stats.publishesDeduplicated);
                     }
+                    const std::string subscriberStats = formatChannelStatsReport();
                     logger_->info("LCM processMessages: avg=" + std::to_string(avgMsgsPerCall).substr(0, 5)
                         + " msgs/call, rate=" + std::to_string(hz).substr(0, 5) + "Hz"
                         + ", total calls=" + std::to_string(processCallCount_)
                         + ", total msgs=" + std::to_string(totalMessagesProcessed_ + messagesProcessed)
                         + ", latency: " + latencyStr
                         + dedupStr);
+                    if (!subscriberStats.empty())
+                    {
+                        logger_->info("LCM subscriber stats: " + subscriberStats);
+                    }
                     intervalMessagesProcessed_ = 0;
                 }
             }
@@ -165,19 +190,161 @@ namespace wombat
                 return Result<void>::failure("Transport not initialized");
             }
 
-            transport_->subscribe<T>(channel, std::move(handler), options);
+            auto instrumentedHandler = [this, channel, handler = std::move(handler)](const T& message)
+            {
+                const auto started = std::chrono::steady_clock::now();
+                handler(message);
+                const auto elapsedUs = static_cast<uint64_t>(
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - started).count());
+                auto& stats = channelTimingStats_[channel];
+                ++stats.intervalCount;
+                ++stats.totalCount;
+                stats.intervalTotalUs += elapsedUs;
+                stats.totalTotalUs += elapsedUs;
+                stats.intervalMaxUs = std::max(stats.intervalMaxUs, elapsedUs);
+                stats.totalMaxUs = std::max(stats.totalMaxUs, elapsedUs);
+            };
+
+            transport_->subscribe<T>(channel, std::move(instrumentedHandler), options);
 
             logger_->debug("Subscribed to " + std::string(T::getTypeName()) + " channel: " + channel);
             return Result<void>::success();
         }
 
     private:
+        void handleLatencyAlert(const raccoon::TransportStats::Latency& latency)
+        {
+            if (latency.p99Us > kLatencyAlertThresholdUs)
+            {
+                ++latencyAlertConsecutiveCount_;
+                const std::string message =
+                    "stm32_data_reader inbound LCM latency p99="
+                    + std::to_string(latency.p99Us / 1000)
+                    + "ms exceeds 10ms"
+                    + " (avg=" + std::to_string(latency.avgUs / 1000)
+                    + "ms, max=" + std::to_string(latency.maxUs / 1000)
+                    + "ms, n=" + std::to_string(latency.count) + ")";
+
+                if (!latencyAlertActive_ || latencyAlertConsecutiveCount_ % 10 == 1)
+                {
+                    logger_->error(message);
+                    raccoon::string_t errorMsg{};
+                    errorMsg.timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+                    errorMsg.value = message;
+                    const auto publishResult = publishForce<raccoon::string_t>(
+                        raccoon::Channels::ERROR_MESSAGES, errorMsg);
+                    if (publishResult.isFailure())
+                    {
+                        logger_->error("Failed to publish latency alert to raccoon/errors: "
+                            + publishResult.error());
+                    }
+                }
+
+                latencyAlertActive_ = true;
+                return;
+            }
+
+            if (latencyAlertActive_)
+            {
+                logger_->info("stm32_data_reader inbound LCM latency recovered: p99="
+                    + std::to_string(latency.p99Us / 1000) + "ms");
+            }
+            latencyAlertActive_ = false;
+            latencyAlertConsecutiveCount_ = 0;
+        }
+
+        std::string formatChannelStatsReport()
+        {
+            struct Entry
+            {
+                std::string channel;
+                uint64_t intervalCount{0};
+                uint64_t totalCount{0};
+                uint64_t intervalTotalUs{0};
+                uint64_t totalTotalUs{0};
+                uint64_t intervalMaxUs{0};
+                uint64_t totalMaxUs{0};
+            };
+
+            std::vector<Entry> entries;
+            entries.reserve(channelTimingStats_.size());
+            for (auto& [channel, stats] : channelTimingStats_)
+            {
+                if (stats.intervalCount == 0)
+                {
+                    continue;
+                }
+                entries.push_back(Entry{
+                    .channel = channel,
+                    .intervalCount = stats.intervalCount,
+                    .totalCount = stats.totalCount,
+                    .intervalTotalUs = stats.intervalTotalUs,
+                    .totalTotalUs = stats.totalTotalUs,
+                    .intervalMaxUs = stats.intervalMaxUs,
+                    .totalMaxUs = stats.totalMaxUs,
+                });
+                stats.intervalCount = 0;
+                stats.intervalTotalUs = 0;
+                stats.intervalMaxUs = 0;
+            }
+
+            if (entries.empty())
+            {
+                return {};
+            }
+
+            uint64_t intervalTotalUsAllChannels = 0;
+            for (const auto& entry : entries)
+            {
+                intervalTotalUsAllChannels += entry.intervalTotalUs;
+            }
+
+            std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b)
+            {
+                if (a.intervalCount != b.intervalCount)
+                {
+                    return a.intervalCount > b.intervalCount;
+                }
+                return a.intervalTotalUs > b.intervalTotalUs;
+            });
+
+            std::ostringstream out;
+            const size_t limit = std::min<size_t>(entries.size(), 8);
+            for (size_t i = 0; i < limit; ++i)
+            {
+                const auto& entry = entries[i];
+                const double intervalAvgUs = static_cast<double>(entry.intervalTotalUs)
+                    / static_cast<double>(entry.intervalCount);
+                if (i > 0)
+                {
+                    out << " | ";
+                }
+                const double sharePct = intervalTotalUsAllChannels > 0
+                                            ? (100.0 * static_cast<double>(entry.intervalTotalUs)
+                                                / static_cast<double>(intervalTotalUsAllChannels))
+                                            : 0.0;
+                out << entry.channel
+                    << ": n=" << entry.intervalCount
+                    << ", avg=" << static_cast<uint64_t>(intervalAvgUs)
+                    << "us"
+                    << ", max=" << entry.intervalMaxUs << "us"
+                    << ", share=" << std::to_string(sharePct).substr(0, 4) << "%"
+                    << ", total=" << entry.totalCount;
+            }
+            return out.str();
+        }
+
         std::shared_ptr<Logger> logger_;
         std::unique_ptr<raccoon::Transport> transport_;
+        std::map<std::string, ChannelTimingStats> channelTimingStats_;
         std::chrono::steady_clock::time_point lastProcessTime_{};
         uint64_t processCallCount_{0};
         uint64_t totalMessagesProcessed_{0};
         uint64_t intervalMessagesProcessed_{0};
+        bool latencyAlertActive_{false};
+        uint64_t latencyAlertConsecutiveCount_{0};
     };
 
     // Public interface implementation

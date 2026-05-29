@@ -606,8 +606,13 @@ namespace wombat
         logger_->info("STM32 odometry reset");
     }
 
-    void CommandSubscriber::onHeartbeatCommand(const raccoon::scalar_i32_t& /*command*/)
+    void CommandSubscriber::onHeartbeatCommand(const raccoon::scalar_i32_t& command)
     {
+        if (!lastHeartbeatSenderPid_.has_value() || *lastHeartbeatSenderPid_ != command.value)
+        {
+            logger_->warn("Heartbeat sender changed to pid=" + std::to_string(command.value));
+            lastHeartbeatSenderPid_ = command.value;
+        }
         watchdog_.feed();
     }
 

@@ -22,6 +22,7 @@
 #include <unordered_map>
 #include <string>
 #include <cstdint>
+#include <optional>
 
 namespace wombat
 {
@@ -76,5 +77,6 @@ namespace wombat
 
         bool isInitialized_{false};
         std::unordered_map<std::string, int64_t> latestTimestamps_;
+        std::optional<int32_t> lastHeartbeatSenderPid_;
     };
 }

@@ -14,7 +14,11 @@ Restart=always
 RestartSec=5
 
 NoNewPrivileges=true
-PrivateTmp=true
+# PrivateTmp MUST be off: iceoryx2 stores its service-discovery registry
+# under /tmp/iceoryx2/, and a private /tmp namespace cuts this service
+# off from every other process that subscribes to the same channels
+# (raccoon-lib Python, the UI bridge, etc.).
+PrivateTmp=false
 ProtectSystem=full
 ProtectHome=read-only
 
