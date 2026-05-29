@@ -56,25 +56,39 @@ namespace wombat
             return std::abs(a.value - b.value);
         }
 
-        // Gate check: returns true (and updates last-{value,time}) if the
-        // sample should be published, false if it should be suppressed.
-        template <typename MessageType>
-        bool gateAllows(DataPublisher::PublishGate<MessageType>& gate,
-                        const MessageType& msg,
-                        std::chrono::steady_clock::time_point now) {
-            if (gate.lastValue.has_value()) {
-                if (now - gate.lastTime < gate.minInterval) {
-                    return false;
-                }
-                if (linfDelta(msg, *gate.lastValue) < gate.noiseEpsilon) {
-                    return false;
-                }
-            }
-            gate.lastValue = msg;
-            gate.lastTime = now;
-            return true;
-        }
     } // namespace
+
+    // Member gateAllows template — defined here next to the linfDelta
+    // overloads it uses, but it's a member so it can see PublishGate
+    // (declared private inside DataPublisher).
+    template <typename MessageType>
+    bool DataPublisher::gateAllows(PublishGate<MessageType>& gate,
+                                   const MessageType& msg,
+                                   std::chrono::steady_clock::time_point now) {
+        if (gate.lastValue.has_value()) {
+            if (now - gate.lastTime < gate.minInterval) {
+                return false;
+            }
+            if (linfDelta(msg, *gate.lastValue) < gate.noiseEpsilon) {
+                return false;
+            }
+        }
+        gate.lastValue = msg;
+        gate.lastTime = now;
+        return true;
+    }
+
+    // Explicit instantiations so the template doesn't have to live in
+    // the header. Add one line per PublishGate<T> the class uses.
+    template bool DataPublisher::gateAllows(
+        PublishGate<raccoon::vector3f_t>&, const raccoon::vector3f_t&,
+        std::chrono::steady_clock::time_point);
+    template bool DataPublisher::gateAllows(
+        PublishGate<raccoon::quaternion_t>&, const raccoon::quaternion_t&,
+        std::chrono::steady_clock::time_point);
+    template bool DataPublisher::gateAllows(
+        PublishGate<raccoon::scalar_f_t>&, const raccoon::scalar_f_t&,
+        std::chrono::steady_clock::time_point);
 
     DataPublisher::DataPublisher(std::shared_ptr<LcmBroker> broker, std::shared_ptr<Logger> logger)
         : broker_{std::move(broker)}, logger_{std::move(logger)}

@@ -85,6 +85,18 @@ namespace wombat
         PublishGate<raccoon::scalar_f_t>   odomVyGate_;
         PublishGate<raccoon::scalar_f_t>   odomWzGate_;
 
+        // Gate check: returns true (and updates last-{value,time}) if
+        // the sample should be published, false if it should be
+        // suppressed. Defined inline so callers in DataPublisher.cpp
+        // can drop it next to each publish call without indirection;
+        // member function so it can touch the private PublishGate
+        // template. linfDelta overloads live in DataPublisher.cpp's
+        // anonymous namespace.
+        template <typename MessageType>
+        bool gateAllows(PublishGate<MessageType>& gate,
+                        const MessageType& msg,
+                        std::chrono::steady_clock::time_point now);
+
         Result<void> publishAnalogValues(const std::array<AnalogValue, MAX_ANALOG_PORTS>& values);
         Result<void> publishDigitalBits(DigitalValue digitalBits);
         Result<void> publishAccuracy(const ImuAccuracy& accuracy);
