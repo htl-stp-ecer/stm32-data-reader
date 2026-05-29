@@ -11,6 +11,9 @@ Expects these files next to this script:
     stm32_data_reader                      (ARM64 binary)
     stm32_data_reader.service              (systemd unit)
     lcm-loopback-multicast.service         (systemd unit)
+Optional janitor (installed if present — keeps /tmp/iceoryx2 clean):
+    iox2_janitor                           (ARM64 binary)
+    iox2-janitor.service                   (systemd unit)
 Optional firmware files (if present, firmware will be flashed):
     wombat.bin                             (STM32 firmware binary)
     flash_wombat.sh                        (flash script)
@@ -66,6 +69,9 @@ def main() -> None:
     binary = script_dir / project_name
     service_file = script_dir / f"{project_name}.service"
     lcm_service_file = script_dir / "lcm-loopback-multicast.service"
+    janitor_binary = script_dir / "iox2_janitor"
+    janitor_service = script_dir / "iox2-janitor.service"
+    has_janitor = janitor_binary.is_file() and janitor_service.is_file()
 
     remote_user = os.environ.get("RPI_USER", "pi")
     remote_host = os.environ.get("RPI_HOST", "10.101.156.14")
@@ -104,9 +110,12 @@ def main() -> None:
         print(color(f"Override with: RPI_HOST=<ip> RPI_USER=<user> python {__file__}", YELLOW))
         sys.exit(1)
 
-    # --- Stop service ---
+    # --- Stop services ---
     print(color(f"Stopping {project_name} service...", BLUE))
     ssh(remote_host, remote_user, f"sudo systemctl stop {project_name}", check=False)
+    # Stop janitor too — install may replace its binary.
+    if has_janitor:
+        ssh(remote_host, remote_user, "sudo systemctl stop iox2-janitor", check=False)
 
     # --- Flash firmware (if available) ---
     if has_firmware:
@@ -129,26 +138,40 @@ def main() -> None:
     scp(str(binary), f"{remote}:{remote_dir}/{project_name}")
     ssh(remote_host, remote_user, f"chmod +x '{remote_dir}/{project_name}'")
 
+    # --- Upload janitor binary (if present) ---
+    if has_janitor:
+        print(color("Uploading iox2 janitor binary...", BLUE))
+        scp(str(janitor_binary), f"{remote}:{remote_dir}/iox2_janitor")
+        ssh(remote_host, remote_user, f"chmod +x '{remote_dir}/iox2_janitor'")
+
     # --- Install systemd units ---
     print(color("Installing systemd services...", BLUE))
     scp(str(lcm_service_file), f"{remote}:/tmp/lcm-loopback-multicast.service")
     scp(str(service_file), f"{remote}:/tmp/{project_name}.service")
-    ssh(
-        remote_host,
-        remote_user,
-        f"sudo mv /tmp/lcm-loopback-multicast.service /etc/systemd/system/ && "
+    if has_janitor:
+        scp(str(janitor_service), f"{remote}:/tmp/iox2-janitor.service")
+    move_units = (
+        "sudo mv /tmp/lcm-loopback-multicast.service /etc/systemd/system/ && "
         f"sudo mv /tmp/{project_name}.service /etc/systemd/system/ && "
-        "sudo systemctl daemon-reload",
     )
+    if has_janitor:
+        move_units += "sudo mv /tmp/iox2-janitor.service /etc/systemd/system/ && "
+    move_units += "sudo systemctl daemon-reload"
+    ssh(remote_host, remote_user, move_units)
 
     # --- Enable & start ---
     print(color("Enabling and starting services...", BLUE))
     ssh(remote_host, remote_user, "sudo systemctl enable --now lcm-loopback-multicast.service")
+    # Janitor goes BEFORE the reader so the reader boots into clean state.
+    if has_janitor:
+        ssh(remote_host, remote_user, "sudo systemctl enable --now iox2-janitor.service")
     ssh(remote_host, remote_user, f"sudo systemctl enable --now {project_name}.service")
 
     # --- Restart services ---
     print(color("Restarting services...", BLUE))
     ssh(remote_host, remote_user, "sudo systemctl restart lcm-loopback-multicast.service")
+    if has_janitor:
+        ssh(remote_host, remote_user, "sudo systemctl restart iox2-janitor.service")
     ssh(remote_host, remote_user, f"sudo systemctl restart {project_name}.service")
 
     print(color(f"Done! {project_name} is running on {remote_host}.", GREEN))

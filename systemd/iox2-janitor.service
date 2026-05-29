@@ -1,0 +1,54 @@
+[Unit]
+Description=iceoryx2 dead-node janitor — keeps /tmp/iceoryx2 clean
+Documentation=https://github.com/htl-stp-ecer/raccoon-transport
+# iceoryx2 is daemon-less by design (no RouDi). When a process dies
+# without running its destructors it leaves orphan node descriptors
+# under /tmp/iceoryx2/ that can wedge the next NodeBuilder::create()
+# with OpenIsMarkedForDestruction. This service runs the iox2
+# try_cleanup_dead_nodes() API on a 2-second tick so the orphans are
+# reaped before any consumer sees them.
+#
+# Must come up BEFORE every other iox2 user — stm32_data_reader,
+# raccoon-cli (raccoon.service), the per-project vision daemons —
+# so they boot into an already-clean state.
+After=network.target
+Before=stm32_data_reader.service
+
+[Service]
+Type=simple
+# Same uid as every other iox2 user on the host. Running as root
+# would create /tmp/iceoryx2 entries that pi-user processes can't
+# read (drwxr-x--- root:root) and is the documented reason for the
+# "iceoryx2 SHM owned by another user" pre-flight error.
+User=pi
+Group=pi
+
+# The binary is shipped next to stm32_data_reader on /home/pi.
+# Argument is the sweep period in milliseconds — 2000 ms is the
+# tuned default (fast enough that orphans are gone before the next
+# consumer's NodeBuilder runs, slow enough that wakeups don't show
+# up in `top`).
+ExecStart=/home/pi/stm32_data_reader/iox2_janitor 2000
+
+# stderr-only logging (matches the binary). systemd-journal captures
+# every reaped-node line so the operator can correlate self-heal
+# events with crashes.
+StandardError=journal
+
+# Restart on crash — but cap the burst so a packaging mistake
+# doesn't loop forever.
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# We need to read+write /tmp/iceoryx2/ and the pi-owned files
+# inside it. ProtectSystem=full keeps /home read-only-ish but /tmp
+# stays writable, which is what we need.
+NoNewPrivileges=true
+PrivateTmp=false
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
