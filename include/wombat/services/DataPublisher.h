@@ -9,6 +9,7 @@
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
 #include "wombat/messaging/LcmBroker.h"
+#include <chrono>
 #include <memory>
 #include <optional>
 
@@ -37,6 +38,49 @@ namespace wombat
 
         // Accuracy change detection
         std::optional<ImuAccuracy> lastAccuracy_;
+
+        // ---- Per-channel publish gates ----------------------------------
+        //
+        // The main loop drives publishSensorData at ~200 Hz, which used
+        // to flood every channel even though every consumer in
+        // raccoon-lib polls at ≤ 50 Hz and most sensors are noisy enough
+        // that bit-identical samples are rare (so the broker's exact-
+        // match dedup misses noise jitter). A per-channel gate cuts the
+        // rate to a configurable max Hz and also drops samples whose
+        // change vs the last published value is below an L-infinity
+        // noise threshold — i.e. "no axis moved by more than `epsilon`".
+        //
+        // Each gate keeps its own last-published value + timestamp.
+        // Templated on the message type so vector3f_t, quaternion_t and
+        // scalar_f_t share the same machinery via the L∞ helper in
+        // DataPublisher.cpp. Accelerometer intentionally has no gate
+        // (full 200 Hz, no noise-suppression) since IMU calibration
+        // routines downstream need every raw frame.
+        template <typename MessageType>
+        struct PublishGate
+        {
+            std::chrono::milliseconds minInterval{0};
+            float noiseEpsilon{0.0f};
+            std::optional<MessageType> lastValue;
+            std::chrono::steady_clock::time_point lastTime{};
+        };
+
+        PublishGate<raccoon::vector3f_t>   gyroGate_;
+        PublishGate<raccoon::vector3f_t>   magGate_;
+        PublishGate<raccoon::vector3f_t>   linAccelGate_;
+        PublishGate<raccoon::vector3f_t>   accelVelGate_;
+        PublishGate<raccoon::quaternion_t> dmpOrientGate_;
+        PublishGate<raccoon::scalar_f_t>   headingGate_;
+        PublishGate<raccoon::scalar_f_t>   tempGate_;
+        // Odometry: rate-gate only, noise epsilon = 0 (any change makes
+        // it through). Caller cares about position drift below sensor
+        // noise so we don't want to swallow micro-updates.
+        PublishGate<raccoon::scalar_f_t>   odomPosXGate_;
+        PublishGate<raccoon::scalar_f_t>   odomPosYGate_;
+        PublishGate<raccoon::scalar_f_t>   odomHeadingGate_;
+        PublishGate<raccoon::scalar_f_t>   odomVxGate_;
+        PublishGate<raccoon::scalar_f_t>   odomVyGate_;
+        PublishGate<raccoon::scalar_f_t>   odomWzGate_;
 
         Result<void> publishAnalogValues(const std::array<AnalogValue, MAX_ANALOG_PORTS>& values);
         Result<void> publishDigitalBits(DigitalValue digitalBits);
