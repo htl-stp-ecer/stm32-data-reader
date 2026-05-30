@@ -14,30 +14,11 @@ cp "${SCRIPT_DIR}/systemd/lcm-loopback-multicast.service" "${SCRIPT_DIR}/build/"
 cp "${SCRIPT_DIR}/systemd/iox2-janitor.service" "${SCRIPT_DIR}/build/"
 cp "${SCRIPT_DIR}/install.py" "${SCRIPT_DIR}/build/"
 
-# Pull the iox2 janitor binary out of the raccoon-transport build tree so
-# install.py finds it next to itself. raccoon-transport is built as a
-# submodule under cmake's iceoryx2_transport/cpp/tools subtree — the binary
-# lands wherever CMake's RUNTIME_OUTPUT_DIRECTORY points. We probe a couple
-# of likely paths so the build wiring can evolve without breaking the
-# installer.
-JANITOR_BIN=""
-for candidate in \
-    "${SCRIPT_DIR}/build/raccoon-transport-build/cpp/tools/iox2_janitor" \
-    "${SCRIPT_DIR}/build/cpp/tools/iox2_janitor" \
-    "${SCRIPT_DIR}/build/_deps/raccoon_transport-build/cpp/tools/iox2_janitor" \
-    "${SCRIPT_DIR}/build/iox2_janitor"; do
-  if [ -x "$candidate" ]; then
-    JANITOR_BIN="$candidate"
-    break
-  fi
-done
-if [ -n "$JANITOR_BIN" ]; then
-  echo "Found iox2 janitor at $JANITOR_BIN"
-  cp "$JANITOR_BIN" "${SCRIPT_DIR}/build/iox2_janitor"
-else
-  echo "WARN: iox2_janitor binary not found in build tree — install.py will skip the janitor"
-  echo "      (search paths: build/raccoon-transport-build/cpp/tools, build/cpp/tools, ...)"
-fi
+# iox2_janitor is no longer built — raccoon::Transport switched off
+# iceoryx2 to the in-tree raccoon_ring SHM library, so there are no dead
+# iceoryx2 nodes to sweep. Leave any stale binary in place so an older
+# install.py copy still finds it (harmless once iox2-janitor.service is
+# removed from systemd), but do not error out on the missing file.
 
 # Firmware artifacts are already copied by build.sh (wombat.bin + flash scripts)
 
