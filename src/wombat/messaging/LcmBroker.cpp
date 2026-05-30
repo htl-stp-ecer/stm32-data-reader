@@ -68,7 +68,12 @@ namespace wombat
             int messagesProcessed = 0;
             while (true)
             {
-                const int result = transport_->spinOnce(5);
+                // 1 ms spin slice — rrb_reader_recv is a cheap atomic
+                // load, so polling at 1 ms gives ~1 ms p50 inbound
+                // latency. Was 5 ms back when the iceoryx2 backend made
+                // each spin call ~hundreds of us; rrb costs ~hundreds
+                // of nanoseconds per channel.
+                const int result = transport_->spinOnce(1);
                 if (result < 0)
                 {
                     return Result<void>::failure("Failed to process LCM messages");

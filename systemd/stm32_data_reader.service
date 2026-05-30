@@ -9,21 +9,18 @@ Group=pi
 
 WorkingDirectory=/home/pi/stm32_data_reader
 
-# raccoon::Transport now uses the in-tree raccoon_ring SHM library
-# (one /dev/shm/raccoon_ring_<channel> file per channel) instead of
-# iceoryx2. There is nothing stateful left on /tmp/iceoryx2 to nuke or
-# arbitrate ownership of — when reader restarts it simply re-mmaps the
-# same files in-place. Subscribers see the producer sequence counter
-# reset and naturally resync. So no ExecStartPre dance, no iox2-claimed
-# flag, no need for the boot-order coordination we used to do here.
-
-# Stale rings from a prior reader process don't poison anything (raccoon_ring
-# re-initialises in place on writer_create), but they DO leave kbytes of
-# /dev/shm around. Wipe on each boot only — restarts of a running peer keep
-# their files intact.
-RuntimeDirectory=raccoon
-RuntimeDirectoryPreserve=restart
-ExecStartPre=-/bin/sh -c 'if [ ! -e /run/raccoon/rings-claimed ]; then rm -f /dev/shm/raccoon_ring_*; touch /run/raccoon/rings-claimed; echo "ring buffers wiped (first start after boot)"; fi'
+# raccoon::Transport uses the in-tree raccoon_ring SHM library
+# (one /dev/shm/raccoon_ring_<channel> file per channel). Restarts
+# are safe in-place: rrb_writer_create re-initialises the existing
+# header and subscribers detect the producer_seq reset and resync.
+#
+# We deliberately do NOT add a /dev/shm wipe in ExecStartPre — the
+# previous version of this unit did, and that was directly responsible
+# for botui losing all sensor channels after the first reader-watchdog
+# restart cycle. Unlinking the ring file kills every subscriber that
+# has the file mmap'd (their mmap becomes an unreachable anonymous
+# region), and the new reader's freshly-created file with the same
+# path is a different inode the old subscriber will never see.
 
 ExecStart=/home/pi/stm32_data_reader/stm32_data_reader
 
