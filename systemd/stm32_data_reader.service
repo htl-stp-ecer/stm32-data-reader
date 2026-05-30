@@ -16,32 +16,30 @@ Group=pi
 
 WorkingDirectory=/home/pi/stm32_data_reader
 
-# Nuke iceoryx2 state under the reader's own uid before the binary
-# starts. The reader is the authoritative iox2 owner on this host —
-# its restart resets the bus for every other iox2 user.
+# Nuke iceoryx2 state under the reader's own uid — but ONLY on the
+# first start after a reboot. Critical subtlety the naive form got
+# wrong: nuking on every (re)start of the reader corrupts every
+# already-running peer's bus handles (their in-memory iox2 ports
+# stay bound to /tmp/iceoryx2/services/* entries we just deleted),
+# producing exactly the OpenIsMarkedForDestruction churn we set out
+# to eliminate.
 #
-# Why this is safe to run on every (re)start:
-#   * Reader is `Before=raccoon.service`; on boot nothing else has
-#     touched /tmp/iceoryx2 yet, so the rm is a no-op or just clears
-#     leftover state from a previous boot.
-#   * On a restart-while-mission: peers see the fresh state on their
-#     next open_or_create, and our 5 s retry budget + the janitor's
-#     dead-node sweep cover the transition.
-#   * Running as User=pi means the entries it creates are pi-owned
-#     (drwxr-xr-x pi:pi), so non-root peers can read them. That's
-#     the documented failure mode for "iox2 SHM owned by another
-#     user" — running the cleanup under pi guarantees we never
-#     re-introduce it.
+# Strategy: a tmpfs flag file. /run is tmpfs (cleared on every
+# reboot), so the flag is absent at boot → first start nukes and
+# claims the bus, sets the flag. Subsequent restarts (Restart=always
+# kicking in after a crash, manual `systemctl restart`, the
+# raccoon.service install flow restarting us) see the flag and
+# leave state alone — peers keep working.
 #
-# `-` prefix on the second line tells systemd to ignore a non-zero
-# exit (rm with no matches errors on bash but the dash makes systemd
-# not propagate that).
-# `-` prefix tells systemd to ignore a non-zero exit (rm of an
-# already-missing path is a no-op anyway, and root-owned leftovers
-# from an accidental sudo would fail this step — we'd rather log a
-# warning and try the binary than refuse to start the reader).
-ExecStartPre=-/bin/rm -rf /tmp/iceoryx2
-ExecStartPre=-/bin/sh -c 'rm -f /dev/shm/iox2_*'
+# Running as User=pi means everything iox2 creates is pi-owned, so
+# non-root peers can read it (defends against the "iox2 SHM owned
+# by another user" failure mode the pre-flight check in raccoon-lib
+# detects).
+#
+# `-` prefix on the cleanup line tells systemd to ignore non-zero
+# exits — we'd rather log a warning and start the reader than refuse.
+ExecStartPre=/bin/mkdir -p /run/raccoon
+ExecStartPre=-/bin/sh -c 'if [ ! -e /run/raccoon/iox2-claimed ]; then rm -rf /tmp/iceoryx2; rm -f /dev/shm/iox2_*; touch /run/raccoon/iox2-claimed; echo "iox2 bus claimed (first start after boot)"; else echo "iox2 bus already claimed this boot — preserving peer state"; fi'
 ExecStart=/home/pi/stm32_data_reader/stm32_data_reader
 
 Restart=always
