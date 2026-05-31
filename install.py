@@ -155,8 +155,6 @@ def main() -> None:
     # --- Restart services ---
     print(color("Restarting services...", BLUE))
     ssh(remote_host, remote_user, "sudo systemctl restart lcm-loopback-multicast.service")
-    if has_janitor:
-        ssh(remote_host, remote_user, "sudo systemctl restart iox2-janitor.service")
     ssh(remote_host, remote_user, f"sudo systemctl restart {project_name}.service")
 
     print(color(f"Done! {project_name} is running on {remote_host}.", GREEN))
