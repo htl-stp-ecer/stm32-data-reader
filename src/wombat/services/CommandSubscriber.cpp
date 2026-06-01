@@ -17,7 +17,7 @@ namespace wombat
     {
     }
 
-    template <LcmMessage MsgT>
+    template <TransportMessage MsgT>
     Result<void> CommandSubscriber::subscribeForPorts(
         PortId maxPorts,
         std::function<std::string(PortId)> channelFn,

@@ -27,7 +27,7 @@
 namespace wombat
 {
     namespace Channels = raccoon::Channels;
-    using raccoon::LcmMessage;
+    using raccoon::TransportMessage;
 
     class CommandSubscriber
     {
@@ -67,7 +67,7 @@ namespace wombat
 
         bool isTimestampNewer(const std::string& channel, int64_t timestamp);
 
-        template <LcmMessage MsgT>
+        template <TransportMessage MsgT>
         Result<void> subscribeForPorts(
             PortId maxPorts,
             std::function<std::string(PortId)> channelFn,

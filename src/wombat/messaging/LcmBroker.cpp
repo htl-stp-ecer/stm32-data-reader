@@ -1,4 +1,5 @@
 #include "wombat/messaging/LcmBroker.h"
+#include <typeinfo>
 #include <raccoon/Transport.h>
 #include <raccoon/Options.h>
 #include <raccoon/vector3f_t.hpp>
@@ -159,7 +160,7 @@ namespace wombat
                 return Result<void>::failure("Failed to publish message on channel: " + channel);
             }
 
-            logger_->debug("Published " + std::string(MessageType::getTypeName())
+            logger_->debug("Published " + std::string(typeid(MessageType).name())
                 + " on channel: " + channel
                 + (options.retained ? " (retained, dedup)" : " (dedup)"));
             return Result<void>::success();
@@ -179,13 +180,13 @@ namespace wombat
                 return Result<void>::failure("Failed to publish message on channel: " + channel);
             }
 
-            logger_->debug("Published " + std::string(MessageType::getTypeName())
+            logger_->debug("Published " + std::string(typeid(MessageType).name())
                 + " on channel: " + channel
                 + (options.retained ? " (forced, retained)" : " (forced)"));
             return Result<void>::success();
         }
 
-        template <LcmMessage T>
+        template <TransportMessage T>
         Result<void> subscribe(const std::string& channel,
                                std::function<void(const T &)> handler,
                                const raccoon::SubscribeOptions& options = {})
@@ -213,7 +214,7 @@ namespace wombat
 
             transport_->subscribe<T>(channel, std::move(instrumentedHandler), options);
 
-            logger_->debug("Subscribed to " + std::string(T::getTypeName()) + " channel: " + channel);
+            logger_->debug("Subscribed to " + std::string(typeid(T).name()) + " channel: " + channel);
             return Result<void>::success();
         }
 
