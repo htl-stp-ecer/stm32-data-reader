@@ -147,6 +147,19 @@ def main() -> None:
         f"sudo mv /tmp/{project_name}.service /etc/systemd/system/ && "
         "sudo systemctl daemon-reload")
 
+    # --- Enable user linger ---
+    # Without linger=yes for the runtime user, every SSH disconnect ends
+    # the user's last session. Even with RemoveIPC=no in logind.conf, the
+    # user@<uid>.service teardown wipes /dev/shm/raccoon_ring_* files (or
+    # at least makes them invisible from new sessions), which kills every
+    # subscriber on the next `raccoon run` invocation — probe times out
+    # with "no STM32 traffic — is stm32-data-reader running?" even though
+    # the reader is alive. Linger keeps the user@<uid>.service alive
+    # across SSH disconnects so the raccoon_ring SHM files persist.
+    # Verified on production Pi 2026-06-02.
+    print(color(f"Enabling linger for user {remote_user}...", BLUE))
+    ssh(remote_host, remote_user, f"sudo loginctl enable-linger {remote_user}")
+
     # --- Enable & start ---
     print(color("Enabling and starting services...", BLUE))
     ssh(remote_host, remote_user, "sudo systemctl enable --now lcm-loopback-multicast.service")
