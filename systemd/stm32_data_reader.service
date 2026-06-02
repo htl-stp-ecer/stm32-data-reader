@@ -28,12 +28,15 @@ Restart=always
 RestartSec=5
 
 NoNewPrivileges=true
-# PrivateTmp must stay off so subscribers see our /dev/shm rings. (raccoon_ring
-# lives in /dev/shm which is unaffected by PrivateTmp, but the lcm-loopback
-# multicast plumbing under /tmp can be — keeping the old setting for now.)
+# All sandboxing options that build a private mount namespace MUST stay off.
+# ProtectSystem=, ProtectHome=, and PrivateTmp= each clone /proc/self/ns/mnt
+# for the service. systemd then makes /dev/shm an MS_SLAVE bind underneath
+# that clone, so any /dev/shm/raccoon_ring_* file the reader creates is
+# invisible to every other process on the host (libstp probe sees an empty
+# /dev/shm and times out waiting for IMU heading / BEMF / battery). Verified
+# on 2026-06-02: dropping ProtectSystem+ProtectHome turned a 100 % probe-fail
+# Pi green within 0.1 s. Leave them off.
 PrivateTmp=false
-ProtectSystem=full
-ProtectHome=read-only
 
 [Install]
 WantedBy=multi-user.target
