@@ -60,6 +60,12 @@ namespace wombat
         std::chrono::steady_clock::time_point lastStm32Activity_{};
         bool stm32HealthArmed_{false};
 
+        // UART heartbeat watchdog: warn-only. SPI updateTime is the
+        // authoritative liveness signal; UART can go silent for tens of
+        // seconds while the STM32 writes to flash (calibration save).
+        bool uartHeartbeatDegraded_{false};
+        std::chrono::steady_clock::time_point lastUartHeartbeatWarn_{};
+
         Result<void> createServices();
         Result<void> initializeServices();
         Result<void> shutdownServices();
