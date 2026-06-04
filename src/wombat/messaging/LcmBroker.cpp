@@ -1,4 +1,5 @@
 #include "wombat/messaging/LcmBroker.h"
+#include <typeinfo>
 #include <raccoon/Transport.h>
 #include <raccoon/Options.h>
 #include <raccoon/vector3f_t.hpp>
@@ -68,7 +69,12 @@ namespace wombat
             int messagesProcessed = 0;
             while (true)
             {
-                const int result = transport_->spinOnce(5);
+                // 1 ms spin slice — rrb_reader_recv is a cheap atomic
+                // load, so polling at 1 ms gives ~1 ms p50 inbound
+                // latency. Was 5 ms back when the iceoryx2 backend made
+                // each spin call ~hundreds of us; rrb costs ~hundreds
+                // of nanoseconds per channel.
+                const int result = transport_->spinOnce(1);
                 if (result < 0)
                 {
                     return Result<void>::failure("Failed to process LCM messages");
@@ -154,7 +160,7 @@ namespace wombat
                 return Result<void>::failure("Failed to publish message on channel: " + channel);
             }
 
-            logger_->debug("Published " + std::string(MessageType::getTypeName())
+            logger_->debug("Published " + std::string(typeid(MessageType).name())
                 + " on channel: " + channel
                 + (options.retained ? " (retained, dedup)" : " (dedup)"));
             return Result<void>::success();
@@ -174,13 +180,13 @@ namespace wombat
                 return Result<void>::failure("Failed to publish message on channel: " + channel);
             }
 
-            logger_->debug("Published " + std::string(MessageType::getTypeName())
+            logger_->debug("Published " + std::string(typeid(MessageType).name())
                 + " on channel: " + channel
                 + (options.retained ? " (forced, retained)" : " (forced)"));
             return Result<void>::success();
         }
 
-        template <LcmMessage T>
+        template <TransportMessage T>
         Result<void> subscribe(const std::string& channel,
                                std::function<void(const T &)> handler,
                                const raccoon::SubscribeOptions& options = {})
@@ -208,7 +214,7 @@ namespace wombat
 
             transport_->subscribe<T>(channel, std::move(instrumentedHandler), options);
 
-            logger_->debug("Subscribed to " + std::string(T::getTypeName()) + " channel: " + channel);
+            logger_->debug("Subscribed to " + std::string(typeid(T).name()) + " channel: " + channel);
             return Result<void>::success();
         }
 
