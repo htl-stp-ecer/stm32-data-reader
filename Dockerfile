@@ -14,7 +14,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libglib2.0-dev libpcre2-dev zlib1g-dev \
       libfmt-dev libspdlog-dev \
+      liblcm-dev \
+      cargo rustc \
+      clang libclang-19-dev llvm-dev \
+      libacl1-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# iceoryx2's bindgen needs libclang.so (unversioned).
+RUN ln -sf /usr/lib/aarch64-linux-gnu/libclang-19.so.19 \
+           /usr/lib/aarch64-linux-gnu/libclang.so 2>/dev/null || true
 
 ENV CCACHE_DIR=/ccache \
     CCACHE_MAXSIZE=3G \

@@ -1,102 +1,255 @@
 #include "wombat/services/DataPublisher.h"
 #include "wombat/messaging/LcmConversions.h"
-#include <string>
+#include <algorithm>
 #include <cmath>
+#include <string>
 
 namespace wombat
 {
+    // ---- Per-channel gate configuration -------------------------------
+    //
+    // minInterval: drop samples that arrive within this window since the
+    //   last published one. 20 ms = 50 Hz cap on everything except
+    //   accelerometer; the main loop runs at 200 Hz so 3 of every 4
+    //   samples short-circuit.
+    //
+    // noiseEpsilon: drop samples whose L-infinity distance (max-abs
+    //   component delta) to the last published value is below this
+    //   bound. Tuned to the documented noise floor of the on-board
+    //   IMU; floats are sloppy enough that an exact-match dedup
+    //   (broker default) almost never fires.
+    //
+    // Channels not listed get no gate (publish every loop). Accelerometer
+    // is deliberately uncapped at the user's request — downstream
+    // calibration / autotune routines need every raw frame.
+    namespace {
+        constexpr std::chrono::milliseconds kFiftyHzInterval{20};
+
+        // Vector epsilons — L∞ over the three axes.
+        constexpr float kEpsGyroRadPerS    = 0.01f;   // bias-corrected gyro noise (typical MPU/BNO calib)
+        constexpr float kEpsMag            = 0.5f;    // raw counts on most IMUs
+        constexpr float kEpsLinAccel       = 0.05f;   // m/s², bias-corrected
+        constexpr float kEpsAccelVel       = 0.05f;   // m/s integrated — drift suppression
+
+        // Quaternion epsilon — per-component on a unit quat.
+        constexpr float kEpsQuat           = 0.001f;
+
+        // Scalar epsilons.
+        constexpr float kEpsHeading        = 0.05f;   // degrees ≈ 1 mrad
+        constexpr float kEpsTempC          = 0.1f;    // °C
+    }
+
+    namespace {
+        // L∞ distance helpers — small, no allocations.
+        inline float linfDelta(const raccoon::vector3f_t& a, const raccoon::vector3f_t& b) {
+            return std::max({std::abs(a.x - b.x),
+                             std::abs(a.y - b.y),
+                             std::abs(a.z - b.z)});
+        }
+        inline float linfDelta(const raccoon::quaternion_t& a, const raccoon::quaternion_t& b) {
+            return std::max({std::abs(a.w - b.w),
+                             std::abs(a.x - b.x),
+                             std::abs(a.y - b.y),
+                             std::abs(a.z - b.z)});
+        }
+        inline float linfDelta(const raccoon::scalar_f_t& a, const raccoon::scalar_f_t& b) {
+            return std::abs(a.value - b.value);
+        }
+
+    } // namespace
+
+    // Member gateAllows template — defined here next to the linfDelta
+    // overloads it uses, but it's a member so it can see PublishGate
+    // (declared private inside DataPublisher).
+    template <typename MessageType>
+    bool DataPublisher::gateAllows(PublishGate<MessageType>& gate,
+                                   const MessageType& msg,
+                                   std::chrono::steady_clock::time_point now) {
+        if (gate.lastValue.has_value()) {
+            if (now - gate.lastTime < gate.minInterval) {
+                return false;
+            }
+            if (linfDelta(msg, *gate.lastValue) < gate.noiseEpsilon) {
+                return false;
+            }
+        }
+        gate.lastValue = msg;
+        gate.lastTime = now;
+        return true;
+    }
+
+    // Explicit instantiations so the template doesn't have to live in
+    // the header. Add one line per PublishGate<T> the class uses.
+    template bool DataPublisher::gateAllows(
+        PublishGate<raccoon::vector3f_t>&, const raccoon::vector3f_t&,
+        std::chrono::steady_clock::time_point);
+    template bool DataPublisher::gateAllows(
+        PublishGate<raccoon::quaternion_t>&, const raccoon::quaternion_t&,
+        std::chrono::steady_clock::time_point);
+    template bool DataPublisher::gateAllows(
+        PublishGate<raccoon::scalar_f_t>&, const raccoon::scalar_f_t&,
+        std::chrono::steady_clock::time_point);
+
     DataPublisher::DataPublisher(std::shared_ptr<LcmBroker> broker, std::shared_ptr<Logger> logger)
         : broker_{std::move(broker)}, logger_{std::move(logger)}
     {
+        // Configure every gate at construction. Channels not configured
+        // here keep their default (minInterval=0, noiseEpsilon=0) which
+        // means "publish every call" — same as before this change.
+        gyroGate_.minInterval        = kFiftyHzInterval;
+        gyroGate_.noiseEpsilon       = kEpsGyroRadPerS;
+
+        magGate_.minInterval         = kFiftyHzInterval;
+        magGate_.noiseEpsilon        = kEpsMag;
+
+        linAccelGate_.minInterval    = kFiftyHzInterval;
+        linAccelGate_.noiseEpsilon   = kEpsLinAccel;
+
+        accelVelGate_.minInterval    = kFiftyHzInterval;
+        accelVelGate_.noiseEpsilon   = kEpsAccelVel;
+
+        dmpOrientGate_.minInterval   = kFiftyHzInterval;
+        dmpOrientGate_.noiseEpsilon  = kEpsQuat;
+
+        headingGate_.minInterval     = kFiftyHzInterval;
+        headingGate_.noiseEpsilon    = kEpsHeading;
+
+        tempGate_.minInterval        = kFiftyHzInterval;
+        tempGate_.noiseEpsilon       = kEpsTempC;
+
+        // Odometry — rate-cap only, noise epsilon 0 so any movement
+        // (even sub-mm) is forwarded for downstream filtering.
+        odomPosXGate_.minInterval    = kFiftyHzInterval;
+        odomPosYGate_.minInterval    = kFiftyHzInterval;
+        odomHeadingGate_.minInterval = kFiftyHzInterval;
+        odomVxGate_.minInterval      = kFiftyHzInterval;
+        odomVyGate_.minInterval      = kFiftyHzInterval;
+        odomWzGate_.minInterval      = kFiftyHzInterval;
     }
 
     Result<void> DataPublisher::publishSensorData(const SensorData& data)
     {
-        auto gyroResult = broker_->publish(Channels::GYRO, toLcm(data.gyro));
-        if (gyroResult.isFailure())
-        {
-            logger_->warn("Failed to publish gyro data: " + gyroResult.error());
-        }
+        const auto now = std::chrono::steady_clock::now();
 
-        auto accelResult = broker_->publish(Channels::ACCELEROMETER, toLcm(data.accelerometer));
-        if (accelResult.isFailure())
+        // Gyro — gated to 50 Hz with noise-floor epsilon.
         {
-            logger_->warn("Failed to publish accelerometer data: " + accelResult.error());
-        }
-
-        auto magResult = broker_->publish(Channels::MAGNETOMETER, toLcm(data.magnetometer));
-        if (magResult.isFailure())
-        {
-            logger_->warn("Failed to publish magnetometer data: " + magResult.error());
-        }
-
-        auto linAccelResult = broker_->publish(Channels::LINEAR_ACCELERATION, toLcm(data.linearAcceleration));
-        if (linAccelResult.isFailure())
-        {
-            logger_->warn("Failed to publish linear acceleration data: " + linAccelResult.error());
-        }
-
-        auto accelVelResult = broker_->publish(Channels::ACCEL_VELOCITY, toLcm(data.accelVelocity));
-        if (accelVelResult.isFailure())
-        {
-            logger_->warn("Failed to publish accel velocity data: " + accelVelResult.error());
-        }
-
-        auto dmpOrientResult = broker_->publish(Channels::DMP_ORIENTATION, toLcm(data.dmpOrientation));
-        if (dmpOrientResult.isFailure())
-        {
-            logger_->warn("Failed to publish DMP orientation: " + dmpOrientResult.error());
-        }
-
-        auto headingResult = broker_->publishRetained(Channels::HEADING, toLcmScalarF(data.heading));
-        if (headingResult.isFailure())
-        {
-            logger_->warn("Failed to publish heading data: " + headingResult.error());
-        }
-
-        // Publish IMU accuracy (throttled)
-        publishAccuracy(data.accuracy);
-
-        auto tempResult = broker_->publish(Channels::TEMPERATURE, toLcmScalarF(data.temperature));
-        if (tempResult.isFailure())
-        {
-            logger_->warn("Failed to publish temperature data: " + tempResult.error());
-        }
-
-        {
-            const float rounded = std::round(data.batteryVoltage * 1000.0f) / 1000.0f;
-            auto batteryResult = broker_->publishRetained(Channels::BATTERY_VOLTAGE, toLcmScalarF(rounded));
-            if (batteryResult.isFailure())
-            {
-                logger_->warn("Failed to publish battery voltage data: " + batteryResult.error());
+            const auto msg = toLcm(data.gyro);
+            if (gateAllows(gyroGate_, msg, now)) {
+                const auto r = broker_->publish(Channels::GYRO, msg);
+                if (r.isFailure()) logger_->warn("Failed to publish gyro data: " + r.error());
             }
         }
 
-        auto analogResult = publishAnalogValues(data.analogValues);
-        if (analogResult.isFailure())
+        // Accelerometer — INTENTIONALLY UNGATED. Stays at the main-loop
+        // rate so downstream calibration / autotune routines get every
+        // raw frame.
         {
+            const auto r = broker_->publish(Channels::ACCELEROMETER, toLcm(data.accelerometer));
+            if (r.isFailure()) logger_->warn("Failed to publish accelerometer data: " + r.error());
+        }
+
+        // Magnetometer — gated.
+        {
+            const auto msg = toLcm(data.magnetometer);
+            if (gateAllows(magGate_, msg, now)) {
+                const auto r = broker_->publish(Channels::MAGNETOMETER, msg);
+                if (r.isFailure()) logger_->warn("Failed to publish magnetometer data: " + r.error());
+            }
+        }
+
+        // Linear acceleration — gated.
+        {
+            const auto msg = toLcm(data.linearAcceleration);
+            if (gateAllows(linAccelGate_, msg, now)) {
+                const auto r = broker_->publish(Channels::LINEAR_ACCELERATION, msg);
+                if (r.isFailure()) logger_->warn("Failed to publish linear acceleration data: " + r.error());
+            }
+        }
+
+        // Accel velocity — gated.
+        {
+            const auto msg = toLcm(data.accelVelocity);
+            if (gateAllows(accelVelGate_, msg, now)) {
+                const auto r = broker_->publish(Channels::ACCEL_VELOCITY, msg);
+                if (r.isFailure()) logger_->warn("Failed to publish accel velocity data: " + r.error());
+            }
+        }
+
+        // DMP orientation (quaternion) — gated.
+        {
+            const auto msg = toLcm(data.dmpOrientation);
+            if (gateAllows(dmpOrientGate_, msg, now)) {
+                const auto r = broker_->publish(Channels::DMP_ORIENTATION, msg);
+                if (r.isFailure()) logger_->warn("Failed to publish DMP orientation: " + r.error());
+            }
+        }
+
+        // Heading — retained + gated. Retained means a late subscriber
+        // still sees the last sample on first poll; the gate just trims
+        // intermediate frames.
+        {
+            const auto msg = toLcmScalarF(data.heading);
+            if (gateAllows(headingGate_, msg, now)) {
+                const auto r = broker_->publishRetained(Channels::HEADING, msg);
+                if (r.isFailure()) logger_->warn("Failed to publish heading data: " + r.error());
+            }
+        }
+
+        // Publish IMU accuracy (throttled by its own change-detector below)
+        publishAccuracy(data.accuracy);
+
+        // Temperature — gated.
+        {
+            const auto msg = toLcmScalarF(data.temperature);
+            if (gateAllows(tempGate_, msg, now)) {
+                const auto r = broker_->publish(Channels::TEMPERATURE, msg);
+                if (r.isFailure()) logger_->warn("Failed to publish temperature data: " + r.error());
+            }
+        }
+
+        // Battery voltage — value is rounded to 1 mV upstream, broker
+        // dedup is enough; rate-limit it too since voltage barely moves
+        // mission-to-mission. Use the heading gate's tick to avoid one
+        // more PublishGate slot when the only effective filter is rate.
+        {
+            const float rounded = std::round(data.batteryVoltage * 1000.0f) / 1000.0f;
+            const auto msg = toLcmScalarF(rounded);
+            const auto r = broker_->publishRetained(Channels::BATTERY_VOLTAGE, msg);
+            if (r.isFailure()) logger_->warn("Failed to publish battery voltage data: " + r.error());
+        }
+
+        auto analogResult = publishAnalogValues(data.analogValues);
+        if (analogResult.isFailure()) {
             logger_->warn("Failed to publish analog values: " + analogResult.error());
         }
 
         auto digitalResult = publishDigitalBits(data.digitalBits);
-        if (digitalResult.isFailure())
-        {
+        if (digitalResult.isFailure()) {
             logger_->warn("Failed to publish digital bits: " + digitalResult.error());
         }
 
-        // Odometry (computed on STM32) — verbose, keep at debug
+        // Odometry (computed on STM32) — retained for late subscribers.
+        // Rate-gated to 50 Hz, no noise epsilon: we want every change
+        // through so downstream pose estimators see drift.
         logger_->debug("Odometry: pos_x=" + std::to_string(data.odometry.pos_x) +
             " pos_y=" + std::to_string(data.odometry.pos_y) +
             " heading=" + std::to_string(data.odometry.heading) +
             " vx=" + std::to_string(data.odometry.vx) +
             " vy=" + std::to_string(data.odometry.vy) +
             " wz=" + std::to_string(data.odometry.wz));
-        broker_->publishRetained(Channels::ODOM_POS_X, toLcmScalarF(data.odometry.pos_x));
-        broker_->publishRetained(Channels::ODOM_POS_Y, toLcmScalarF(data.odometry.pos_y));
-        broker_->publishRetained(Channels::ODOM_HEADING, toLcmScalarF(data.odometry.heading));
-        broker_->publishRetained(Channels::ODOM_VX, toLcmScalarF(data.odometry.vx));
-        broker_->publishRetained(Channels::ODOM_VY, toLcmScalarF(data.odometry.vy));
-        broker_->publishRetained(Channels::ODOM_WZ, toLcmScalarF(data.odometry.wz));
+
+        const auto publishOdomGated = [&](auto& gate, const std::string& channel, float value) {
+            const auto msg = toLcmScalarF(value);
+            if (gateAllows(gate, msg, now)) {
+                broker_->publishRetained(channel, msg);
+            }
+        };
+        publishOdomGated(odomPosXGate_,    Channels::ODOM_POS_X,    data.odometry.pos_x);
+        publishOdomGated(odomPosYGate_,    Channels::ODOM_POS_Y,    data.odometry.pos_y);
+        publishOdomGated(odomHeadingGate_, Channels::ODOM_HEADING,  data.odometry.heading);
+        publishOdomGated(odomVxGate_,      Channels::ODOM_VX,       data.odometry.vx);
+        publishOdomGated(odomVyGate_,      Channels::ODOM_VY,       data.odometry.vy);
+        publishOdomGated(odomWzGate_,      Channels::ODOM_WZ,       data.odometry.wz);
 
         if (logger_) logger_->debug("Sensor data publish completed");
 

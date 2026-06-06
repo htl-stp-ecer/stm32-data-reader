@@ -104,9 +104,18 @@ def main() -> None:
         print(color(f"Override with: RPI_HOST=<ip> RPI_USER=<user> python {__file__}", YELLOW))
         sys.exit(1)
 
-    # --- Stop service ---
+    # --- Stop services ---
     print(color(f"Stopping {project_name} service...", BLUE))
     ssh(remote_host, remote_user, f"sudo systemctl stop {project_name}", check=False)
+    # Disable + remove the long-defunct iox2-janitor service if still present
+    # from an older install. Best-effort: stop/disable can fail harmlessly
+    # if the unit was never installed.
+    ssh(remote_host, remote_user,
+        "sudo systemctl disable --now iox2-janitor.service 2>/dev/null; "
+        "sudo rm -f /etc/systemd/system/iox2-janitor.service "
+        "/home/pi/stm32_data_reader/iox2_janitor; "
+        "sudo systemctl daemon-reload",
+        check=False)
 
     # --- Flash firmware (if available) ---
     if has_firmware:
@@ -133,13 +142,23 @@ def main() -> None:
     print(color("Installing systemd services...", BLUE))
     scp(str(lcm_service_file), f"{remote}:/tmp/lcm-loopback-multicast.service")
     scp(str(service_file), f"{remote}:/tmp/{project_name}.service")
-    ssh(
-        remote_host,
-        remote_user,
-        f"sudo mv /tmp/lcm-loopback-multicast.service /etc/systemd/system/ && "
+    ssh(remote_host, remote_user,
+        "sudo mv /tmp/lcm-loopback-multicast.service /etc/systemd/system/ && "
         f"sudo mv /tmp/{project_name}.service /etc/systemd/system/ && "
-        "sudo systemctl daemon-reload",
-    )
+        "sudo systemctl daemon-reload")
+
+    # --- Enable user linger ---
+    # Without linger=yes for the runtime user, every SSH disconnect ends
+    # the user's last session. Even with RemoveIPC=no in logind.conf, the
+    # user@<uid>.service teardown wipes /dev/shm/raccoon_ring_* files (or
+    # at least makes them invisible from new sessions), which kills every
+    # subscriber on the next `raccoon run` invocation — probe times out
+    # with "no STM32 traffic — is stm32-data-reader running?" even though
+    # the reader is alive. Linger keeps the user@<uid>.service alive
+    # across SSH disconnects so the raccoon_ring SHM files persist.
+    # Verified on production Pi 2026-06-02.
+    print(color(f"Enabling linger for user {remote_user}...", BLUE))
+    ssh(remote_host, remote_user, f"sudo loginctl enable-linger {remote_user}")
 
     # --- Enable & start ---
     print(color("Enabling and starting services...", BLUE))

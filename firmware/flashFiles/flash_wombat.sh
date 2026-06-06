@@ -17,17 +17,26 @@ if ! bash ./init_gpio.sh; then
     exit 1
 fi
 
-# Set BOOT0 high so we stay in the bootloader on reboot
-echo "Setting BOOT0 high..."
-pinctrl set ${BOOT0} dh
+# Enter bootloader: BOOT0 high during reset.
+# NOTE: We can't use reset_coprocessor.sh here — it's a standalone normal-boot
+# reset and forces BOOT0 low. We inline the RST toggle while holding BOOT0 high.
+echo "Setting BOOT0 high and resetting into bootloader..."
+pinctrl set ${BOOT0} op dh
+pinctrl set ${RST} op dh
+sleep 0.1
+pinctrl set ${RST} dl
+sleep 0.1
+pinctrl set ${RST} dh
 
-# Reset co-processor
-bash ./reset_coprocessor.sh
-
-# Program the device
+# Program the device.
+# Use sector erase (-e 8) instead of mass erase: stm32flash 0.7 times out
+# waiting for the ACK byte after the F4 mass-erase command, even though the
+# chip eventually finishes. -e and -S are mutually exclusive, so we drop -S
+# (the binary parser writes from 0x08000000 by default).
+# 8 sectors on F4 = 4x16K + 1x64K + 3x128K = 512K — plenty of headroom.
 sleep 1
 echo "Flashing firmware..."
-CMD="${STM32FLASH} -v -S 0x08000000 -w ${BINFILE} ${DEV}"
+CMD="${STM32FLASH} -v -e 8 -w ${BINFILE} ${DEV}"
 echo $CMD
 eval $CMD
 

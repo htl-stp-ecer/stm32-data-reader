@@ -13,6 +13,11 @@ cp "${SCRIPT_DIR}/systemd/stm32_data_reader.service" "${SCRIPT_DIR}/build/"
 cp "${SCRIPT_DIR}/systemd/lcm-loopback-multicast.service" "${SCRIPT_DIR}/build/"
 cp "${SCRIPT_DIR}/install.py" "${SCRIPT_DIR}/build/"
 
+# iox2_janitor is no longer built — raccoon::Transport switched off
+# iceoryx2 to the in-tree raccoon_ring SHM library, so there are no dead
+# iceoryx2 nodes to sweep. Leave any stale binary in place so an older
+# removed from systemd), but do not error out on the missing file.
+
 # Firmware artifacts are already copied by build.sh (wombat.bin + flash scripts)
 
 echo "Installing to Pi..."

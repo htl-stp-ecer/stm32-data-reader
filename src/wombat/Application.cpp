@@ -420,6 +420,16 @@ namespace wombat
 
     Result<void> Application::checkStm32Heartbeat(const std::chrono::steady_clock::time_point now)
     {
+        // UART heartbeat is a diagnostic signal, NOT a liveness signal.
+        // The STM32 firmware writes calibration to flash periodically, which
+        // disables UART TX interrupts for >12s while SPI/DMA keeps running
+        // (verified 2026-06-02: heartbeats stop after `[CAL] Saving 124 bytes
+        // to flash sector 12`). Killing the reader here causes a probe-fail
+        // cascade in the Pi-side robot program even though sensors are live.
+        //
+        // checkStm32Health() above checks SPI updateTime — that is the
+        // authoritative liveness signal. Here we only emit rate-limited
+        // warnings and never terminate the service.
         if (!uartMonitor_)
         {
             return Result<void>::success();
@@ -430,22 +440,37 @@ namespace wombat
             return Result<void>::success();
         }
 
-        constexpr auto kHeartbeatTimeout = std::chrono::seconds(12);
+        constexpr auto kHeartbeatWarnTimeout = std::chrono::seconds(12);
+        constexpr auto kWarnInterval = std::chrono::seconds(30);
         const auto lastHeartbeat = uartMonitor_->lastHeartbeatTime();
         if (!lastHeartbeat.has_value())
         {
             return Result<void>::success();
         }
 
-        if (now - *lastHeartbeat <= kHeartbeatTimeout)
+        const bool stale = (now - *lastHeartbeat) > kHeartbeatWarnTimeout;
+
+        if (stale)
         {
-            return Result<void>::success();
+            if (!uartHeartbeatDegraded_
+                || lastUartHeartbeatWarn_.time_since_epoch().count() == 0
+                || (now - lastUartHeartbeatWarn_) >= kWarnInterval)
+            {
+                const auto silentFor = std::chrono::duration_cast<std::chrono::seconds>(now - *lastHeartbeat);
+                logger_->warn(
+                    "STM32 UART heartbeat silent for " + std::to_string(silentFor.count())
+                    + "s (SPI still live; likely flash-write stall — not fatal)");
+                lastUartHeartbeatWarn_ = now;
+            }
+            uartHeartbeatDegraded_ = true;
+        }
+        else if (uartHeartbeatDegraded_)
+        {
+            logger_->info("STM32 UART heartbeat recovered");
+            uartHeartbeatDegraded_ = false;
         }
 
-        logger_->error("STM32 heartbeat watchdog failed: no UART heartbeat for >12s — terminating service");
-        fatalShutdown_ = true;
-        shouldShutdown_ = true;
-        return Result<void>::failure("STM32 heartbeat watchdog timeout");
+        return Result<void>::success();
     }
 
     Result<void> Application::publishCurrentData()

@@ -22,11 +22,12 @@
 #include <unordered_map>
 #include <string>
 #include <cstdint>
+#include <optional>
 
 namespace wombat
 {
     namespace Channels = raccoon::Channels;
-    using raccoon::LcmMessage;
+    using raccoon::TransportMessage;
 
     class CommandSubscriber
     {
@@ -66,7 +67,7 @@ namespace wombat
 
         bool isTimestampNewer(const std::string& channel, int64_t timestamp);
 
-        template <LcmMessage MsgT>
+        template <TransportMessage MsgT>
         Result<void> subscribeForPorts(
             PortId maxPorts,
             std::function<std::string(PortId)> channelFn,
@@ -76,5 +77,6 @@ namespace wombat
 
         bool isInitialized_{false};
         std::unordered_map<std::string, int64_t> latestTimestamps_;
+        std::optional<int32_t> lastHeartbeatSenderPid_;
     };
 }
