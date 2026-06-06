@@ -616,7 +616,7 @@ namespace wombat
     {
         if (!lastHeartbeatSenderPid_.has_value() || *lastHeartbeatSenderPid_ != command.value)
         {
-            logger_->warn("Heartbeat sender changed to pid=" + std::to_string(command.value));
+            logger_->info("Heartbeat sender changed to pid=" + std::to_string(command.value));
             lastHeartbeatSenderPid_ = command.value;
         }
         watchdog_.feed();

@@ -22,7 +22,7 @@ namespace wombat
     class LcmBroker::Impl
     {
     public:
-        static constexpr int64_t kLatencyAlertThresholdUs = 10'000;
+        static constexpr int64_t kLatencyAlertThresholdUs = 20'000;
 
         struct ChannelTimingStats
         {
@@ -227,7 +227,7 @@ namespace wombat
                 const std::string message =
                     "stm32_data_reader inbound LCM latency p99="
                     + std::to_string(latency.p99Us / 1000)
-                    + "ms exceeds 10ms"
+                    + "ms exceeds 20ms"
                     + " (avg=" + std::to_string(latency.avgUs / 1000)
                     + "ms, max=" + std::to_string(latency.maxUs / 1000)
                     + "ms, n=" + std::to_string(latency.count) + ")";
