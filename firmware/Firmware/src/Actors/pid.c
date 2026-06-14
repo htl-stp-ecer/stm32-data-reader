@@ -1,9 +1,17 @@
 #include "Actors/pid.h"
 #include "Actors/motor.h"
 
+// dt-EXPLICIT gains (per-second units). kI was rescaled from the old
+// dt-implicit default 0.045 by the nominal MAV rate (~200 Hz/motor):
+// kI_explicit = kI_implicit * rate = 0.045 * 200 = 9.0, so boot behaviour
+// matches the previous loop until the autotuner pushes optimized gains.
 #define PID_DEFAULT_P  1.22f
-#define PID_DEFAULT_I  0.045f
+#define PID_DEFAULT_I  9.0f
 #define PID_DEFAULT_D  0.000f
+
+// Fallback dt (s) when no valid timestamp delta is available (first call after
+// a mode change or a long BEMF gap). Matches the nominal per-motor MAV rate.
+#define PID_NOMINAL_DT (1.0f / 200.0f)
 
 // Position loop outputs a velocity target (BEMF ticks), not PWM directly.
 // Pure proportional: the inner velocity PID already provides damping and
@@ -42,13 +50,17 @@ void pid_reset(PidController* pid)
     pid->iErr = 0.0f;
 }
 
-int32_t pid_update(PidController* pid, int32_t goal, int32_t current)
+int32_t pid_update(PidController* pid, int32_t goal, int32_t current, float dt)
 {
+    // Guard against a missing/garbage timestamp delta so the loop never blows
+    // up (divide-by-zero on dErr, or a huge integral jump after a long gap).
+    if (dt <= 0.0f || dt > 0.1f) dt = PID_NOMINAL_DT;
+
     float pErr = (float)(goal - current);
 
-    pid->iErr += pErr;
+    pid->iErr += pErr * dt;
 
-    float dErr = pErr - pid->prevErr;
+    float dErr = (pErr - pid->prevErr) / dt;
     pid->prevErr = pErr;
 
     // Clamp integral contribution (not raw accumulator) to prevent windup
