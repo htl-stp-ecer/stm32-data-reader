@@ -239,12 +239,186 @@ void update_motor_posPidSettings()
     }
 }
 
+// ---------------------------------------------------------------------------
+// Motor control state machine
+//
+// update_motor() is invoked once per motor per BEMF cycle. It is structured as
+// a per-channel state machine whose state is the SPI-commanded control mode
+// (MOT_MODE_*). The function body is a fixed preamble followed by a dispatch to
+// a per-mode handler:
+//
+//   1. shutdown guard      — SHUTDOWN_MOTOR forces motor off and returns early
+//   2. read inputs         — ctlMode / target / goalPos from the Rx buffer
+//   3. per-channel dt       — real elapsed time since this motor's last update
+//   4. transition handler   — on a mode change, reset both PID loops, the
+//                            profile velocity, the done flag, and log it
+//   5. BEMF-disable guard   — MAV/CHASSIS need BEMF; hold off if disabled
+//   6. dispatch             — call the handler for the current mode
+//
+// Each handler is a small static function that performs exactly the work the
+// original monolithic switch did for that mode; behavior is unchanged.
+// ---------------------------------------------------------------------------
+
+// OFF: coast — both direction pins low, duty zero.
+static void motor_mode_off(const uint8_t ch)
+{
+    motor_setDirection(ch, OFF);
+    motor_setDutycycle(ch, 0);
+}
+
+// PASSIV_BRAKE: passive (short) brake — both direction pins high, duty zero.
+static void motor_mode_brake(const uint8_t ch)
+{
+    motor_setDirection(ch, SHORT_BREAK);
+    motor_setDutycycle(ch, 0);
+}
+
+// PWM: open-loop — drive the commanded duty/direction directly.
+static void motor_mode_pwm(const uint8_t ch, const int32_t target)
+{
+    applyMotorOutput(ch, target);
+}
+
+// MAV (Move At Velocity): velocity PID closed on the BEMF reading.
+//   goal = target velocity, current = BEMF reading.
+//   BEMF sign is inverted w.r.t. motor direction, so negate measurement.
+static void motor_mode_mav(const uint8_t ch, const int32_t target,
+                           const int16_t bemf_filtered, const float pidDt)
+{
+    int32_t pidOut = pid_update(&pidControllers[ch], target, bemf_filtered, pidDt);
+    applyMotorOutput(ch, pidOut);
+}
+
+// CHASSIS: full chassis velocity loop on-MCU: derive this wheel's velocity
+// setpoint from the body-frame command via forward kinematics, then run the
+// same per-motor MAV PID. Closing the chassis loop here (next to BEMF + IMU)
+// keeps it deterministic — no SPI round-trip in-loop.
+static void motor_mode_chassis(const uint8_t ch, const int16_t bemf_filtered,
+                               const float pidDt)
+{
+    const int32_t chassisTarget = odometry_chassis_wheel_target(
+        ch,
+        rxBuffer.chassisVelocity[0],
+        rxBuffer.chassisVelocity[1],
+        rxBuffer.chassisVelocity[2]);
+    int32_t pidOut = pid_update(&pidControllers[ch], chassisTarget, bemf_filtered, pidDt);
+    applyMotorOutput(ch, pidOut);
+}
+
+// MTP (Move To Position): sqrt deceleration profile → velocity PID → PWM.
+// Generates a velocity setpoint from the remaining position error
+// (v = sqrt(2 * decel_factor * distance)), rate-limits acceleration, allows
+// instant deceleration, and latches a sticky "done" + active brake once within
+// MTP_DONE_THRESHOLD of the goal.
+static void motor_mode_mtp(const uint8_t ch, const int32_t goalPos,
+                           const int16_t bemf_filtered, const float pidDt)
+{
+    // Clear done if goal position changed (new MTP command)
+    if (goalPos != prevGoalPos[ch])
+    {
+        prevGoalPos[ch] = goalPos;
+        motor_data.done &= ~(1u << ch);
+        profileVel[ch] = 0;
+        pid_reset(&pidControllers[ch]);
+    }
+
+    // Sticky done: once reached, stay done until goal changes or mode changes
+    if (motor_data.done & (1u << ch))
+    {
+        motor_setDirection(ch, SHORT_BREAK);
+        motor_setDutycycle(ch, 0);
+        return;
+    }
+
+    // Sqrt decel curve → velocity target → velocity PID → PWM
+    int32_t currentPos = motor_data.position[ch];
+    int32_t posError = goalPos - currentPos;
+    int32_t absError = posError < 0 ? -posError : posError;
+    int32_t speedLimit = rxBuffer.motorTarget[ch];
+    if (speedLimit <= 0) speedLimit = 300;
+
+    if (absError <= MTP_DONE_THRESHOLD)
+    {
+        // Done — active brake, set sticky flag
+        profileVel[ch] = 0;
+        motor_data.done |= (1u << ch);
+        motor_setDirection(ch, SHORT_BREAK);
+        motor_setDutycycle(ch, 0);
+        return;
+    }
+    int32_t dir = (posError > 0) ? 1 : -1;
+
+    // Deceleration curve: v = sqrt(2 * decel_factor * distance)
+    // Conservative decel_factor means early deceleration start
+    uint32_t val = 2u * MTP_DECEL_FACTOR * (uint32_t)absError;
+    uint32_t vDecel = 0;
+    if (val > 0)
+    {
+        uint32_t x = val;
+        uint32_t r = 0;
+        for (int b = 15; b >= 0; b--)
+        {
+            uint32_t test = r | (1u << b);
+            if (test * test <= x)
+                r = test;
+        }
+        vDecel = r;
+    }
+
+    // Apply minimum velocity (overcome friction)
+    if (vDecel < MTP_MIN_VEL) vDecel = MTP_MIN_VEL;
+
+    // Apply speed limit
+    int32_t desiredVel = (int32_t)vDecel;
+    if (desiredVel > speedLimit) desiredVel = speedLimit;
+    desiredVel *= dir;
+
+    // Rate-limit acceleration only; allow instant deceleration
+    int32_t absDesired = desiredVel < 0 ? -desiredVel : desiredVel;
+    int32_t absCurrent = profileVel[ch] < 0 ? -profileVel[ch] : profileVel[ch];
+    if (absDesired >= absCurrent)
+    {
+        // Accelerating — rate limit
+        int32_t velDiff = desiredVel - profileVel[ch];
+        if (velDiff > MTP_ACCEL_PER_TICK) velDiff = MTP_ACCEL_PER_TICK;
+        else if (velDiff < -MTP_ACCEL_PER_TICK) velDiff = -MTP_ACCEL_PER_TICK;
+        profileVel[ch] += velDiff;
+    }
+    else
+    {
+        // Decelerating — follow curve directly and reset PID integral
+        // to prevent windup from acceleration phase fighting the brake
+        profileVel[ch] = desiredVel;
+        pidControllers[ch].iErr = 0.0f;
+    }
+
+    int32_t pidOut = pid_update(&pidControllers[ch], profileVel[ch], bemf_filtered, pidDt);
+    applyMotorOutput(ch, pidOut);
+}
+
+// On a control-mode transition, reset all per-channel control state so the new
+// mode starts clean: both PID loops, the trapezoidal profile velocity, and the
+// done flag. Logs the transition for debugging.
+static void motor_on_mode_change(const uint8_t ch, const uint8_t prevMode,
+                                 const uint8_t newMode)
+{
+    printf("[stp] mot%d mode %u->%u pos=%ld\r\n",
+           ch, (unsigned)prevMode, (unsigned)newMode,
+           (long)motor_data.position[ch]);
+    pid_reset(&pidControllers[ch]);
+    pid_reset(&posPidControllers[ch]);
+    profileVel[ch] = 0;
+    // Clear done flag on mode change
+    motor_data.done &= ~(1u << ch);
+}
+
 void update_motor(const uint8_t channel, const int16_t bemf_filtered)
 {
     // NEVER EXECUTE THIS FUNTION IN MAIN LOOP!!!!!!!
     if (channel >= MOTOR_COUNT)
         return;
 
+    // --- shutdown guard: motors off + return -------------------------------
     if ((rxBuffer.systemShutdown & SHUTDOWN_MOTOR)) //disable the motor if motors are shutdowned
     {
         motor_setDirection(channel, OFF);
@@ -252,12 +426,14 @@ void update_motor(const uint8_t channel, const int16_t bemf_filtered)
         return;
     }
 
+    // --- read inputs -------------------------------------------------------
     const uint8_t ctlMode = (rxBuffer.motorControlMode >> (3 * channel)) & 0x07;
     const int32_t target = rxBuffer.motorTarget[channel];
     const int32_t goalPos = rxBuffer.motorGoalPosition[channel];
     // Track previous control mode per motor to detect mode changes
     static uint8_t prevControlMode[MOTOR_COUNT] = {OFF};
 
+    // --- per-channel real dt -----------------------------------------------
     // Real elapsed time since this motor's previous PID update, for the
     // dt-explicit velocity/position PID. update_motor() runs once per motor per
     // BEMF cycle, so this captures the actual (jittery) control period rather
@@ -267,20 +443,14 @@ void update_motor(const uint8_t channel, const int16_t bemf_filtered)
     const float pidDt = (float)(nowUs - lastPidUs[channel]) * 1e-6f;
     lastPidUs[channel] = nowUs;
 
-    // Detect mode change and reset state
+    // --- transition handler: reset state on mode change --------------------
     if (ctlMode != prevControlMode[channel])
     {
-        printf("[stp] mot%d mode %u->%u pos=%ld\r\n",
-               channel, (unsigned)prevControlMode[channel], (unsigned)ctlMode,
-               (long)motor_data.position[channel]);
-        pid_reset(&pidControllers[channel]);
-        pid_reset(&posPidControllers[channel]);
-        profileVel[channel] = 0;
+        motor_on_mode_change(channel, prevControlMode[channel], ctlMode);
         prevControlMode[channel] = ctlMode;
-        // Clear done flag on mode change
-        motor_data.done &= ~(1u << channel);
     }
 
+    // --- BEMF-disable guard ------------------------------------------------
     if ((ctlMode == MOT_MODE_MAV || ctlMode == MOT_MODE_CHASSIS)
         && (rxBuffer.featureFlags & FEATURE_BEMF_DISABLE))
     {
@@ -291,136 +461,27 @@ void update_motor(const uint8_t channel, const int16_t bemf_filtered)
         return;
     }
 
+    // --- dispatch to the current mode's handler ----------------------------
     switch (ctlMode)
     {
     case MOT_MODE_OFF:
-        {
-            motor_setDirection(channel, OFF);
-            motor_setDutycycle(channel, 0);
-        }
+        motor_mode_off(channel);
         break;
     case MOT_MODE_PASSIV_BRAKE:
-        {
-            motor_setDirection(channel, SHORT_BREAK);
-            motor_setDutycycle(channel, 0);
-        }
+        motor_mode_brake(channel);
         break;
-
     case MOT_MODE_PWM:
-        applyMotorOutput(channel, target);
+        motor_mode_pwm(channel, target);
         break;
-
     case MOT_MODE_MAV:
-        {
-            // Velocity PID: goal = target velocity, current = BEMF reading
-            // BEMF sign is inverted w.r.t. motor direction, so negate measurement
-            int32_t pidOut = pid_update(&pidControllers[channel], target, bemf_filtered, pidDt);
-            applyMotorOutput(channel, pidOut);
-            break;
-        }
-
+        motor_mode_mav(channel, target, bemf_filtered, pidDt);
+        break;
     case MOT_MODE_CHASSIS:
-        {
-            // Full chassis velocity loop on-MCU: derive this wheel's velocity
-            // setpoint from the body-frame command via forward kinematics, then
-            // run the same per-motor MAV PID. Closing the chassis loop here (next
-            // to BEMF + IMU) keeps it deterministic — no SPI round-trip in-loop.
-            const int32_t chassisTarget = odometry_chassis_wheel_target(
-                channel,
-                rxBuffer.chassisVelocity[0],
-                rxBuffer.chassisVelocity[1],
-                rxBuffer.chassisVelocity[2]);
-            int32_t pidOut = pid_update(&pidControllers[channel], chassisTarget, bemf_filtered, pidDt);
-            applyMotorOutput(channel, pidOut);
-            break;
-        }
-
+        motor_mode_chassis(channel, bemf_filtered, pidDt);
+        break;
     case MOT_MODE_MTP:
-        {
-            // Clear done if goal position changed (new MTP command)
-            if (goalPos != prevGoalPos[channel])
-            {
-                prevGoalPos[channel] = goalPos;
-                motor_data.done &= ~(1u << channel);
-                profileVel[channel] = 0;
-                pid_reset(&pidControllers[channel]);
-            }
-
-            // Sticky done: once reached, stay done until goal changes or mode changes
-            if (motor_data.done & (1u << channel))
-            {
-                motor_setDirection(channel, SHORT_BREAK);
-                motor_setDutycycle(channel, 0);
-                break;
-            }
-
-            // Sqrt decel curve → velocity target → velocity PID → PWM
-            int32_t currentPos = motor_data.position[channel];
-            int32_t posError = goalPos - currentPos;
-            int32_t absError = posError < 0 ? -posError : posError;
-            int32_t speedLimit = rxBuffer.motorTarget[channel];
-            if (speedLimit <= 0) speedLimit = 300;
-
-            if (absError <= MTP_DONE_THRESHOLD)
-            {
-                // Done — active brake, set sticky flag
-                profileVel[channel] = 0;
-                motor_data.done |= (1u << channel);
-                motor_setDirection(channel, SHORT_BREAK);
-                motor_setDutycycle(channel, 0);
-                break;
-            }
-            int32_t dir = (posError > 0) ? 1 : -1;
-
-            // Deceleration curve: v = sqrt(2 * decel_factor * distance)
-            // Conservative decel_factor means early deceleration start
-            uint32_t val = 2u * MTP_DECEL_FACTOR * (uint32_t)absError;
-            uint32_t vDecel = 0;
-            if (val > 0)
-            {
-                uint32_t x = val;
-                uint32_t r = 0;
-                for (int b = 15; b >= 0; b--)
-                {
-                    uint32_t test = r | (1u << b);
-                    if (test * test <= x)
-                        r = test;
-                }
-                vDecel = r;
-            }
-
-            // Apply minimum velocity (overcome friction)
-            if (vDecel < MTP_MIN_VEL) vDecel = MTP_MIN_VEL;
-
-            // Apply speed limit
-            int32_t desiredVel = (int32_t)vDecel;
-            if (desiredVel > speedLimit) desiredVel = speedLimit;
-            desiredVel *= dir;
-
-            // Rate-limit acceleration only; allow instant deceleration
-            int32_t absDesired = desiredVel < 0 ? -desiredVel : desiredVel;
-            int32_t absCurrent = profileVel[channel] < 0 ? -profileVel[channel] : profileVel[channel];
-            if (absDesired >= absCurrent)
-            {
-                // Accelerating — rate limit
-                int32_t velDiff = desiredVel - profileVel[channel];
-                if (velDiff > MTP_ACCEL_PER_TICK) velDiff = MTP_ACCEL_PER_TICK;
-                else if (velDiff < -MTP_ACCEL_PER_TICK) velDiff = -MTP_ACCEL_PER_TICK;
-                profileVel[channel] += velDiff;
-            }
-            else
-            {
-                // Decelerating — follow curve directly and reset PID integral
-                // to prevent windup from acceleration phase fighting the brake
-                profileVel[channel] = desiredVel;
-                pidControllers[channel].iErr = 0.0f;
-            }
-
-            int32_t pidOut = pid_update(&pidControllers[channel], profileVel[channel], bemf_filtered, pidDt);
-            applyMotorOutput(channel, pidOut);
-            break;
-        }
-
+        motor_mode_mtp(channel, goalPos, bemf_filtered, pidDt);
+        break;
     default:
         break;
     }
