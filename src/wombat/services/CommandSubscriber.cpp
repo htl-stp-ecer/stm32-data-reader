@@ -126,6 +126,18 @@ namespace wombat
             "servo smooth command", reliableOpts);
         if (r.isFailure()) return r;
 
+        // Chassis velocity command (single GLOBAL channel, not port-indexed).
+        // Continuous control loop -> plain (best-effort) delivery, like motor velocity.
+        logger_->debug("Subscribing to chassis velocity channel: " + std::string(Channels::CHASSIS_VELOCITY_CMD));
+        auto chassisResult = broker_->subscribe<raccoon::vector3f_t>(
+            Channels::CHASSIS_VELOCITY_CMD,
+            [this](const raccoon::vector3f_t& cmd) { onChassisVelocityCommand(cmd); }
+        );
+        if (chassisResult.isFailure())
+        {
+            return Result<void>::failure("Failed to subscribe to chassis velocity command: " + chassisResult.error());
+        }
+
         // System commands (single channels)
         logger_->debug("Subscribing to shutdown command channel: " + std::string(Channels::SHUTDOWN_CMD));
         auto shutdownResult = broker_->subscribe<raccoon::scalar_i32_t>(
@@ -514,6 +526,26 @@ namespace wombat
         if (result.isFailure())
         {
             logger_->error("Failed to set motor PID: " + result.error());
+            return;
+        }
+    }
+
+    void CommandSubscriber::onChassisVelocityCommand(const raccoon::vector3f_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received chassis velocity command while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::CHASSIS_VELOCITY_CMD, command.timestamp))
+            return;
+
+        // vector3f payload: x=vx (m/s), y=vy (m/s), z=wz (rad/s), body frame.
+        const auto result = deviceController_->setChassisVelocity(command.x, command.y, command.z);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set chassis velocity: " + result.error());
             return;
         }
     }

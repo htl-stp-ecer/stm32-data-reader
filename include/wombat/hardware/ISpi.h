@@ -23,6 +23,10 @@ namespace wombat
         virtual Result<void> setMotorPwm(PortId port, int32_t duty) = 0;
         virtual Result<void> setMotorVelocity(PortId port, int32_t velocity) = 0;
         virtual Result<void> setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition) = 0;
+
+        // Stage the body-frame chassis velocity setpoint [vx (m/s), vy (m/s), wz (rad/s)]
+        // for MOT_MODE_CHASSIS. Callers set the motors to chassis mode separately.
+        virtual Result<void> setChassisVelocity(float vx, float vy, float wz) = 0;
         virtual Result<int32_t> getMotorPosition(PortId port) = 0;
         virtual Result<uint8_t> getMotorDone() = 0;
         virtual Result<MotorState> getMotorState(PortId port) const = 0;
