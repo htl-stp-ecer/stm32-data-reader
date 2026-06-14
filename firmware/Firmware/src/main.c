@@ -172,6 +172,7 @@ int main(void)
         {
             updateFlags &= ~PI_BUFFER_UPDATE_KINEMATICS;
             odometry_configure(&rxBuffer.kinematics);
+            bemf_set_offset(rxBuffer.kinematics.bemf_offset);
             printf("[stp] Kinematics config received from Pi\r\n");
         }
 

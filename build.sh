@@ -61,8 +61,21 @@ docker_exec() {
   else
     ccache_mount="$CCACHE_VOL"
   fi
+  # Resolve sibling-directory symlinks (e.g. raccoon-transport -> ../raccoon-transport)
+  # and mount their targets into the container at the path the symlink expects.
+  local extra_mounts=()
+  for link in raccoon-transport; do
+    if [[ -L "$link" ]]; then
+      local target
+      target="$(readlink -f "$link")"
+      if [[ -d "$target" ]]; then
+        extra_mounts+=(-v "$target:/$link")
+      fi
+    fi
+  done
   docker run --rm --platform="$PLATFORM" \
     -v "$PWD":/src \
+    "${extra_mounts[@]}" \
     -v "$ccache_mount":/ccache \
     -e CCACHE_DIR=/ccache \
     -e CCACHE_MAXSIZE="$CCACHE_MAXSIZE" \

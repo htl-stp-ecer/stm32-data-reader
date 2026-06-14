@@ -35,7 +35,7 @@ namespace wombat
         virtual Result<void> setShutdown(bool enabled) = 0;
 
         virtual Result<void> sendKinematicsConfig(const float inv_matrix[3][4], const float ticks_to_rad[4],
-                                                  const float fwd_matrix[4][3]) = 0;
+                                                  const float fwd_matrix[4][3], const float bemf_offset[4]) = 0;
         virtual Result<void> resetOdometry() = 0;
 
         // Feature flags: replace the full opt-in toggle byte (see FEATURE_*).

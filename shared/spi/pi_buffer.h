@@ -13,7 +13,7 @@ extern "C" {
 
 #include <stdint.h>
 
-#define TRANSFER_VERSION 19
+#define TRANSFER_VERSION 20
 
 #define PI_BUFFER_UPDATE_MOTOR_PID_SPEED 0x01
 #define PI_BUFFER_UPDATE_MOTOR_PID_POS   0x02
@@ -107,6 +107,11 @@ typedef struct __attribute__ ((packed))
 
     /* Per-motor encoder calibration: radians per BEMF tick */
     float ticks_to_rad[4];
+
+    /* Per-motor BEMF zero-offset (ADC counts), subtracted from each BEMF
+     * reading before it is integrated into position, so the tick integral
+     * stays proportional to wheel angle (removes low-speed/standstill drift). */
+    float bemf_offset[4];
 
     /* Forward kinematics matrix: body velocity [vx, vy, wz] -> expected wheel speeds (rad/s)
      * Row i: coefficients for wheel i: w_i = fwd[i][0]*vx + fwd[i][1]*vy + fwd[i][2]*wz

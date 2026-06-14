@@ -242,7 +242,7 @@ namespace wombat
     }
 
     Result<void> SpiMock::sendKinematicsConfig(const float /*inv_matrix*/[3][4], const float /*ticks_to_rad*/[4],
-                                               const float /*fwd_matrix*/[4][3])
+                                               const float /*fwd_matrix*/[4][3], const float /*bemf_offset*/[4])
     {
         if (logger_) logger_->info("SPI Mock: Kinematics config sent (no-op)");
         return Result<void>::success();

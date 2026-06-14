@@ -581,7 +581,11 @@ namespace wombat
             for (int c = 0; c < 3; c++)
                 fwd_matrix[r][c] = command.fwd_matrix[r * 3 + c];
 
-        auto result = deviceController_->sendKinematicsConfig(inv_matrix, ticks_to_rad, fwd_matrix);
+        float bemf_offset[4];
+        for (int i = 0; i < 4; i++)
+            bemf_offset[i] = command.bemf_offset[i];
+
+        auto result = deviceController_->sendKinematicsConfig(inv_matrix, ticks_to_rad, fwd_matrix, bemf_offset);
         if (result.isFailure())
         {
             logger_->error("Failed to send kinematics config: " + result.error());
