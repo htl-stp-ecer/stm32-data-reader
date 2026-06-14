@@ -257,6 +257,15 @@ void update_motor(const uint8_t channel, const int16_t bemf_filtered)
     // Track previous control mode per motor to detect mode changes
     static uint8_t prevControlMode[MOTOR_COUNT] = {OFF};
 
+    // Real elapsed time since this motor's previous PID update, for the
+    // dt-explicit velocity/position PID. update_motor() runs once per motor per
+    // BEMF cycle, so this captures the actual (jittery) control period rather
+    // than assuming a fixed rate. Unsigned subtraction wraps correctly.
+    static uint32_t lastPidUs[MOTOR_COUNT] = {0};
+    const uint32_t nowUs = microSeconds;
+    const float pidDt = (float)(nowUs - lastPidUs[channel]) * 1e-6f;
+    lastPidUs[channel] = nowUs;
+
     // Detect mode change and reset state
     if (ctlMode != prevControlMode[channel])
     {
@@ -303,7 +312,7 @@ void update_motor(const uint8_t channel, const int16_t bemf_filtered)
         {
             // Velocity PID: goal = target velocity, current = BEMF reading
             // BEMF sign is inverted w.r.t. motor direction, so negate measurement
-            int32_t pidOut = pid_update(&pidControllers[channel], target, bemf_filtered);
+            int32_t pidOut = pid_update(&pidControllers[channel], target, bemf_filtered, pidDt);
             applyMotorOutput(channel, pidOut);
             break;
         }
@@ -389,7 +398,7 @@ void update_motor(const uint8_t channel, const int16_t bemf_filtered)
                 pidControllers[channel].iErr = 0.0f;
             }
 
-            int32_t pidOut = pid_update(&pidControllers[channel], profileVel[channel], bemf_filtered);
+            int32_t pidOut = pid_update(&pidControllers[channel], profileVel[channel], bemf_filtered, pidDt);
             applyMotorOutput(channel, pidOut);
             break;
         }
