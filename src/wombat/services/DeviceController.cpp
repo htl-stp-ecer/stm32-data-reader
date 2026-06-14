@@ -424,13 +424,13 @@ namespace wombat
     }
 
     Result<void> DeviceController::sendKinematicsConfig(const float inv_matrix[3][4], const float ticks_to_rad[4],
-                                                        const float fwd_matrix[4][3])
+                                                        const float fwd_matrix[4][3], const float bemf_offset[4])
     {
         if (!isInitialized_)
         {
             return Result<void>::failure("Device controller not initialized");
         }
-        return spi_->sendKinematicsConfig(inv_matrix, ticks_to_rad, fwd_matrix);
+        return spi_->sendKinematicsConfig(inv_matrix, ticks_to_rad, fwd_matrix, bemf_offset);
     }
 
     Result<void> DeviceController::resetOdometry()

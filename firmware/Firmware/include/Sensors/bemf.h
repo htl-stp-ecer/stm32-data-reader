@@ -37,4 +37,7 @@ void processBEMF();
 void bemf_watchdog_check(uint32_t now);
 void updatingMotorsInSpiBuffer();
 
+// Set the per-motor BEMF zero-offset (ADC counts) from the Pi's KinematicsConfig.
+void bemf_set_offset(const volatile float off[]);
+
 #endif //BEMF_H

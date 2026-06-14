@@ -303,9 +303,9 @@ namespace wombat
     }
 
     Result<void> SpiReal::sendKinematicsConfig(const float inv_matrix[3][4], const float ticks_to_rad[4],
-                                               const float fwd_matrix[4][3])
+                                               const float fwd_matrix[4][3], const float bemf_offset[4])
     {
-        set_kinematics_config(inv_matrix, ticks_to_rad, fwd_matrix);
+        set_kinematics_config(inv_matrix, ticks_to_rad, fwd_matrix, bemf_offset);
         if (logger_) logger_->info("SPI: Kinematics config sent to STM32");
         return Result<void>::success();
     }

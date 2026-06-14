@@ -3,6 +3,7 @@
 #include "Sensors/adcPorts-batteryVoltage.h"
 #include "Sensors/bemf.h"
 
+#include <math.h>
 #include <stdbool.h>
 #include <string.h>
 
@@ -16,6 +17,20 @@
 #define BEMF_FILTER_ALPHA 0.2f
 #define MAX_BEMF_READING 2000
 #define MEDIAN_WINDOW 3
+
+// --- BEMF zero-offset correction ---
+// The differential BEMF reading is not proportional to wheel speed through the
+// origin: extrapolating the (linear) BEMF-vs-speed relation to zero speed gives
+// a non-zero per-motor offset (~20-40 counts; an ADC/amplifier + coast-measure
+// settling artifact). Integrating that offset every cycle (no dt, no dead-zone)
+// adds phantom ticks that grow with time -> odometry over-reports, worst at low
+// speed / during acceleration. The Pi calibrates the offset per motor against
+// the external calibration board (auto_tune_bemf_velocity: B = -intercept/slope)
+// and sends it in KinematicsConfig.bemf_offset; we subtract it before integrating
+// so the tick integral stays proportional to wheel angle (speed-independent).
+// The dead-zone must exceed (driving_offset - standstill_offset) so the corrected
+// reading is zeroed when the wheel is actually stopped.
+#define BEMF_DEADZONE 25.0f  // counts; |corrected| below this => 0
 
 volatile uint16_t adc_dma_bemf_buffer[BEMF_CHANNELS_PER_MOTOR] = {0};
 volatile float bemfLastReadings[MOTOR_COUNT] = {0};
@@ -32,6 +47,17 @@ static uint8_t medianIdx[MOTOR_COUNT] = {0};
 
 // Float accumulator per motor — keeps fractional ticks between updates
 static float positionAccum[MOTOR_COUNT] = {0};
+
+// Per-motor BEMF zero-offset (ADC counts), supplied by the Pi via
+// KinematicsConfig.bemf_offset (see bemf_set_offset). 0 until configured =>
+// no correction (original behaviour).
+static float bemf_offset_cfg[MOTOR_COUNT] = {0};
+
+void bemf_set_offset(const volatile float off[MOTOR_COUNT])
+{
+    for (int i = 0; i < MOTOR_COUNT; i++)
+        bemf_offset_cfg[i] = off[i];
+}
 
 // ADC channel pairs per software motor: {low, high}
 static const uint32_t bemfAdcChannels[MOTOR_COUNT][2] = {
@@ -124,12 +150,21 @@ void processBEMF()
 
         if (bemfLastReadings[ch] <= MAX_BEMF_READING && bemfLastReadings[ch] >= -MAX_BEMF_READING)
         {
-            motor_data.bemf[ch] = (int32_t)bemfLastReadings[ch];
+            // Subtract the per-motor offset toward zero (sign-aware: the BEMF sign
+            // tracks rotation direction, so the offset shrinks |reading| for both
+            // directions) + dead-zone. This keeps the position integral
+            // proportional to wheel angle instead of accumulating a constant
+            // per-cycle offset (the old "no dead zone" behaviour drifted at
+            // standstill and over-counted at low speed).
+            float corrected = bemfLastReadings[ch]
+                            - copysignf(bemf_offset_cfg[ch], bemfLastReadings[ch]);
+            if (corrected < BEMF_DEADZONE && corrected > -BEMF_DEADZONE)
+                corrected = 0.0f;
+
+            motor_data.bemf[ch] = (int32_t)corrected;
 
             // Accumulate in float to preserve fractional ticks and sub-threshold movement.
-            // No dead zone — all readings contribute. Noise averages out over time;
-            // the median + EMA filters upstream already suppress single-sample spikes.
-            positionAccum[ch] += bemfLastReadings[ch];
+            positionAccum[ch] += corrected;
 
             // Transfer whole ticks to integer position, keep remainder
             int32_t whole = (int32_t)positionAccum[ch];

@@ -38,7 +38,7 @@ namespace wombat
         Result<void> setShutdown(bool enabled) override;
 
         Result<void> sendKinematicsConfig(const float inv_matrix[3][4], const float ticks_to_rad[4],
-                                          const float fwd_matrix[4][3]) override;
+                                          const float fwd_matrix[4][3], const float bemf_offset[4]) override;
         Result<void> resetOdometry() override;
 
         Result<void> setFeatureFlags(uint8_t flags) override;
