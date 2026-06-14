@@ -48,6 +48,12 @@ static uint8_t medianIdx[MOTOR_COUNT] = {0};
 // Float accumulator per motor — keeps fractional ticks between updates
 static float positionAccum[MOTOR_COUNT] = {0};
 
+// Per-motor timestamp (microSeconds) of the last BEMF sample, for dt-aware
+// integration. 0 = no previous sample yet. Integrating bemf*dt instead of a
+// fixed += bemf makes the position a true ∫ω dt, immune to the round-robin
+// cadence, loop jitter and watchdog skips that vary the real sample period.
+static uint32_t bemf_last_us[MOTOR_COUNT] = {0};
+
 // Per-motor BEMF zero-offset (ADC counts), supplied by the Pi via
 // KinematicsConfig.bemf_offset (see bemf_set_offset). 0 until configured =>
 // no correction (original behaviour).
@@ -162,8 +168,18 @@ void processBEMF()
 
             motor_data.bemf[ch] = (int32_t)corrected;
 
-            // Accumulate in float to preserve fractional ticks and sub-threshold movement.
-            positionAccum[ch] += corrected;
+            // dt-aware integration: position += bemf * dt (seconds since this
+            // motor was last sampled). Unsigned subtraction handles the
+            // microSeconds wrap. The first sample only seeds the timestamp.
+            // NOTE: this rescales `position` units (per second), so ticks_to_rad
+            // must be re-tuned after flashing.
+            const uint32_t now_us = microSeconds;
+            if (bemf_last_us[ch] != 0)
+            {
+                const float dt_s = (float)(now_us - bemf_last_us[ch]) * 1e-6f;
+                positionAccum[ch] += corrected * dt_s;
+            }
+            bemf_last_us[ch] = now_us;
 
             // Transfer whole ticks to integer position, keep remainder
             int32_t whole = (int32_t)positionAccum[ch];
