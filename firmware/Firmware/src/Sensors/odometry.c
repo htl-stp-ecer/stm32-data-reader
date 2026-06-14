@@ -93,6 +93,26 @@ void odometry_configure(const volatile KinematicsConfig* cfg)
     prev_body_vy = 0.0f;
 }
 
+int32_t odometry_chassis_wheel_target(uint8_t wheel, float vx, float vy, float wz)
+{
+    if (wheel >= 4) return 0;
+
+    // Forward kinematics: body velocity -> wheel angular velocity (rad/s).
+    const float w_rad = kin.fwd_matrix[wheel][0] * vx
+                      + kin.fwd_matrix[wheel][1] * vy
+                      + kin.fwd_matrix[wheel][2] * wz;
+
+    const float t2r = kin.ticks_to_rad[wheel];
+    if (!(t2r > 0.0f)) return 0;
+
+    // Convert rad/s -> BEMF velocity units (the MAV-PID setpoint domain). This
+    // MUST mirror the Pi MotorAdapter conversion so MOT_MODE_CHASSIS produces
+    // the identical per-wheel target the Pi used to send per-motor:
+    //   w[rad/s] = bemf * ticks_to_rad * kBemfSampleRate(=200)
+    //   => bemf  = w / (ticks_to_rad * 200)
+    return (int32_t)lroundf(w_rad / (t2r * 200.0f));
+}
+
 void odometry_reset(void)
 {
     pos_x = 0.0f;

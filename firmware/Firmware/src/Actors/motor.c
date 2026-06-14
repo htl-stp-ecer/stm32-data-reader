@@ -6,6 +6,7 @@
 #include "main.h"
 #include "Communication/communication_with_pi.h"
 #include "Sensors/bemf.h"
+#include "Sensors/odometry.h"
 #include "Hardware/timer.h"
 #include "Hardware/timerInit.h"
 #include "Actors/pid.h"
@@ -280,9 +281,10 @@ void update_motor(const uint8_t channel, const int16_t bemf_filtered)
         motor_data.done &= ~(1u << channel);
     }
 
-    if (ctlMode == MOT_MODE_MAV && (rxBuffer.featureFlags & FEATURE_BEMF_DISABLE))
+    if ((ctlMode == MOT_MODE_MAV || ctlMode == MOT_MODE_CHASSIS)
+        && (rxBuffer.featureFlags & FEATURE_BEMF_DISABLE))
     {
-        // MAV requires BEMF feedback — ignore command, hold motor off.
+        // MAV/CHASSIS require BEMF feedback — ignore command, hold motor off.
         // The Pi-side reader is the actual guard; this is defense in depth.
         motor_setDirection(channel, OFF);
         motor_setDutycycle(channel, 0);
@@ -313,6 +315,22 @@ void update_motor(const uint8_t channel, const int16_t bemf_filtered)
             // Velocity PID: goal = target velocity, current = BEMF reading
             // BEMF sign is inverted w.r.t. motor direction, so negate measurement
             int32_t pidOut = pid_update(&pidControllers[channel], target, bemf_filtered, pidDt);
+            applyMotorOutput(channel, pidOut);
+            break;
+        }
+
+    case MOT_MODE_CHASSIS:
+        {
+            // Full chassis velocity loop on-MCU: derive this wheel's velocity
+            // setpoint from the body-frame command via forward kinematics, then
+            // run the same per-motor MAV PID. Closing the chassis loop here (next
+            // to BEMF + IMU) keeps it deterministic — no SPI round-trip in-loop.
+            const int32_t chassisTarget = odometry_chassis_wheel_target(
+                channel,
+                rxBuffer.chassisVelocity[0],
+                rxBuffer.chassisVelocity[1],
+                rxBuffer.chassisVelocity[2]);
+            int32_t pidOut = pid_update(&pidControllers[channel], chassisTarget, bemf_filtered, pidDt);
             applyMotorOutput(channel, pidOut);
             break;
         }

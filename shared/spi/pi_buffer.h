@@ -13,7 +13,7 @@ extern "C" {
 
 #include <stdint.h>
 
-#define TRANSFER_VERSION 20
+#define TRANSFER_VERSION 21
 
 #define PI_BUFFER_UPDATE_MOTOR_PID_SPEED 0x01
 #define PI_BUFFER_UPDATE_MOTOR_PID_POS   0x02
@@ -39,6 +39,9 @@ enum MOTOR_CMD_MODE
     MOT_MODE_PWM = 0b010,
     MOT_MODE_MAV = 0b011, // Move At Velocity - PID velocity control
     MOT_MODE_MTP = 0b100, // Move To Position - PID position control (absolute)
+    MOT_MODE_CHASSIS = 0b101, // Chassis velocity: per-wheel target = fwd_matrix * chassisVelocity,
+                              // then the per-motor MAV PID. Set all four motors to this mode and
+                              // write rxBuffer.chassisVelocity; motorTarget is ignored.
 };
 
 typedef struct __attribute__ ((packed))
@@ -186,6 +189,13 @@ typedef struct __attribute__ ((packed))
 
     /* --- MOTOR TARGET --- */
     int32_t motorTarget[4]; // PWM: duty (0-400), MAV: velocity goal, MTP: speed limit
+
+    /* --- CHASSIS VELOCITY COMMAND (for MOT_MODE_CHASSIS) --- */
+    // Body-frame setpoint: [vx (m/s), vy (m/s), wz (rad/s)]. The STM32 maps this
+    // to per-wheel rad/s via kinematics.fwd_matrix, converts to BEMF velocity
+    // units (ticks_to_rad), and drives the per-motor MAV PID. Lets the full
+    // chassis velocity loop close on-MCU (deterministic, no SPI in the loop).
+    float chassisVelocity[3];
 
     /* --- MOTOR GOAL POSITION (for MTP mode) --- */
     int32_t motorGoalPosition[4]; // target position in accumulated BEMF ticks
