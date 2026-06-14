@@ -150,14 +150,13 @@ void processBEMF()
 
         if (bemfLastReadings[ch] <= MAX_BEMF_READING && bemfLastReadings[ch] >= -MAX_BEMF_READING)
         {
-            // Subtract the per-motor offset toward zero (sign-aware: the BEMF sign
-            // tracks rotation direction, so the offset shrinks |reading| for both
-            // directions) + dead-zone. This keeps the position integral
-            // proportional to wheel angle instead of accumulating a constant
-            // per-cycle offset (the old "no dead zone" behaviour drifted at
-            // standstill and over-counted at low speed).
-            float corrected = bemfLastReadings[ch]
-                            - copysignf(bemf_offset_cfg[ch], bemfLastReadings[ch]);
+            // Subtract the per-motor RAW BEMF offset (signed; the Pi sends it in
+            // raw-reading space) + dead-zone. raw = ±k·ω + offset, so raw - offset
+            // = ±k·ω → the position integral stays proportional to wheel angle for
+            // both directions (the old "no dead zone" behaviour drifted at
+            // standstill and over-counted at low speed). At rest raw≈offset →
+            // corrected≈0 → zeroed by the dead-zone.
+            float corrected = bemfLastReadings[ch] - bemf_offset_cfg[ch];
             if (corrected < BEMF_DEADZONE && corrected > -BEMF_DEADZONE)
                 corrected = 0.0f;
 
