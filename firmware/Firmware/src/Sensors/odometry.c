@@ -105,12 +105,14 @@ int32_t odometry_chassis_wheel_target(uint8_t wheel, float vx, float vy, float w
     const float t2r = kin.ticks_to_rad[wheel];
     if (!(t2r > 0.0f)) return 0;
 
-    // Convert rad/s -> BEMF velocity units (the MAV-PID setpoint domain). This
-    // MUST mirror the Pi MotorAdapter conversion so MOT_MODE_CHASSIS produces
-    // the identical per-wheel target the Pi used to send per-motor:
-    //   w[rad/s] = bemf * ticks_to_rad * kBemfSampleRate(=200)
-    //   => bemf  = w / (ticks_to_rad * 200)
-    return (int32_t)lroundf(w_rad / (t2r * 200.0f));
+    // Convert rad/s -> BEMF velocity units (the MAV-PID setpoint domain). With
+    // the dt-integrated BEMF (bemf.c: ticks += bemf*dt), odometry computes
+    // w = delta_ticks * ticks_to_rad / dt = bemf * ticks_to_rad, so the inverse
+    // is simply:  bemf = w / ticks_to_rad   (NO sample-rate factor).
+    // (The Pi MotorAdapter's extra /kBemfSampleRate is cancelled by its outer
+    //  velocity loop inflating w_ref; this open-loop on-MCU path must use the
+    //  true physical relationship, or the setpoint is ~200x too small to move.)
+    return (int32_t)lroundf(w_rad / t2r);
 }
 
 void odometry_reset(void)
