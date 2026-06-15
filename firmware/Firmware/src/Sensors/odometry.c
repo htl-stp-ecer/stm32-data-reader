@@ -102,8 +102,13 @@ int32_t odometry_chassis_wheel_target(uint8_t wheel, float vx, float vy, float w
                       + kin.fwd_matrix[wheel][1] * vy
                       + kin.fwd_matrix[wheel][2] * wz;
 
+    // ticks_to_rad is NEGATIVE for inverted motors (the kinematics config
+    // negates it so the BEMF sign convention matches). Dividing by a negative
+    // t2r correctly flips the setpoint sign for that wheel — so only reject a
+    // zero/invalid value, never a negative one (that would leave inverted
+    // wheels with a 0 setpoint, i.e. dead).
     const float t2r = kin.ticks_to_rad[wheel];
-    if (!(t2r > 0.0f)) return 0;
+    if (fabsf(t2r) < 1e-9f) return 0;
 
     // Convert rad/s -> BEMF velocity units (the MAV-PID setpoint domain). With
     // the dt-integrated BEMF (bemf.c: ticks += bemf*dt), odometry computes
