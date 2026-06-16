@@ -183,6 +183,14 @@ namespace wombat
             motors_[port].target = state.target;
             motors_[port].goalPosition = state.goalPosition;
             break;
+        case MotorControlMode::Chassis:
+            // Per-wheel target is derived on the STM32 from chassisVelocity;
+            // motorTarget is ignored. The setpoint itself is staged separately
+            // via setChassisVelocity().
+            set_motor_chassis(port);
+            motors_[port].target = 0;
+            motors_[port].goalPosition = 0;
+            break;
         default:
             return Result<void>::failure("unsupported motor control mode");
         }
@@ -218,6 +226,12 @@ namespace wombat
                                  .target = velocity,
                                  .goalPosition = goalPosition
                              });
+    }
+
+    Result<void> SpiReal::setChassisVelocity(float vx, float vy, float wz)
+    {
+        set_chassis_velocity(vx, vy, wz);
+        return Result<void>::success();
     }
 
     Result<int32_t> SpiReal::getMotorPosition(PortId port)

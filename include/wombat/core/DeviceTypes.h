@@ -28,6 +28,7 @@ namespace wombat
         Pwm = 2, // Direct PWM, no PID
         MoveAtVelocity = 3, // PID velocity control
         MoveToPosition = 4, // PID position control (absolute)
+        Chassis = 5, // Chassis velocity: per-wheel target = fwd_matrix * chassisVelocity (set on all 4 motors)
     };
 
     enum class ServoMode : uint8_t

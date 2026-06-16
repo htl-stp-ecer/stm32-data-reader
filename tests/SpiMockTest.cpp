@@ -191,6 +191,19 @@ TEST_F(SpiMockTest, SetMotorPositionSetsControlMode)
     EXPECT_EQ(getResult.value().goalPosition, 5000);
 }
 
+TEST_F(SpiMockTest, SetChassisVelocityStagesSetpoint)
+{
+    initializeSpi();
+
+    auto result = spiMock_->setChassisVelocity(0.5f, -0.25f, 1.5f);
+    EXPECT_TRUE(result.isSuccess());
+
+    const auto cv = spiMock_->chassisVelocity();
+    EXPECT_FLOAT_EQ(cv[0], 0.5f);
+    EXPECT_FLOAT_EQ(cv[1], -0.25f);
+    EXPECT_FLOAT_EQ(cv[2], 1.5f);
+}
+
 TEST_F(SpiMockTest, GetMotorDoneAllDone)
 {
     initializeSpi();

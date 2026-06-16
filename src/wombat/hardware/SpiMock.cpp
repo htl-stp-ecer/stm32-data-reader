@@ -191,6 +191,12 @@ namespace wombat
                              });
     }
 
+    Result<void> SpiMock::setChassisVelocity(float vx, float vy, float wz)
+    {
+        chassisVelocity_ = {vx, vy, wz};
+        return Result<void>::success();
+    }
+
     Result<int32_t> SpiMock::getMotorPosition(PortId port)
     {
         if (port >= MAX_MOTOR_PORTS) return Result<int32_t>::failure("motor port out of range");

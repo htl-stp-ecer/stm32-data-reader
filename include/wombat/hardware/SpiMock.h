@@ -25,6 +25,7 @@ namespace wombat
         Result<void> setMotorPwm(PortId port, int32_t duty) override;
         Result<void> setMotorVelocity(PortId port, int32_t velocity) override;
         Result<void> setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition) override;
+        Result<void> setChassisVelocity(float vx, float vy, float wz) override;
         Result<int32_t> getMotorPosition(PortId port) override;
         Result<uint8_t> getMotorDone() override;
         Result<MotorState> getMotorState(PortId port) const override;
@@ -43,11 +44,15 @@ namespace wombat
 
         Result<void> setFeatureFlags(uint8_t flags) override;
 
+        // Test introspection: last staged chassis velocity setpoint [vx, vy, wz].
+        [[nodiscard]] std::array<float, 3> chassisVelocity() const { return chassisVelocity_; }
+
     private:
         Configuration::Spi cfg_;
         std::shared_ptr<Logger> logger_;
         std::array<MotorState, MAX_MOTOR_PORTS> motors_{};
         std::array<ServoState, MAX_SERVO_PORTS> servos_{};
+        std::array<float, 3> chassisVelocity_{};
 
         // Simulation state
         bool initialized_{false};

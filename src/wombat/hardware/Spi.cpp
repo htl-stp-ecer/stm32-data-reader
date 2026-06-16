@@ -318,6 +318,30 @@ void set_motor_position(uint8_t port, int32_t velocity, int32_t goal_position)
         exit(EXIT_FAILURE);
 }
 
+void set_motor_chassis(uint8_t port)
+{
+    if (port > 3)
+        return;
+    set_motor_control_mode(port, MOT_MODE_CHASSIS);
+    // motorTarget is ignored in chassis mode (the per-wheel setpoint is derived
+    // on the STM32 from chassisVelocity), but clear it to avoid stale values.
+    ctx.tx.motorTarget[port] = 0;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}
+
+void set_chassis_velocity(float vx, float vy, float wz)
+{
+    // Mirror motorTarget staging: write directly into the staged RxBuffer.
+    // No dedicated update-flag — the STM32 consumes chassisVelocity on every
+    // transfer while any motor is in MOT_MODE_CHASSIS (same as motorTarget).
+    ctx.tx.chassisVelocity[0] = vx;
+    ctx.tx.chassisVelocity[1] = vy;
+    ctx.tx.chassisVelocity[2] = wz;
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+}
+
 void set_servo_mode(uint8_t port, ServoMode mode)
 {
     if (port > 3)
