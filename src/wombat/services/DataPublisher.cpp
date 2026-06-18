@@ -142,9 +142,12 @@ namespace wombat
 
         // Accelerometer — INTENTIONALLY UNGATED. Stays at the main-loop
         // rate so downstream calibration / autotune routines get every
-        // raw frame.
+        // raw frame. Uses publishForce (not publish) so the transport's
+        // value deduplication never drops a byte-identical frame — every
+        // sample must go through, even when the value is momentarily
+        // unchanged.
         {
-            const auto r = broker_->publish(Channels::ACCELEROMETER, toLcm(data.accelerometer));
+            const auto r = broker_->publishForce(Channels::ACCELEROMETER, toLcm(data.accelerometer));
             if (r.isFailure()) logger_->warn("Failed to publish accelerometer data: " + r.error());
         }
 
