@@ -234,6 +234,30 @@ TEST_F(DeviceControllerTest, SetMotorVelocityInvalidPort)
     EXPECT_TRUE(result.isFailure());
 }
 
+TEST_F(DeviceControllerTest, SetChassisVelocitySetsAllMotorsAndStagesSetpoint)
+{
+    initializeController();
+
+    // All four motors must be put into Chassis control mode.
+    for (PortId p = 0; p < MAX_MOTOR_PORTS; ++p)
+    {
+        EXPECT_CALL(*mockSpi_, setMotorState(p, ::testing::Field(&MotorState::controlMode,
+                                                                 MotorControlMode::Chassis)))
+            .WillOnce(Return(Result<void>::success()));
+    }
+    EXPECT_CALL(*mockSpi_, setChassisVelocity(0.5f, -0.25f, 1.5f))
+        .WillOnce(Return(Result<void>::success()));
+
+    auto result = controller_->setChassisVelocity(0.5f, -0.25f, 1.5f);
+    EXPECT_TRUE(result.isSuccess());
+}
+
+TEST_F(DeviceControllerTest, SetChassisVelocityWhenNotInitialized)
+{
+    auto result = controller_->setChassisVelocity(0.1f, 0.2f, 0.3f);
+    EXPECT_TRUE(result.isFailure());
+}
+
 // --- Servo commands ---
 
 TEST_F(DeviceControllerTest, SetServoCommandSuccess)

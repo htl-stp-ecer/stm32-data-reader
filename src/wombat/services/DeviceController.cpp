@@ -200,6 +200,41 @@ namespace wombat
                              });
     }
 
+    Result<void> DeviceController::setChassisVelocity(float vx, float vy, float wz)
+    {
+        if (!isInitialized_)
+        {
+            return Result<void>::failure("Device controller not initialized");
+        }
+
+        // Ensure all four motors are in chassis-velocity mode. setMotorState is
+        // idempotent (skips SPI when the command is unchanged), so repeated
+        // chassis commands only push the mode bits once.
+        for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
+        {
+            auto modeResult = setMotorState(port, MotorState{.controlMode = MotorControlMode::Chassis});
+            if (modeResult.isFailure())
+            {
+                logger_->error("Failed to set motor " + std::to_string(port) +
+                    " to chassis mode: " + modeResult.error());
+                return modeResult;
+            }
+        }
+
+        // Stage the body-frame setpoint; this is pushed on every call so the
+        // STM32 always tracks the latest commanded velocity.
+        auto result = spi_->setChassisVelocity(vx, vy, wz);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set chassis velocity: " + result.error());
+            return result;
+        }
+
+        logger_->debug("Chassis velocity set: vx=" + std::to_string(vx) +
+            " vy=" + std::to_string(vy) + " wz=" + std::to_string(wz));
+        return Result<void>::success();
+    }
+
     Result<int32_t> DeviceController::getMotorPosition(PortId port) const
     {
         if (!isInitialized_)

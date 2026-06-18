@@ -23,4 +23,10 @@ void odometry_update(void);
 // Copy current odometry state into the TxBuffer field.
 void odometry_write_to_spi_buffer(volatile OdometryData* out);
 
+// Map a body-frame velocity command [vx (m/s), vy (m/s), wz (rad/s)] to the
+// per-wheel velocity-PID setpoint (BEMF velocity units) for MOT_MODE_CHASSIS,
+// using the configured forward kinematics matrix + per-motor ticks_to_rad.
+// Returns 0 for an out-of-range wheel or uncalibrated motor.
+int32_t odometry_chassis_wheel_target(uint8_t wheel, float vx, float vy, float wz);
+
 #endif // ODOMETRY_H

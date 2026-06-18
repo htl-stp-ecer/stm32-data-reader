@@ -93,6 +93,33 @@ void odometry_configure(const volatile KinematicsConfig* cfg)
     prev_body_vy = 0.0f;
 }
 
+int32_t odometry_chassis_wheel_target(uint8_t wheel, float vx, float vy, float wz)
+{
+    if (wheel >= 4) return 0;
+
+    // Forward kinematics: body velocity -> wheel angular velocity (rad/s).
+    const float w_rad = kin.fwd_matrix[wheel][0] * vx
+                      + kin.fwd_matrix[wheel][1] * vy
+                      + kin.fwd_matrix[wheel][2] * wz;
+
+    // ticks_to_rad is NEGATIVE for inverted motors (the kinematics config
+    // negates it so the BEMF sign convention matches). Dividing by a negative
+    // t2r correctly flips the setpoint sign for that wheel — so only reject a
+    // zero/invalid value, never a negative one (that would leave inverted
+    // wheels with a 0 setpoint, i.e. dead).
+    const float t2r = kin.ticks_to_rad[wheel];
+    if (fabsf(t2r) < 1e-9f) return 0;
+
+    // Convert rad/s -> BEMF velocity units (the MAV-PID setpoint domain). With
+    // the dt-integrated BEMF (bemf.c: ticks += bemf*dt), odometry computes
+    // w = delta_ticks * ticks_to_rad / dt = bemf * ticks_to_rad, so the inverse
+    // is simply:  bemf = w / ticks_to_rad   (NO sample-rate factor).
+    // (The Pi MotorAdapter's extra /kBemfSampleRate is cancelled by its outer
+    //  velocity loop inflating w_ref; this open-loop on-MCU path must use the
+    //  true physical relationship, or the setpoint is ~200x too small to move.)
+    return (int32_t)lroundf(w_rad / t2r);
+}
+
 void odometry_reset(void)
 {
     pos_x = 0.0f;

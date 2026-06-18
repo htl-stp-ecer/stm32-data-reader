@@ -420,6 +420,12 @@ namespace wombat
 
     // Explicit template instantiations — publishForce (plain, no change detection)
     template <>
+    Result<void> LcmBroker::publishForce<raccoon::vector3f_t>(const std::string& ch, const raccoon::vector3f_t& m)
+    {
+        return impl_->publishForce(ch, m);
+    }
+
+    template <>
     Result<void> LcmBroker::publishForce<raccoon::scalar_i8_t>(const std::string& ch, const raccoon::scalar_i8_t& m)
     {
         return impl_->publishForce(ch, m);

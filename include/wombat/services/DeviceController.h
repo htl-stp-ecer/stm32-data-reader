@@ -30,6 +30,9 @@ namespace wombat
         Result<void> setMotorPwm(PortId port, int32_t duty);
         Result<void> setMotorVelocity(PortId port, int32_t velocity);
         Result<void> setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition);
+        // Body-frame chassis velocity command (MOT_MODE_CHASSIS): puts all four
+        // motors into chassis mode and stages the setpoint [vx, vy, wz] for the STM32.
+        Result<void> setChassisVelocity(float vx, float vy, float wz);
         Result<int32_t> getMotorPosition(PortId port) const;
         Result<uint8_t> getMotorDone() const;
         Result<void> setServoCommand(PortId port, ServoPosition position);
