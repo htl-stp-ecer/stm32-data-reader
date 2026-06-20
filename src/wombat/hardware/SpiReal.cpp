@@ -4,6 +4,7 @@
 #include <string>
 
 #include "spdlog/spdlog.h"
+#include "wombat/core/CmdTrace.h"
 
 // C API
 extern "C" {
@@ -275,6 +276,7 @@ namespace wombat
                        0.0f,
                        20000.0f));
         set_servo_pos(port, microseconds);
+        CmdTrace::instance().record("spi", "servo_pos", "", port, st.position, 0);
         if (logger_)
         {
             logger_->debug("SPI servo " + std::to_string(port) + " state: mode=" +

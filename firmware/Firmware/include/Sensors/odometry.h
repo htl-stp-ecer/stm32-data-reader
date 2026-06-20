@@ -29,4 +29,10 @@ void odometry_write_to_spi_buffer(volatile OdometryData* out);
 // Returns 0 for an out-of-range wheel or uncalibrated motor.
 int32_t odometry_chassis_wheel_target(uint8_t wheel, float vx, float vy, float wz);
 
+// Gyro-corrected chassis wz setpoint (rad/s) for MOT_MODE_CHASSIS. The chassis
+// yaw-rate controller (closed on the IMU yaw rate) updates this once per
+// odometry cycle inside odometry_update(); motor_mode_chassis() reads it so the
+// wz axis is regulated on the MCU instead of being pure feedforward.
+float odometry_chassis_corrected_wz(void);
+
 #endif // ODOMETRY_H

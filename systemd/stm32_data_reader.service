@@ -9,6 +9,14 @@ Group=pi
 
 WorkingDirectory=/home/pi/stm32_data_reader
 
+# Receive-side command tracer (CmdTrace): logs every motor/servo/chassis
+# command as it arrives (stage `recv`) and as servo positions are staged to
+# SPI (stage `spi`) to this JSONL file, for diagnosing out-of-order servo
+# execution. Pair with RACCOON_CMD_TRACE on the raccoon-lib mission run, then
+# correlate with scripts/analyze_cmd_trace.py. Inert if the file can't be
+# opened; truncated on each (re)start. Remove this line to disable tracing.
+Environment=WOMBAT_CMD_TRACE=/home/pi/stm32_data_reader/cmd_trace.jsonl
+
 # raccoon::Transport uses the in-tree raccoon_ring SHM library
 # (one /dev/shm/raccoon_ring_<channel> file per channel). Restarts
 # are safe in-place: rrb_writer_create re-initialises the existing
