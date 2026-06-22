@@ -16,6 +16,7 @@ extern "C" {
 #include <chrono>
 #include <cmath>
 #include <csignal>
+#include <cstdlib>
 #include <stdexcept>
 
 namespace wombat
@@ -335,8 +336,11 @@ namespace wombat
             }
         }
 
+        const auto tMessages = std::chrono::steady_clock::now();
+
         // Update motor watchdog (fires hardware shutdown if heartbeat is missing)
         motorWatchdog_.update(*deviceController_, *dataPublisher_);
+        const auto tWatchdog = std::chrono::steady_clock::now();
 
         // Update device controller
         auto deviceResult = deviceController_->processUpdate();
@@ -345,6 +349,7 @@ namespace wombat
             logger_->error("Device controller update failed: " + deviceResult.error());
             return deviceResult;
         }
+        const auto tDevice = std::chrono::steady_clock::now();
 
         // Update CPU temperature (publishes periodically - every 1 second)
         if (systemMonitor_)
@@ -376,11 +381,45 @@ namespace wombat
             return heartbeatResult;
         }
 
+        const auto tAux = std::chrono::steady_clock::now();
+
         // Publish current data
         auto publishResult = publishCurrentData();
         if (publishResult.isFailure())
         {
             logger_->warn("Failed to publish data: " + publishResult.error());
+        }
+        const auto tPublish = std::chrono::steady_clock::now();
+
+        // Loop-phase watchdog: when a single iteration runs long, name the phase
+        // that ate the time instead of guessing. This is how a residual control-
+        // loop stall (the kind that delays a batch of commands and desyncs
+        // servos) gets attributed. Threshold via WOMBAT_LOOP_WARN_MS (default
+        // 50; set 0 to disable). The WARN rides the async logger, so the report
+        // never blocks the loop it is measuring.
+        static const long loopWarnMs = []
+        {
+            const char* e = std::getenv("WOMBAT_LOOP_WARN_MS");
+            return e != nullptr ? std::strtol(e, nullptr, 10) : 50L;
+        }();
+        if (loopWarnMs > 0)
+        {
+            const auto ms = [](std::chrono::steady_clock::time_point a,
+                               std::chrono::steady_clock::time_point b)
+            {
+                return std::chrono::duration_cast<std::chrono::milliseconds>(b - a).count();
+            };
+            const long total = ms(loopNow, tPublish);
+            if (total >= loopWarnMs)
+            {
+                logger_->warn(
+                    "SLOW LOOP " + std::to_string(total) + "ms: messages=" +
+                    std::to_string(ms(loopNow, tMessages)) + " watchdog=" +
+                    std::to_string(ms(tMessages, tWatchdog)) + " deviceUpdate=" +
+                    std::to_string(ms(tWatchdog, tDevice)) + " aux(cpu/uart/health)=" +
+                    std::to_string(ms(tDevice, tAux)) + " publish=" +
+                    std::to_string(ms(tAux, tPublish)) + "ms");
+            }
         }
 
         return Result<void>::success();

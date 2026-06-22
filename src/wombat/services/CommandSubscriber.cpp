@@ -277,6 +277,9 @@ namespace wombat
         if (!isTimestampNewer(Channels::motorModeCommand(port), command.timestamp))
             return;
 
+        CmdTrace::instance().record("recv", "motor_mode", Channels::motorModeCommand(port), port,
+                                    command.value, command.timestamp);
+
         // 0 = OFF, 1 = PASSIVE_BRAKE (matches MOTOR_CMD_MODE enum in pi_buffer.h)
         Result<void> result = Result<void>::success();
         if (command.value == 0)
@@ -512,6 +515,10 @@ namespace wombat
 
         if (!isTimestampNewer(Channels::motorPositionResetCommand(port), command.timestamp))
             return;
+
+        CmdTrace::instance().record("recv", "motor_pos_reset",
+                                    Channels::motorPositionResetCommand(port), port, command.value,
+                                    command.timestamp);
 
         if (command.value == 0)
         {

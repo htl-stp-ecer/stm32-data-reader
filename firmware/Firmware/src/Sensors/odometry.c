@@ -11,7 +11,6 @@
 #include "Sensors/IMU/imu.h"
 #include "Sensors/bemf.h"
 #include "Hardware/timer.h"
-#include "Communication/communication_with_pi.h"  // rxBuffer: chassis cmd + modes
 
 #include <math.h>
 #include <string.h>
@@ -32,17 +31,6 @@
 #define ROTATION_SLIP_VEL_DAMPEN 0.5f
 // Max staleness before zeroing a motor's velocity (microseconds) — 5ms
 #define MAX_STALE_US 5000
-
-// --- Chassis yaw-rate controller (Move A) ---
-// Closes the chassis wz command on the IMU yaw rate, ON the MCU. Without this,
-// MOT_MODE_CHASSIS treats wz as pure feedforward through the forward kinematics
-// and never corrects heading drift. The per-wheel BEMF velocity PIDs underneath
-// only hold individual wheel speeds — they cannot reject a yaw disturbance the
-// way a dedicated wz loop can. Gains are intentionally conservative; tune
-// on-robot. (Hardcoded for now; can later move into the SPI kinematics config.)
-#define CHASSIS_YAW_KP 0.8f          // (rad/s correction) per (rad/s error)
-#define CHASSIS_YAW_KI 0.6f          // integral gain
-#define CHASSIS_YAW_INT_LIMIT 1.5f   // anti-windup clamp on the integral term (rad/s)
 
 // Kinematics config (copied from RxBuffer when flag is set)
 static KinematicsConfig kin = {0};
@@ -71,10 +59,6 @@ static float prev_heading_rad = 0.0f;
 // Previous body-frame velocity for accel sanity check
 static float prev_body_vx = 0.0f;
 static float prev_body_vy = 0.0f;
-
-// Chassis yaw-rate controller state (Move A)
-static float chassis_yaw_integ = 0.0f; // integral accumulator (rad)
-static float chassis_wz_corrected = 0.0f; // last corrected wz (rad/s), read by motor_mode_chassis
 
 // Global odometry tick tracking
 static uint32_t last_bemf_conv = 0;
@@ -161,47 +145,6 @@ void odometry_reset(void)
     prev_heading_rad = 0.0f;
     prev_body_vx = 0.0f;
     prev_body_vy = 0.0f;
-    chassis_yaw_integ = 0.0f;
-    chassis_wz_corrected = 0.0f;
-}
-
-// Returns 1 if any motor is currently in chassis-velocity mode.
-static uint8_t any_motor_in_chassis(void)
-{
-    for (int ch = 0; ch < MOTOR_COUNT; ch++)
-        if (((rxBuffer.motorControlMode >> (3 * ch)) & 0x07) == MOT_MODE_CHASSIS)
-            return 1;
-    return 0;
-}
-
-// Update the chassis yaw-rate controller once per odometry cycle. When no motor
-// is in chassis mode (or dt is invalid), hold the integrator at zero and pass
-// the command through untouched, so re-entry starts clean and idle yaw drift
-// never winds up the integrator.
-static void chassis_yaw_update(float imu_wz, float dt)
-{
-    const float wz_cmd = rxBuffer.chassisVelocity[2];
-
-    if (!any_motor_in_chassis() || dt <= 0.0f)
-    {
-        chassis_yaw_integ = 0.0f;
-        chassis_wz_corrected = wz_cmd;
-        return;
-    }
-
-    const float err = wz_cmd - imu_wz;
-    chassis_yaw_integ += err * dt;
-    if (chassis_yaw_integ > CHASSIS_YAW_INT_LIMIT) chassis_yaw_integ = CHASSIS_YAW_INT_LIMIT;
-    if (chassis_yaw_integ < -CHASSIS_YAW_INT_LIMIT) chassis_yaw_integ = -CHASSIS_YAW_INT_LIMIT;
-
-    chassis_wz_corrected = wz_cmd + CHASSIS_YAW_KP * err + CHASSIS_YAW_KI * chassis_yaw_integ;
-}
-
-// Gyro-corrected chassis wz setpoint (rad/s) for MOT_MODE_CHASSIS. Updated once
-// per odometry cycle by chassis_yaw_update(); read per-wheel in motor.c.
-float odometry_chassis_corrected_wz(void)
-{
-    return chassis_wz_corrected;
 }
 
 void odometry_update(void)
@@ -277,10 +220,6 @@ void odometry_update(void)
     float heading_deg = -(imu.heading - heading_baseline);
     float heading_rad = heading_deg * (M_PI / 180.0f);
     float imu_wz = (heading_rad - prev_heading_rad) / dt;
-
-    // Move A: close the chassis wz command on the IMU yaw rate (on-MCU). The
-    // corrected setpoint is consumed per-wheel by motor_mode_chassis().
-    chassis_yaw_update(imu_wz, dt);
 
     // ========================================================================
     // Step 3: Compute body velocity from wheels (vx/vy — wz from IMU)

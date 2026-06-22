@@ -293,11 +293,6 @@ static void motor_mode_mav(const uint8_t ch, const int32_t target,
 // setpoint from the body-frame command via forward kinematics, then run the
 // same per-motor MAV PID. Closing the chassis loop here (next to BEMF + IMU)
 // keeps it deterministic — no SPI round-trip in-loop.
-//
-// wz is the gyro-corrected setpoint from the chassis yaw-rate controller
-// (odometry_chassis_corrected_wz(), updated once per odometry cycle), so the
-// rotation axis is regulated on the IMU rather than fed forward open-loop.
-// vx/vy remain feedforward.
 static void motor_mode_chassis(const uint8_t ch, const int16_t bemf_filtered,
                                const float pidDt)
 {
@@ -305,7 +300,7 @@ static void motor_mode_chassis(const uint8_t ch, const int16_t bemf_filtered,
         ch,
         rxBuffer.chassisVelocity[0],
         rxBuffer.chassisVelocity[1],
-        odometry_chassis_corrected_wz());
+        rxBuffer.chassisVelocity[2]);
     int32_t pidOut = pid_update(&pidControllers[ch], chassisTarget, bemf_filtered, pidDt);
     applyMotorOutput(ch, pidOut);
 }

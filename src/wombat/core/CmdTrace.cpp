@@ -60,8 +60,12 @@ namespace wombat
             << stage << "\",\"kind\":\"" << kind << "\",\"ch\":\"" << channel
             << "\",\"port\":" << port << ",\"v\":" << value << ",\"ts_us\":" << msgTimestampUsec
             << "}\n";
-        // Flush per line: ordering bugs often precede a hang, and the trace is
-        // only enabled deliberately, so durability beats throughput.
-        out_.flush();
+        // Flush periodically, NOT per line: this runs inside the reader's command
+        // handlers (the control loop), and a per-line flush on the SD card can
+        // block hundreds of ms under write-back pressure — the very stall we are
+        // trying to measure. Flushing every 64 records bounds data loss on a
+        // crash to <64 lines while keeping the hot path off the disk.
+        if ((seq & 0x3F) == 0)
+            out_.flush();
     }
 }
