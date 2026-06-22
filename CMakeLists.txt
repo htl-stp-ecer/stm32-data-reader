@@ -46,6 +46,7 @@ FetchContent_MakeAvailable(raccoon_transport)
 set(CORE_SOURCES
         src/wombat/core/Logger.cpp
         src/wombat/core/Result.cpp
+        src/wombat/core/CmdTrace.cpp
         src/wombat/messaging/LcmBroker.cpp
         src/wombat/services/DeviceController.cpp
         src/wombat/services/DataPublisher.cpp

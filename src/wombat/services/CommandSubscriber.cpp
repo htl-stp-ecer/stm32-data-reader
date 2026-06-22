@@ -1,4 +1,5 @@
 #include "wombat/services/CommandSubscriber.h"
+#include "wombat/core/CmdTrace.h"
 #include <raccoon/orientation_matrix_t.hpp>
 #include <chrono>
 
@@ -246,6 +247,9 @@ namespace wombat
         if (!isTimestampNewer(Channels::motorPowerCommand(port), command.timestamp))
             return;
 
+        CmdTrace::instance().record("recv", "motor_power", Channels::motorPowerCommand(port), port,
+                                    command.value, command.timestamp);
+
         const int32_t powerValue = command.value;
 
         // Map percentage (-100..100) to duty (-400..400), preserving sign for direction.
@@ -272,6 +276,9 @@ namespace wombat
 
         if (!isTimestampNewer(Channels::motorModeCommand(port), command.timestamp))
             return;
+
+        CmdTrace::instance().record("recv", "motor_mode", Channels::motorModeCommand(port), port,
+                                    command.value, command.timestamp);
 
         // 0 = OFF, 1 = PASSIVE_BRAKE (matches MOTOR_CMD_MODE enum in pi_buffer.h)
         Result<void> result = Result<void>::success();
@@ -342,6 +349,9 @@ namespace wombat
         if (!isTimestampNewer(Channels::motorVelocityCommand(port), command.timestamp))
             return;
 
+        CmdTrace::instance().record("recv", "motor_vel", Channels::motorVelocityCommand(port), port,
+                                    command.value, command.timestamp);
+
         const auto result = deviceController_->setMotorVelocity(port, command.value);
 
         if (result.isFailure())
@@ -361,6 +371,9 @@ namespace wombat
 
         if (!isTimestampNewer(Channels::motorPositionCommand(port), command.timestamp))
             return;
+
+        CmdTrace::instance().record("recv", "motor_pos", Channels::motorPositionCommand(port), port,
+                                    command.x, command.timestamp);
 
         const int32_t velocity = static_cast<int32_t>(command.x);
         const int32_t goalPosition = static_cast<int32_t>(command.y);
@@ -384,6 +397,9 @@ namespace wombat
 
         if (!isTimestampNewer(Channels::motorRelativeCommand(port), command.timestamp))
             return;
+
+        CmdTrace::instance().record("recv", "motor_rel", Channels::motorRelativeCommand(port), port,
+                                    command.x, command.timestamp);
 
         const int32_t velocity = static_cast<int32_t>(command.x);
         const int32_t delta = static_cast<int32_t>(command.y);
@@ -419,6 +435,9 @@ namespace wombat
         if (!isTimestampNewer(Channels::servoPositionCommand(port), command.timestamp))
             return;
 
+        CmdTrace::instance().record("recv", "servo_pos", Channels::servoPositionCommand(port), port,
+                                    command.value, command.timestamp);
+
         const ServoPosition degrees = command.value;
 
         auto result = deviceController_->setServoCommand(port, degrees);
@@ -439,6 +458,10 @@ namespace wombat
 
         if (!isTimestampNewer(Channels::servoSmoothPositionCommand(port), command.timestamp))
             return;
+
+        CmdTrace::instance().record("recv", "servo_smooth",
+                                    Channels::servoSmoothPositionCommand(port), port, command.x,
+                                    command.timestamp);
 
         const float targetAngle = command.x;
         const float speed = command.y;
@@ -466,6 +489,9 @@ namespace wombat
         if (!isTimestampNewer(Channels::servoModeCommand(port), command.timestamp))
             return;
 
+        CmdTrace::instance().record("recv", "servo_mode", Channels::servoModeCommand(port), port,
+                                    static_cast<int>(command.dir), command.timestamp);
+
         const auto mode = static_cast<ServoMode>(command.dir);
 
         auto result = deviceController_->setServoMode(port, mode);
@@ -489,6 +515,10 @@ namespace wombat
 
         if (!isTimestampNewer(Channels::motorPositionResetCommand(port), command.timestamp))
             return;
+
+        CmdTrace::instance().record("recv", "motor_pos_reset",
+                                    Channels::motorPositionResetCommand(port), port, command.value,
+                                    command.timestamp);
 
         if (command.value == 0)
         {
@@ -540,6 +570,9 @@ namespace wombat
 
         if (!isTimestampNewer(Channels::CHASSIS_VELOCITY_CMD, command.timestamp))
             return;
+
+        CmdTrace::instance().record("recv", "chassis_vel", Channels::CHASSIS_VELOCITY_CMD, -1,
+                                    command.x, command.timestamp);
 
         // vector3f payload: x=vx (m/s), y=vy (m/s), z=wz (rad/s), body frame.
         const auto result = deviceController_->setChassisVelocity(command.x, command.y, command.z);
