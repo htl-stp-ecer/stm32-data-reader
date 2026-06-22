@@ -71,6 +71,20 @@ cmake --build . -j$(nproc)
 
 ## Deployment
 
+### Install a release (recommended)
+
+Each [release](https://github.com/htl-stp-ecer/stm32-data-reader/releases/latest) ships a single `.deb`. On the Pi:
+
+```bash
+sudo apt install ./stm32-data-reader_<version>_arm64.deb
+```
+
+That installs the reader to `/usr/bin`, drops the systemd units in place, flashes the bundled STM32 firmware (best
+effort — needs `stm32flash` + the hardware), enables linger for `pi`, and starts the services. Upgrade by installing a
+newer `.deb`; `sudo apt remove stm32-data-reader` reverses it.
+
+### Dev deploy (from source)
+
 ```bash
 ./deploy.sh                              # Build both + deploy to Pi + flash firmware
 RPI_HOST=<your-pi-ip> ./deploy.sh        # Override target
@@ -79,6 +93,8 @@ RPI_DIR=/opt/stm32_data_reader ./deploy.sh
 ```
 
 The deploy script cross-compiles, stops any running service, copies the binary and systemd service files, and sets up the LCM multicast loopback service.
+
+To build the `.deb` locally after `./build.sh`, run `VERSION=1.0.0 bash scripts/build_deb.sh` (output in `dist/`).
 
 ### Running as a systemd service
 

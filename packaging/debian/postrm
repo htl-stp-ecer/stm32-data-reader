@@ -1,0 +1,18 @@
+#!/bin/sh
+# postrm — disable units on remove, drop runtime state on purge.
+set -e
+
+case "$1" in
+  remove)
+    systemctl disable stm32_data_reader.service lcm-loopback-multicast.service 2>/dev/null || true
+    systemctl daemon-reload 2>/dev/null || true
+    ;;
+  purge)
+    rm -rf /var/lib/stm32-data-reader
+    systemctl daemon-reload 2>/dev/null || true
+    ;;
+  upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+    ;;
+esac
+
+exit 0

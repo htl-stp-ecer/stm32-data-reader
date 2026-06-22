@@ -1,0 +1,56 @@
+#!/bin/sh
+# postinst — configure stm32-data-reader after the files are unpacked.
+# Mirrors the steps the old install.py performed over SSH, but runs locally
+# on the target via dpkg/apt.
+set -e
+
+RUNTIME_USER=pi
+RUNTIME_DIR=/var/lib/stm32-data-reader
+FIRMWARE_DIR=/usr/lib/stm32-data-reader/firmware
+
+case "$1" in
+  configure)
+    # --- Writable runtime/working directory (cmd_trace.jsonl lives here) ---
+    mkdir -p "$RUNTIME_DIR"
+    if id "$RUNTIME_USER" >/dev/null 2>&1; then
+      chown "$RUNTIME_USER":"$RUNTIME_USER" "$RUNTIME_DIR" || true
+    fi
+
+    # --- Clean up the long-defunct iox2-janitor service from older installs ---
+    systemctl disable --now iox2-janitor.service 2>/dev/null || true
+    rm -f /etc/systemd/system/iox2-janitor.service \
+          /home/pi/stm32_data_reader/iox2_janitor 2>/dev/null || true
+
+    systemctl daemon-reload || true
+
+    # --- Keep raccoon_ring /dev/shm files alive across SSH disconnects ---
+    # Without linger the user@<uid>.service teardown on the last SSH logout
+    # wipes /dev/shm/raccoon_ring_* and kills every subscriber.
+    if id "$RUNTIME_USER" >/dev/null 2>&1; then
+      loginctl enable-linger "$RUNTIME_USER" 2>/dev/null || true
+    fi
+
+    # --- Flash STM32 firmware (best effort, only with hardware present) ---
+    if [ -e /dev/ttyAMA0 ] && command -v stm32flash >/dev/null 2>&1 \
+       && command -v pinctrl >/dev/null 2>&1; then
+      echo "Flashing STM32 firmware..."
+      if ! ( cd "$FIRMWARE_DIR" && bash ./flash_wombat.sh ); then
+        echo "WARNING: firmware flash failed — flash later with" >&2
+        echo "         sudo bash $FIRMWARE_DIR/flash_wombat.sh" >&2
+      fi
+    else
+      echo "Skipping firmware flash (no STM32 hardware / stm32flash detected)."
+      echo "Flash manually with: sudo bash $FIRMWARE_DIR/flash_wombat.sh"
+    fi
+
+    # --- Enable + (re)start services ---
+    systemctl enable lcm-loopback-multicast.service stm32_data_reader.service || true
+    systemctl restart lcm-loopback-multicast.service || true
+    systemctl restart stm32_data_reader.service || true
+    ;;
+
+  abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+esac
+
+exit 0
