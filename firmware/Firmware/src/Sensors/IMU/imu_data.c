@@ -286,6 +286,52 @@ static void read_heading(const long quat[4])
     imu.heading = heading_deg;
 }
 
+// ── Externally correct the published DMP quaternion's yaw ────────────────────
+// The DMP quaternion's tilt (roll/pitch) is gravity-referenced and drift-free,
+// but its yaw drifts (~0.7deg at rest; the DMP's own GYRO_CAL can't fix it — the
+// residual is algorithmic, not a static bias, so feeding it our bias does
+// nothing). So instead of correcting the DMP from the inside, we fix its OUTPUT:
+// keep the good tilt, replace the drifting yaw with our ZUPT-locked fused heading
+// by rotating the whole orientation about the world vertical by the yaw error.
+// The constant offset between the two yaw zeroes is locked once; thereafter dyaw
+// is exactly the DMP's accumulated yaw error, which the rotation cancels — making
+// the published quaternion's yaw track our drift-free heading (0.4deg vs GT).
+#define DMP_YAW_CORRECT   1
+#define DMP_YAW_SIGN      (-1.0f)   // world-vertical rotation sense (hw-validated:
+                                    // +1 doubled the drift, -1 cancels it)
+static float dmp_yaw_off = 0.0f;
+static uint8_t dmp_yaw_off_locked = 0;
+
+static void correct_dmp_quat_yaw(const long dmp_quat[4])
+{
+    if (!hf_init)
+        return;                              // wait for the fusion to initialise
+
+    float fused = imuFusedHeading;
+    if (!dmp_yaw_off_locked)
+    {
+        dmp_yaw_off = imu.heading - fused;   // lock the DMP-vs-fused zero offset
+        dmp_yaw_off_locked = 1;
+    }
+    float corrected_yaw = fused + dmp_yaw_off;
+    float dyaw = corrected_yaw - imu.heading; // the DMP yaw error to remove (deg)
+    while (dyaw > 180.0f)  dyaw -= 360.0f;
+    while (dyaw < -180.0f) dyaw += 360.0f;
+
+    // q_corr = q_z(dyaw) (x) q_dmp  — a world-vertical (yaw) rotation, tilt intact.
+    float h = DMP_YAW_SIGN * dyaw * 0.5f * (float)M_PI / 180.0f;
+    float cz = cosf(h), sz = sinf(h);        // q_z = (cz, 0, 0, sz)
+    float qw = inv_q30_to_float(dmp_quat[0]);
+    float qx = inv_q30_to_float(dmp_quat[1]);
+    float qy = inv_q30_to_float(dmp_quat[2]);
+    float qz = inv_q30_to_float(dmp_quat[3]);
+    imu.dmpQuat.data[0] = cz * qw - sz * qz;
+    imu.dmpQuat.data[1] = cz * qx - sz * qy;
+    imu.dmpQuat.data[2] = cz * qy + sz * qx;
+    imu.dmpQuat.data[3] = cz * qz + sz * qw;
+    imu.dmpQuat.accuracy = 3;
+}
+
 static void integrate_linear_accel(void)
 {
     static float filtered_accel[3] = {0, 0, 0};
@@ -361,6 +407,11 @@ void imu_read_from_mpl(void)
     }
 
     read_heading(dmp_quat);
+
+#if DMP_YAW_CORRECT
+    // Replace the drifting DMP yaw with our ZUPT-locked heading (tilt kept).
+    correct_dmp_quat_yaw(dmp_quat);
+#endif
 
     if (inv_get_sensor_type_compass(data, &imu.compass.accuracy, (inv_time_t*)&timestamp))
     {
