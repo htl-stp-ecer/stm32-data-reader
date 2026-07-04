@@ -23,8 +23,15 @@
 // --- Tuning constants ---
 // Max angular velocity disagreement before flagging rotational slip (rad/s)
 #define WZ_SLIP_THRESHOLD 0.5f
-// Max wheel residual before flagging that wheel as slipping (rad/s)
+// Min wheel residual before flagging that wheel as slipping (rad/s) — absolute
+// floor for low speed. At speed the RELATIVE fraction below dominates.
 #define WHEEL_RESIDUAL_THRESHOLD 1.5f
+// Relative slip threshold: residual must also exceed this fraction of the
+// expected wheel speed, so healthy wheels aren't false-flagged at high speed.
+// The raw wheel velocity is noisy (~sd 0.9 rad/s, ~48% peak deviation at
+// 0.25 m/s), so this must sit above that band; 0.6 rejects the noise while a
+// free-spinning/stuck wheel (>>60% deviation) is still caught.
+#define WHEEL_RESIDUAL_REL_FRAC 0.60f
 // Max velocity-change vs accel disagreement (m/s^2) before flagging accel slip
 #define ACCEL_SLIP_THRESHOLD 1.0f
 // Dampen factor for linear velocity when rotational slip detected (0=freeze, 1=full trust)
@@ -66,9 +73,17 @@ static uint32_t last_update_us = 0;
 
 // Log rate limiting — at most once per 500ms per slip type
 #define LOG_INTERVAL_US 500000u
-static uint32_t last_log_rot_slip_us = 0;
 static uint32_t last_log_wheel_slip_us = 0;
 static uint32_t last_log_accel_slip_us = 0;
+
+// Heading source for odometry: the drift-corrected fused heading produced by
+// the IMU module (imu_data.c: gyro re-integration + ZUPT). Continuous (no 360
+// wrap), same frame/sign as imu.heading. Replaces the raw DMP imu.heading here
+// so dead-reckoning gets the ZUPT-locked heading. See imuFusedHeading in imu.h.
+static inline float imu_heading_corrected(void)
+{
+    return imuFusedHeading;
+}
 
 void odometry_configure(const volatile KinematicsConfig* cfg)
 {
@@ -87,7 +102,7 @@ void odometry_configure(const volatile KinematicsConfig* cfg)
     last_update_us = now;
     last_bemf_conv = bemfConvCount;
 
-    float heading_deg = -(imu.heading - heading_baseline);
+    float heading_deg = -(imu_heading_corrected() - heading_baseline);
     prev_heading_rad = heading_deg * (M_PI / 180.0f);
     prev_body_vx = 0.0f;
     prev_body_vy = 0.0f;
@@ -124,7 +139,7 @@ void odometry_reset(void)
 {
     pos_x = 0.0f;
     pos_y = 0.0f;
-    heading_baseline = imu.heading;
+    heading_baseline = imu_heading_corrected();
 
     last_vx = 0.0f;
     last_vy = 0.0f;
@@ -200,6 +215,12 @@ void odometry_update(void)
 
                 int32_t delta = motor_data.position[i] - prev_position[i];
                 prev_position[i] = motor_data.position[i];
+                // NOTE: no low-pass on w[] — tried an EMA (W_VEL_LPF_ALPHA) but
+                // it was a net negative: the per-sample noise is zero-mean and
+                // already averages out in the position integral, while the filter
+                // LAG under-integrates during acceleration (measured 51.6->49.8cm,
+                // fast-drive error -1.6%->-5.8%). Raw velocity + the speed-relative
+                // slip threshold (Step 5) is the better trade.
                 w[i] = (float)delta * kin.ticks_to_rad[i] / motor_dt;
             }
             last_conv[i] = conv_i;
@@ -215,14 +236,20 @@ void odometry_update(void)
     }
 
     // ========================================================================
-    // Step 2: IMU heading — always the authority for heading and wz
+    // Step 2: IMU heading — always the authority for heading and wz.
+    //         Drift-corrected via ZUPT (heading_fusion): the DMP yaw rate is
+    //         trusted, its slow residual bias removed when the robot is at rest.
     // ========================================================================
-    float heading_deg = -(imu.heading - heading_baseline);
+    float heading_deg = -(imu_heading_corrected() - heading_baseline);
     float heading_rad = heading_deg * (M_PI / 180.0f);
     float imu_wz = (heading_rad - prev_heading_rad) / dt;
 
     // ========================================================================
-    // Step 3: Compute body velocity from wheels (vx/vy — wz from IMU)
+    // Step 3: Compute body velocity from wheels (vx/vy — wz from IMU). The full
+    // 3-DOF inverse-kinematics pseudo-inverse distributes wheel errors across all
+    // of vx/vy/wz, which keeps vx/vy smaller during rotation than fixing wz and
+    // solving only [vx,vy] (that pushes the rotational-slip residual into vx/vy —
+    // measured worse: 4.9cm vs 2.3cm in-place-spin drift).
     // ========================================================================
     float vx = 0.0f, vy = 0.0f, wz_wheels = 0.0f;
     for (int i = 0; i < 4; i++)
@@ -233,27 +260,19 @@ void odometry_update(void)
     }
 
     // ========================================================================
-    // Step 4: Rotational slip detection — if wheels disagree with IMU wz,
-    //         the wheels are slipping, so also dampen trust in vx/vy
+    // Step 4: Rotational slip — wheels disagree with the (gyro-truth) wz -> the
+    //         wheel-derived vx/vy is slip-contaminated, so dampen it.
     // ========================================================================
     float wz_error = fabsf(wz_wheels - imu_wz);
-    uint8_t rotation_slip = (wz_error > WZ_SLIP_THRESHOLD);
-
-    if (rotation_slip)
+    if (wz_error > WZ_SLIP_THRESHOLD)
     {
         vx *= ROTATION_SLIP_VEL_DAMPEN;
         vy *= ROTATION_SLIP_VEL_DAMPEN;
-        if ((now - last_log_rot_slip_us) >= LOG_INTERVAL_US)
-        {
-            last_log_rot_slip_us = now;
-            printf("[odom] rot_slip: wz_wheels=%.3f imu_wz=%.3f err=%.3f -> vx/vy dampened x%.1f\r\n",
-                (double)wz_wheels, (double)imu_wz, (double)wz_error,
-                (double)ROTATION_SLIP_VEL_DAMPEN);
-        }
     }
 
     // ========================================================================
-    // Step 5: Linear slip detection — per-wheel residuals via forward matrix
+    // Step 5: Per-wheel linear slip — clamp wheels whose speed disagrees with the
+    //         forward-kinematics prediction (using gyro wz), then recompute vx/vy.
     // ========================================================================
     uint8_t wheel_slipping[4] = {0};
     int slip_count = 0;
@@ -262,53 +281,40 @@ void odometry_update(void)
         float w_expected = kin.fwd_matrix[i][0] * vx
             + kin.fwd_matrix[i][1] * vy
             + kin.fwd_matrix[i][2] * imu_wz;
-        float residual = fabsf(w[i] - w_expected);
-        if (residual > WHEEL_RESIDUAL_THRESHOLD)
+        // Speed-RELATIVE threshold: a fixed 1.5 rad/s residual is ~22% of a wheel
+        // spinning 6.7 rad/s (0.25 m/s) — normal velocity noise at speed exceeds
+        // it and false-flags healthy wheels during straight driving, clamping them
+        // and shrinking the distance (~4% under-read, measured). Require the
+        // residual to also exceed a fraction of the expected wheel speed.
+        float thr = WHEEL_RESIDUAL_THRESHOLD;
+        float rel = WHEEL_RESIDUAL_REL_FRAC * fabsf(w_expected);
+        if (rel > thr) thr = rel;
+        if (fabsf(w[i] - w_expected) > thr)
         {
             wheel_slipping[i] = 1;
             slip_count++;
         }
     }
-
-    // If 1-2 wheels are slipping, clamp them to predicted and recompute vx/vy
     if (slip_count > 0 && slip_count <= 2)
     {
-        if ((now - last_log_wheel_slip_us) >= LOG_INTERVAL_US)
-        {
-            last_log_wheel_slip_us = now;
-            printf("[odom] wheel_slip: count=%d mask=[%d%d%d%d] w=[%.2f,%.2f,%.2f,%.2f] -> clamping\r\n",
-                slip_count,
-                (int)wheel_slipping[0], (int)wheel_slipping[1],
-                (int)wheel_slipping[2], (int)wheel_slipping[3],
-                (double)w[0], (double)w[1], (double)w[2], (double)w[3]);
-        }
         for (int i = 0; i < 4; i++)
-        {
             if (wheel_slipping[i])
-            {
                 w[i] = kin.fwd_matrix[i][0] * vx
-                    + kin.fwd_matrix[i][1] * vy
-                    + kin.fwd_matrix[i][2] * imu_wz;
-            }
-        }
-        vx = 0.0f;
-        vy = 0.0f;
+                     + kin.fwd_matrix[i][1] * vy
+                     + kin.fwd_matrix[i][2] * imu_wz;
+        vx = 0.0f; vy = 0.0f;
         for (int i = 0; i < 4; i++)
         {
             vx += kin.inv_matrix[0][i] * w[i];
             vy += kin.inv_matrix[1][i] * w[i];
         }
     }
-    else if (slip_count > 2)
+    if (slip_count > 0 && (now - last_log_wheel_slip_us) >= LOG_INTERVAL_US)
     {
-        if ((now - last_log_wheel_slip_us) >= LOG_INTERVAL_US)
-        {
-            last_log_wheel_slip_us = now;
-            printf("[odom] wheel_slip: count=%d mask=[%d%d%d%d] -> too many, not correcting\r\n",
-                slip_count,
-                (int)wheel_slipping[0], (int)wheel_slipping[1],
-                (int)wheel_slipping[2], (int)wheel_slipping[3]);
-        }
+        last_log_wheel_slip_us = now;
+        printf("[odom] slip: count=%d mask=[%d%d%d%d] wz_err=%.3f\r\n",
+            slip_count, (int)wheel_slipping[0], (int)wheel_slipping[1],
+            (int)wheel_slipping[2], (int)wheel_slipping[3], (double)wz_error);
     }
 
     // ========================================================================
@@ -372,7 +378,7 @@ void odometry_write_to_spi_buffer(volatile OdometryData* out)
 {
     out->pos_x = pos_x;
     out->pos_y = pos_y;
-    out->heading = -(imu.heading - heading_baseline) * (M_PI / 180.0f);
+    out->heading = -(imu_heading_corrected() - heading_baseline) * (M_PI / 180.0f);
     out->vx = last_vx;
     out->vy = last_vy;
     out->wz = last_wz;

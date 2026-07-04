@@ -12,8 +12,8 @@
 #include "Storage/flash_cal.h"
 
 #include <stdio.h>
+#include <math.h>
 
-#define DEFAULT_MPU_HZ   (50)
 #define GYRO_READ_MS     (uint32_t)(1000/DEFAULT_MPU_HZ)
 #define COMPASS_READ_MS  (100)
 #define TEMP_READ_MS     (500)
@@ -52,6 +52,12 @@ static void poll_fifo(unsigned long* sensor_timestamp)
 
     if (sensors & INV_XYZ_GYRO)
     {
+        // NOTE: sourcing the body gyro from mpu_get_gyro_reg() (raw registers)
+        // gives a clean 100Hz gyro at rest but corrupts it during rotation
+        // (axis/sign vs the DMP frame, or SPI contention with the FIFO read) —
+        // fused heading blows up while turning. Reverted to the DMP FIFO
+        // cal-gyro at 50Hz, which is correct at both rest and motion. Raising the
+        // rate cleanly is deferred (see task: raw-gyro axis/SPI fix).
         inv_build_gyro(gyro, *sensor_timestamp);
         if (new_temp)
         {
@@ -99,10 +105,88 @@ static void poll_compass(unsigned long* sensor_timestamp)
     }
 }
 
+// ── DMP/FIFO-free high-rate heading path ────────────────────────────────────
+// Reads the raw gyro+accel registers directly (~200Hz — the useful ceiling for
+// the 98Hz gyro DLPF; faster only adds SPI load, not information) and computes
+// the yaw rate about the WORLD VERTICAL as gyro . gravity_unit. The dot product
+// is frame-independent, so no orientation matrix or DMP quaternion is needed and
+// a fixed mounting tilt cancels out. Gravity_unit is a slow LPF of the accel
+// direction (stable during on-table spins; linear accel is smoothed out). Feeds
+// heading_fusion_update() with the true measured dt.
+#define FASTGYRO_GATE_MS   5u       // ~200Hz
+#define HF_FAST_SIGN       (-1.0f)  // robot MPU is z-down (gravity ~-Z); this makes
+                                    // omega_vert match the imu.heading/CW sign convention
+// Gyro scale trim: the raw MPU9250 gyro over-reads yaw by ~2.25% vs the calib
+// ICM-42688-P ground truth (measured over ~3.5 turns each way, spread <0.2%,
+// consistent both directions -> a stable sensor-scale difference, unaffected by
+// the ICM/MPU mounting offset since angular velocity is body-wide). 1/1.0225.
+#define HF_GYRO_SCALE      (0.9780f)
+static inv_time_t fast_last_ms = 0;
+static float g_gyro_dps_per_lsb = 0.0f;              // set lazily from gyro FSR
+static float grav_x = 0.0f, grav_y = 0.0f, grav_z = 1.0f;  // LPF gravity unit (body frame)
+static uint8_t grav_seeded = 0;
+
+void readGyroFast(void)
+{
+    inv_time_t now_ms;
+    hal_get_tick_count(&now_ms);
+
+    if (g_gyro_dps_per_lsb == 0.0f)
+    {
+        unsigned short fsr = 2000;
+        mpu_get_gyro_fsr(&fsr);
+        g_gyro_dps_per_lsb = (fsr > 0) ? ((float)fsr / 32768.0f) : (2000.0f / 32768.0f);
+    }
+
+    if (fast_last_ms != 0 && (inv_time_t)(now_ms - fast_last_ms) < FASTGYRO_GATE_MS)
+        return;
+    float dt = (fast_last_ms == 0) ? 0.005f : (float)(now_ms - fast_last_ms) * 1e-3f;
+    fast_last_ms = now_ms;
+
+    short g[3], a[3];
+    unsigned long ts;
+    if (mpu_get_gyro_reg(g, &ts) != 0) return;
+    if (mpu_get_accel_reg(a, &ts) != 0) return;
+
+    // gravity direction (unit) via slow LPF of the accel vector
+    float ax = (float)a[0], ay = (float)a[1], az = (float)a[2];
+    float an = sqrtf(ax * ax + ay * ay + az * az);
+    if (an > 1.0f)
+    {
+        if (!grav_seeded)
+        {
+            // Seed gravity from the first accel read (no LPF ramp-up transient —
+            // the robot MPU is z-down, so the default (0,0,1) would take ~1s to
+            // flip to (0,0,-1), adding a boot-time heading error).
+            grav_x = ax / an; grav_y = ay / an; grav_z = az / an;
+            grav_seeded = 1;
+        }
+        else
+        {
+            const float alpha = 0.02f;  // tau ~0.25s @200Hz — gravity moves slowly
+            grav_x += alpha * (ax / an - grav_x);
+            grav_y += alpha * (ay / an - grav_y);
+            grav_z += alpha * (az / an - grav_z);
+        }
+    }
+    float gn = sqrtf(grav_x * grav_x + grav_y * grav_y + grav_z * grav_z);
+    if (gn < 0.1f) return;
+
+    // yaw rate about world vertical = gyro . gravity_unit  (deg/s)
+    float gx = (float)g[0] * g_gyro_dps_per_lsb;
+    float gy = (float)g[1] * g_gyro_dps_per_lsb;
+    float gz = (float)g[2] * g_gyro_dps_per_lsb;
+    float omega_vert = HF_FAST_SIGN * HF_GYRO_SCALE * (gx * grav_x + gy * grav_y + gz * grav_z) / gn;
+
+    heading_fusion_update(omega_vert, dt);
+}
+
 void readImu(void)
 {
     unsigned long sensor_timestamp;
     int new_data = 0;
+
+    readGyroFast();   // DMP/FIFO-free heading path (self-gated to ~200Hz)
 
     hal_get_tick_count(&imu_timestamp);
     if (imu_timestamp > next_gyro_ms)
