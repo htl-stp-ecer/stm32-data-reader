@@ -14,10 +14,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MTP_DONE_THRESHOLD 40   // position error deadband for "done" in BEMF units
+#define MTP_DONE_THRESHOLD 3   // position error deadband for "done" in BEMF units
+// (was 40 — far too coarse for small moves: a
+//  50-tick move only travelled 10 ticks before
+//  latching "done". If the motor hunts/can't
+//  settle within this band, raise to ~15.)
 #define MTP_MIN_VEL 15          // minimum crawl velocity to overcome static friction
-#define MTP_ACCEL_PER_TICK 150  // profile velocity acceleration rate (faster ramp-up)
-#define MTP_DECEL_FACTOR 10     // decel for sqrt curve: v = sqrt(2*factor*dist)
+#define MTP_ACCEL_PER_TICK 300  // profile velocity acceleration rate (was 150 —
+// short moves never built up speed in time).
+#define MTP_DECEL_ZONE 40       // trapezoidal profile: cruise at the commanded
+// speed until this many ticks from the goal, then
+// ramp the velocity down linearly. Larger = earlier
+// (gentler) slow-down; smaller = stays fast longer
+// but risks overshoot. (Replaced the old sqrt
+// decel curve, which slowed the whole move down.)
 
 const volatile Motor motors[MOTOR_COUNT] = {
     //motor 0 and 1 as well as 2 and 3 are switched
@@ -305,10 +315,11 @@ static void motor_mode_chassis(const uint8_t ch, const int16_t bemf_filtered,
     applyMotorOutput(ch, pidOut);
 }
 
-// MTP (Move To Position): sqrt deceleration profile → velocity PID → PWM.
-// Generates a velocity setpoint from the remaining position error
-// (v = sqrt(2 * decel_factor * distance)), rate-limits acceleration, allows
-// instant deceleration, and latches a sticky "done" + active brake once within
+// MTP (Move To Position): trapezoidal velocity profile → velocity PID → PWM.
+// Cruises at the commanded speed limit, then ramps the velocity down LINEARLY
+// over the last MTP_DECEL_ZONE ticks (from speedLimit down to MTP_MIN_VEL at the
+// done threshold). Acceleration is rate-limited; deceleration follows the ramp
+// instantly. Latches a sticky "done" + active brake once within
 // MTP_DONE_THRESHOLD of the goal.
 static void motor_mode_mtp(const uint8_t ch, const int32_t goalPos,
                            const int16_t bemf_filtered, const float pidDt)
@@ -330,7 +341,7 @@ static void motor_mode_mtp(const uint8_t ch, const int32_t goalPos,
         return;
     }
 
-    // Sqrt decel curve → velocity target → velocity PID → PWM
+    // Trapezoidal profile → velocity target → velocity PID → PWM
     int32_t currentPos = motor_data.position[ch];
     int32_t posError = goalPos - currentPos;
     int32_t absError = posError < 0 ? -posError : posError;
@@ -348,28 +359,22 @@ static void motor_mode_mtp(const uint8_t ch, const int32_t goalPos,
     }
     int32_t dir = (posError > 0) ? 1 : -1;
 
-    // Deceleration curve: v = sqrt(2 * decel_factor * distance)
-    // Conservative decel_factor means early deceleration start
-    uint32_t val = 2u * MTP_DECEL_FACTOR * (uint32_t)absError;
-    uint32_t vDecel = 0;
-    if (val > 0)
+    // Trapezoid: full speed outside the decel zone, otherwise a linear ramp from
+    // speedLimit (at MTP_DECEL_ZONE) down to MTP_MIN_VEL (at MTP_DONE_THRESHOLD).
+    int32_t desiredVel;
+    if (absError >= MTP_DECEL_ZONE)
     {
-        uint32_t x = val;
-        uint32_t r = 0;
-        for (int b = 15; b >= 0; b--)
-        {
-            uint32_t test = r | (1u << b);
-            if (test * test <= x)
-                r = test;
-        }
-        vDecel = r;
+        desiredVel = speedLimit; // cruise
+    }
+    else
+    {
+        const int32_t span = MTP_DECEL_ZONE - MTP_DONE_THRESHOLD; // > 0 by config
+        const int32_t frac = absError - MTP_DONE_THRESHOLD; // 0 .. span
+        desiredVel = MTP_MIN_VEL + (speedLimit - MTP_MIN_VEL) * frac / span;
     }
 
-    // Apply minimum velocity (overcome friction)
-    if (vDecel < MTP_MIN_VEL) vDecel = MTP_MIN_VEL;
-
-    // Apply speed limit
-    int32_t desiredVel = (int32_t)vDecel;
+    // Clamp to [MTP_MIN_VEL, speedLimit]
+    if (desiredVel < MTP_MIN_VEL) desiredVel = MTP_MIN_VEL;
     if (desiredVel > speedLimit) desiredVel = speedLimit;
     desiredVel *= dir;
 
@@ -386,8 +391,8 @@ static void motor_mode_mtp(const uint8_t ch, const int32_t goalPos,
     }
     else
     {
-        // Decelerating — follow curve directly and reset PID integral
-        // to prevent windup from acceleration phase fighting the brake
+        // Decelerating — follow the ramp directly and reset PID integral
+        // to prevent windup from the acceleration phase fighting the brake
         profileVel[ch] = desiredVel;
         pidControllers[ch].iErr = 0.0f;
     }

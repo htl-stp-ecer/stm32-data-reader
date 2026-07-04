@@ -30,8 +30,11 @@ namespace wombat
         Result<void> setMotorPwm(PortId port, int32_t duty);
         Result<void> setMotorVelocity(PortId port, int32_t velocity);
         Result<void> setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition);
-        // Body-frame chassis velocity command (MOT_MODE_CHASSIS): puts all four
+        // Body-frame chassis velocity command (MOT_MODE_CHASSIS): puts the drive
         // motors into chassis mode and stages the setpoint [vx, vy, wz] for the STM32.
+        // Only motors that the last kinematics config marks as drive wheels
+        // (ticks_to_rad != 0) are touched, so non-drive ports (e.g. arm motors on a
+        // 2-motor differential base) are never braked or forced into chassis mode.
         Result<void> setChassisVelocity(float vx, float vy, float wz);
         Result<int32_t> getMotorPosition(PortId port) const;
         Result<uint8_t> getMotorDone() const;
@@ -75,6 +78,12 @@ namespace wombat
         std::shared_ptr<Logger> logger_;
 
         std::array<MotorState, MAX_MOTOR_PORTS> motorStates_{};
+
+        // Which motor ports are chassis drive wheels, derived from the last
+        // kinematics config (ticks_to_rad != 0). Defaults to all-true so a robot
+        // that never sends a config keeps the legacy "drive all four" behaviour.
+        // setChassisVelocity only brakes / mode-switches ports flagged here.
+        std::array<bool, MAX_MOTOR_PORTS> driveMotors_{true, true, true, true};
         std::array<std::atomic<ServoPosition>, MAX_SERVO_PORTS> servoCommands_{};
         std::array<SmoothServoState, MAX_SERVO_PORTS> smoothServoStates_{};
 
