@@ -475,14 +475,16 @@ TEST_F(DeviceControllerTest, SetShutdownSuccess)
 {
     initializeController();
 
-    // setShutdown(true) clears all motor/servo commands before setting the flag;
-    // destructor also calls setShutdown(true), so allow additional calls
+    // setShutdown(true) clears all motor commands before setting the flag;
+    // destructor also calls setShutdown(true), so allow additional calls.
+    // Servos are intentionally NOT disabled on shutdown — they hold their last
+    // position — so no setServoState calls are expected here (no smooth motion
+    // is in flight to freeze).
     EXPECT_CALL(*mockSpi_, setMotorState(_, _))
         .Times(::testing::AtLeast(MAX_MOTOR_PORTS))
         .WillRepeatedly(Return(Result<void>::success()));
     EXPECT_CALL(*mockSpi_, setServoState(_, _))
-        .Times(::testing::AtLeast(MAX_SERVO_PORTS))
-        .WillRepeatedly(Return(Result<void>::success()));
+        .Times(0);
     EXPECT_CALL(*mockSpi_, setShutdown(true))
         .Times(::testing::AtLeast(1))
         .WillRepeatedly(Return(Result<void>::success()));

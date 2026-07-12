@@ -460,18 +460,34 @@ namespace wombat
 
         if (enabled)
         {
-            // Clear all motor and servo commands so stale state doesn't
-            // re-activate actuators when shutdown is later disabled
+            // Clear all motor commands so stale state doesn't re-activate the
+            // motors when shutdown is later cleared.
             for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
             {
                 motorStates_[port] = MotorState{};
                 spi_->setMotorState(port, motorStates_[port]);
             }
+
+            // Servos must HOLD their last position on shutdown — they are not
+            // disabled here (only fully_disable_servos() releases them). Any
+            // in-flight smooth motion is frozen at its current interpolated
+            // position so the servo stops lerping and just holds. Idle servos
+            // are left untouched: the firmware already keeps their last mode
+            // and position.
+            const auto now = std::chrono::steady_clock::now();
             for (PortId port = 0; port < MAX_SERVO_PORTS; ++port)
             {
-                servoCommands_[port] = 0;
-                smoothServoStates_[port].active = false;
-                spi_->setServoState(port, {ServoMode::Disabled, 0.0f});
+                auto& s = smoothServoStates_[port];
+                if (!s.active)
+                    continue;
+
+                const float elapsed = std::chrono::duration<float>(now - s.startTime).count();
+                const float t = std::min(elapsed / s.durationSec, 1.0f);
+                const float eased = applyEasing(t, s.easingType);
+                const float pos = s.startAngle + (s.targetAngle - s.startAngle) * eased;
+
+                s.active = false;
+                spi_->setServoState(port, {ServoMode::Enabled, pos});
             }
         }
 
