@@ -98,6 +98,7 @@ namespace wombat
         // Sequence number of the latest bus servo command per port, matched
         // against BusServoFeedback::commandSeq to tell whether "done" is ours.
         std::array<std::atomic<uint8_t>, MAX_SERVO_PORTS> busCommandSeq_{};
+        std::array<std::atomic<BusServoMode>, MAX_SERVO_PORTS> busCommandMode_{};
 
         [[nodiscard]] bool isBusServo(PortId port) const;
         Result<void> sendBusServoCommand(PortId port, const BusServoCommand& command, ServoPosition stateDegrees);

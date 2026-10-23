@@ -644,3 +644,46 @@ TEST_F(DeviceControllerTest, BusServoDoneOnlyCountsForTheLatestCommand)
     ASSERT_TRUE(controller_->processUpdate().isSuccess());
     EXPECT_EQ(controller_->getBusServoDone(0).value(), 2);
 }
+
+TEST_F(DeviceControllerTest, ShutdownStopsASpinningBusServoAndHolds)
+{
+    initializeController();
+    EXPECT_CALL(*mockSpi_, setMotorState(_, _)).WillRepeatedly(Return(Result<void>::success()));
+    EXPECT_CALL(*mockSpi_, setServoState(_, _)).WillRepeatedly(Return(Result<void>::success()));
+    ON_CALL(*mockSpi_, getServoState(0)).WillByDefault(Return(Result<ServoState>::success(busServoState())));
+    EXPECT_CALL(*mockSpi_, setBusServoCommand(0, ::testing::Field(&BusServoCommand::mode, BusServoMode::Wheel)))
+        .WillOnce(Return(Result<uint8_t>::success(3)));
+    ASSERT_TRUE(controller_->setServoVelocity(0, 180.0f).isSuccess());
+
+    SensorData data{};
+    data.busServos[0].connected = true;
+    data.busServos[0].done = true;
+    data.busServos[0].commandSeq = 3;
+    data.busServos[0].rawPosition = 1234;
+    EXPECT_CALL(*mockSpi_, readSensorData()).WillOnce(Return(Result<SensorData>::success(data)));
+    ASSERT_TRUE(controller_->processUpdate().isSuccess());
+
+    EXPECT_CALL(*mockSpi_, setBusServoCommand(0, busCommand(BusServoMode::Position, 1234, 0, 254)))
+        .WillOnce(Return(Result<uint8_t>::success(4)));
+    EXPECT_TRUE(controller_->setShutdown(true).isSuccess());
+}
+
+TEST_F(DeviceControllerTest, ShutdownLeavesAFinishedBusServoAlone)
+{
+    initializeController();
+    EXPECT_CALL(*mockSpi_, setMotorState(_, _)).WillRepeatedly(Return(Result<void>::success()));
+    EXPECT_CALL(*mockSpi_, setServoState(_, _)).WillRepeatedly(Return(Result<void>::success()));
+    ON_CALL(*mockSpi_, getServoState(0)).WillByDefault(Return(Result<ServoState>::success(busServoState())));
+    EXPECT_CALL(*mockSpi_, setBusServoCommand(0, _)).WillOnce(Return(Result<uint8_t>::success(5)));
+    ASSERT_TRUE(controller_->setServoCommand(0, 90.0f).isSuccess());
+
+    SensorData data{};
+    data.busServos[0].connected = true;
+    data.busServos[0].done = true;
+    data.busServos[0].commandSeq = 5;
+    EXPECT_CALL(*mockSpi_, readSensorData()).WillOnce(Return(Result<SensorData>::success(data)));
+    ASSERT_TRUE(controller_->processUpdate().isSuccess());
+
+    EXPECT_CALL(*mockSpi_, setBusServoCommand(_, _)).Times(0);
+    EXPECT_TRUE(controller_->setShutdown(true).isSuccess());
+}

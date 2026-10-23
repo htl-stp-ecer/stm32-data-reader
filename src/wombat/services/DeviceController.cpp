@@ -321,6 +321,7 @@ namespace wombat
             return Result<void>::failure(seqResult.error());
         }
         busCommandSeq_[port] = seqResult.value();
+        busCommandMode_[port] = command.mode;
         return Result<void>::success();
     }
 
@@ -604,6 +605,27 @@ namespace wombat
             const auto now = std::chrono::steady_clock::now();
             for (PortId port = 0; port < MAX_SERVO_PORTS; ++port)
             {
+                if (isBusServo(port))
+                {
+                    // A bus servo runs spins and moves on its own: stop a spin
+                    // (as much a runaway as a motor) or an unfinished move where
+                    // it is and hold there.
+                    const auto& fb = lastSensorData_.busServos[port];
+                    const auto mode = busCommandMode_[port].load();
+                    const bool unfinished = mode == BusServoMode::Position &&
+                        !(fb.done && fb.commandSeq == busCommandSeq_[port]);
+                    if (fb.connected && (mode == BusServoMode::Wheel || unfinished))
+                    {
+                        BusServoCommand hold;
+                        hold.mode = BusServoMode::Position;
+                        hold.goalPosition = fb.rawPosition;
+                        hold.speed = 0;
+                        hold.acc = BUS_SERVO_DEFAULT_ACC;
+                        sendBusServoCommand(port, hold, fb.rawPosition / BUS_SERVO_STEPS_PER_DEGREE);
+                    }
+                    continue;
+                }
+
                 auto& s = smoothServoStates_[port];
                 if (!s.active)
                     continue;
