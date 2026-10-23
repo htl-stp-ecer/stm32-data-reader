@@ -3,6 +3,7 @@
 //
 
 #include "../../include/Actors/servo.h"
+#include "../../include/Actors/bus_servo.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -136,12 +137,20 @@ static void servo_apply_port(const int servoPort, const uint8_t mode, const uint
         servo_set_pwm(servoPort, 1);
         break;
 
+    case SERVO_BUS:
+        servo_set_pwm(servoPort, 0);
+        bus_servo_set_port_enabled(servoPort, 1);
+        break;
+
     case SERVO_DISABLED:
     case SERVO_FULLY_DISABLED:
     default:
         servo_set_pwm(servoPort, 0);
         break;
     }
+
+    if (mode != SERVO_BUS)
+        bus_servo_set_port_enabled(servoPort, 0);
 
     state->mode = mode;
 }
@@ -166,7 +175,10 @@ void servo_fullyEnable()
 void servo_fullyDisable()
 {
     for (int i = 0; i < NUM_SERVOS; i++)
+    {
         servo_disable(i);
+        bus_servo_set_port_enabled(i, 0); // releases torque while the rail is still on
+    }
     servo_set_rail(0);
 }
 
@@ -201,7 +213,7 @@ void update_servo_cmd()
     for (int servoPort = 0; servoPort < NUM_SERVOS; servoPort++)
     {
         const uint8_t mode = (rxBuffer.servoMode >> (2 * servoPort)) & 0x03;
-        if (mode == SERVO_ENABLED)
+        if (mode == SERVO_ENABLED || mode == SERVO_BUS)
             anyEnabled = 1;
     }
 

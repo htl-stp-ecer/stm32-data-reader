@@ -13,7 +13,7 @@ extern "C" {
 
 #include <stdint.h>
 
-#define TRANSFER_VERSION 21
+#define TRANSFER_VERSION 22
 
 #define PI_BUFFER_UPDATE_MOTOR_PID_SPEED 0x01
 #define PI_BUFFER_UPDATE_MOTOR_PID_POS   0x02
@@ -31,6 +31,28 @@ extern "C" {
 #define FEATURE_BEMF_DISABLE 0x01
 
 #define MOTOR_CONTR_MOD_LENGTH 3 // Bits per motor in motorControlMode
+
+/* --- Servo port modes (2 bits per port in RxBuffer.servoMode) --- */
+#define SERVO_PORT_MODE_FULLY_DISABLED 0
+#define SERVO_PORT_MODE_DISABLED       1
+#define SERVO_PORT_MODE_PWM            2
+#define SERVO_PORT_MODE_BUS            3 // Feetech STS serial bus servo (e.g. STS3215), see BusServoCommand
+
+/* --- Bus servo --- */
+#define BUS_SERVO_STEPS_PER_REV 4096
+
+enum BUS_SERVO_CMD_MODE
+{
+    BUS_SERVO_MODE_RELAXED = 0, // torque off, servo can be turned by hand (position still reported)
+    BUS_SERVO_MODE_POSITION = 1, // go to goalPosition (0..4095) at speed/acc, then hold
+    BUS_SERVO_MODE_WHEEL = 2, // continuous rotation at signed speed (the "infinite" servo)
+};
+
+#define BUS_SERVO_FLAG_CONNECTED 0x01 // servo answers on the bus
+#define BUS_SERVO_FLAG_MOVING    0x02 // servo reports it is moving
+#define BUS_SERVO_FLAG_DONE      0x04 // command commandSeq finished (position mode: reached or stalled)
+#define BUS_SERVO_FLAG_STALLED   0x08 // stopped before reaching the goal (blocked / overload)
+#define BUS_SERVO_FLAG_TORQUE    0x10 // torque is enabled
 
 enum MOTOR_CMD_MODE
 {
@@ -124,6 +146,21 @@ typedef struct __attribute__ ((packed))
 
 KinematicsConfig;
 
+typedef struct __attribute__ ((packed))
+{
+    int32_t position; // multi-turn position, steps (4096 per revolution), unwrapped by the STM32
+    uint16_t rawPosition; // servo's own single-turn position 0..4095 (what goalPosition refers to)
+    int16_t speed; // steps/s, signed
+    int16_t load; // signed, 0.1 % of max torque (-1000..1000)
+    uint8_t voltage; // 0.1 V
+    uint8_t temperature; // deg C
+    uint8_t status; // servo error bits (0x20 = overload, 0x04 = overheat, 0x01 = voltage, ...)
+    uint8_t flags; // BUS_SERVO_FLAG_*
+    uint8_t commandSeq; // RxBuffer busServo[].seq that FLAG_DONE refers to
+}
+
+BusServoState;
+
 typedef struct __attribute__ ((packed)) TxBuffer_tag
 {
     /* --- Version of SPI buffer --- */
@@ -145,9 +182,23 @@ typedef struct __attribute__ ((packed)) TxBuffer_tag
 
     /* --- ODOMETRY (computed on STM32 from BEMF + IMU) --- */
     OdometryData odometry;
+
+    /* --- BUS SERVOS (ports in SERVO_PORT_MODE_BUS) --- */
+    BusServoState busServo[4];
 }
 
 TxBuffer;
+
+typedef struct __attribute__ ((packed))
+{
+    uint8_t mode; // BUS_SERVO_CMD_MODE
+    uint8_t seq; // Pi increments this for every new command; echoed as BusServoState.commandSeq
+    uint16_t goalPosition; // POSITION mode: 0..4095
+    int16_t speed; // POSITION: max speed steps/s (0 = servo maximum); WHEEL: signed velocity steps/s
+    uint8_t acc; // acceleration ramp, x100 steps/s^2 (0 = servo default)
+}
+
+BusServoCommand;
 
 typedef struct __attribute__ ((packed))
 {
@@ -203,9 +254,9 @@ typedef struct __attribute__ ((packed))
     /* --- MOTOR POSITION RESET (bit N = reset motor N position to 0) --- */
     uint8_t motorPositionReset;
 
-    /* --- SERVO MODE --- */
+    /* --- SERVO MODE (2 bits per port, SERVO_PORT_MODE_*) --- */
     uint8_t servoMode;
-    uint16_t servoPos[4];
+    uint16_t servoPos[4]; // PWM mode: pulse width in timer ticks (us)
 
     /* --- MOTOR PID SETTINGS (configurable from Pi) --- */
     MotorPidSettings motorPidSettings;
@@ -220,6 +271,9 @@ typedef struct __attribute__ ((packed))
 
     /* --- FEATURE FLAGS / runtime opt-in toggles --- */
     uint8_t featureFlags; // Bit 0: FEATURE_BEMF_DISABLE — opt-in speed mode (no encoder ticks!)
+
+    /* --- BUS SERVO COMMANDS (used while the port is in SERVO_PORT_MODE_BUS) --- */
+    BusServoCommand busServo[4];
 }
 
 RxBuffer;
