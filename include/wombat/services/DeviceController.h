@@ -41,6 +41,15 @@ namespace wombat
         Result<void> setServoCommand(PortId port, ServoPosition position);
         Result<void> setServoMode(PortId port, ServoMode mode);
         Result<void> startSmoothServo(PortId port, float targetAngle, float speedDegPerSec, int easingType);
+
+        // Bus servos (ServoMode::Bus). Position and smooth commands above work on
+        // them too; the servo itself runs the speed/acceleration profile.
+        // Continuous rotation at a signed speed in deg/s.
+        Result<void> setServoVelocity(PortId port, float degPerSec);
+        Result<BusServoFeedback> getBusServoFeedback(PortId port) const;
+        // State of the latest bus servo command: 0 = running, 1 = reached the
+        // goal, 2 = stopped short of it (blocked / overloaded).
+        Result<int32_t> getBusServoDone(PortId port) const;
         Result<void> resetMotorPosition(PortId port);
         Result<void> setMotorPid(PortId port, float kp, float ki, float kd);
 
@@ -86,6 +95,12 @@ namespace wombat
         std::array<bool, MAX_MOTOR_PORTS> driveMotors_{true, true, true, true};
         std::array<std::atomic<ServoPosition>, MAX_SERVO_PORTS> servoCommands_{};
         std::array<SmoothServoState, MAX_SERVO_PORTS> smoothServoStates_{};
+        // Sequence number of the latest bus servo command per port, matched
+        // against BusServoFeedback::commandSeq to tell whether "done" is ours.
+        std::array<std::atomic<uint8_t>, MAX_SERVO_PORTS> busCommandSeq_{};
+
+        [[nodiscard]] bool isBusServo(PortId port) const;
+        Result<void> sendBusServoCommand(PortId port, const BusServoCommand& command, ServoPosition stateDegrees);
 
         SensorData lastSensorData_{};
         bool isInitialized_{false};

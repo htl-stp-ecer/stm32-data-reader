@@ -35,7 +35,44 @@ namespace wombat
     {
         FullyDisabled = 0,
         Disabled = 1,
-        Enabled = 2
+        Enabled = 2, // PWM servo
+        Bus = 3 // Feetech STS serial bus servo (e.g. STS3215)
+    };
+
+    // Bus servo geometry: one revolution is 4096 steps; position_cmd degrees
+    // 0..360 map onto the servo's single-turn range 0..4095.
+    constexpr float BUS_SERVO_STEPS_PER_DEGREE = 4096.0f / 360.0f;
+
+    enum class BusServoMode : uint8_t
+    {
+        Relaxed = 0, // torque off, position still reported
+        Position = 1, // go to goalPosition at speed/acc, then hold
+        Wheel = 2 // continuous rotation at signed speed
+    };
+
+    struct BusServoCommand
+    {
+        BusServoMode mode{BusServoMode::Relaxed};
+        uint16_t goalPosition{0}; // steps, 0..4095
+        int16_t speed{0}; // steps/s; Position: max speed (0 = servo maximum), Wheel: signed velocity
+        uint8_t acc{0}; // x100 steps/s^2 (0 = servo default)
+    };
+
+    struct BusServoFeedback
+    {
+        bool connected{false};
+        bool moving{false};
+        bool done{false}; // command commandSeq finished
+        bool stalled{false}; // ... but stopped short of the goal
+        bool torque{false};
+        int32_t position{0}; // steps, multi-turn
+        uint16_t rawPosition{0}; // steps, 0..4095
+        int16_t speed{0}; // steps/s
+        int16_t load{0}; // 0.1 % of max torque
+        float voltage{0.0f}; // V
+        uint8_t temperature{0}; // deg C
+        uint8_t status{0}; // servo error bits
+        uint8_t commandSeq{0};
     };
 
     struct Vector3f
@@ -137,5 +174,6 @@ namespace wombat
         DigitalValue digitalBits{0};
         Timestamp lastUpdate{0};
         OdometryState odometry{};
+        std::array<BusServoFeedback, MAX_SERVO_PORTS> busServos{};
     };
 }

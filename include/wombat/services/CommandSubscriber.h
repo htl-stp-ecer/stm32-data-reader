@@ -57,6 +57,7 @@ namespace wombat
         void onServoPositionCommand(PortId port, const raccoon::scalar_f_t& command);
         void onServoModeCommand(PortId port, const raccoon::scalar_i8_t& command);
         void onServoSmoothCommand(PortId port, const raccoon::vector3f_t& command);
+        void onServoVelocityCommand(PortId port, const raccoon::scalar_f_t& command);
         void onMotorPositionResetCommand(PortId port, const raccoon::scalar_i32_t& command);
         void onMotorPidCommand(PortId port, const raccoon::vector3f_t& command);
         void onChassisVelocityCommand(const raccoon::vector3f_t& command);

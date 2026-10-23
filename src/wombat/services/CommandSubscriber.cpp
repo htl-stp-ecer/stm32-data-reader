@@ -134,6 +134,14 @@ namespace wombat
             "servo smooth command", reliableOpts);
         if (r.isFailure()) return r;
 
+        // Bus servo continuous rotation — usually set once and held, so reliable
+        // like the other servo commands (unlike the streamed motor velocity).
+        r = subscribeForPorts<raccoon::scalar_f_t>(
+            MAX_SERVO_PORTS, Channels::servoVelocityCommand,
+            [this](PortId p, const raccoon::scalar_f_t& cmd) { onServoVelocityCommand(p, cmd); },
+            "servo velocity command", reliableOpts);
+        if (r.isFailure()) return r;
+
         // Chassis velocity command (single GLOBAL channel, not port-indexed).
         // Continuous control loop -> plain (best-effort) delivery, like motor velocity.
         logger_->debug("Subscribing to chassis velocity channel: " + std::string(Channels::CHASSIS_VELOCITY_CMD));
@@ -483,6 +491,28 @@ namespace wombat
 
         logger_->info("Smooth servo port " + std::to_string(port) + ": target=" +
             std::to_string(targetAngle) + " deg, speed=" + std::to_string(speed) + " deg/s");
+    }
+
+    void CommandSubscriber::onServoVelocityCommand(const PortId port, const raccoon::scalar_f_t& command)
+    {
+        if (!isInitialized_)
+            return;
+
+        if (!isTimestampNewer(Channels::servoVelocityCommand(port), command.timestamp))
+            return;
+
+        CmdTrace::instance().record("recv", "servo_vel", Channels::servoVelocityCommand(port), port,
+                                    command.value, command.timestamp);
+
+        auto result = deviceController_->setServoVelocity(port, command.value);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to set servo velocity: " + result.error());
+            return;
+        }
+
+        logger_->info("Servo velocity port " + std::to_string(port) + ": " + std::to_string(command.value) +
+            " deg/s");
     }
 
     void CommandSubscriber::onServoModeCommand(const PortId port, const raccoon::scalar_i8_t& command)

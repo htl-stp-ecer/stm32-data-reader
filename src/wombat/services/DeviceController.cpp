@@ -1,4 +1,5 @@
 #include "wombat/services/DeviceController.h"
+#include <algorithm>
 #include <cmath>
 
 extern "C" {
@@ -19,6 +20,24 @@ namespace wombat
             case 4: return (1.0f - std::cos(t * 3.14159265f)) * 0.5f;
             default: return t;
             }
+        }
+
+        // Plain position commands on a bus servo: full speed with the steepest
+        // acceleration ramp. Measured on an STS3215 at ~5.7 V: same speed as no
+        // ramp, but without the start current that sagged the rail and tripped
+        // the servo's overload protection.
+        constexpr uint8_t BUS_SERVO_DEFAULT_ACC = 254;
+
+        uint16_t busServoDegreesToSteps(const float degrees)
+        {
+            const float clamped = std::clamp(std::isfinite(degrees) ? degrees : 0.0f, 0.0f, 360.0f);
+            return static_cast<uint16_t>(std::min(std::lround(clamped * BUS_SERVO_STEPS_PER_DEGREE), 4095L));
+        }
+
+        int16_t busServoDegPerSecToSteps(const float degPerSec)
+        {
+            const float steps = std::isfinite(degPerSec) ? degPerSec * BUS_SERVO_STEPS_PER_DEGREE : 0.0f;
+            return static_cast<int16_t>(std::clamp(std::lround(steps), -32767L, 32767L));
         }
     }
     DeviceController::DeviceController(std::unique_ptr<ISpi> spi, std::shared_ptr<Logger> logger)
@@ -281,12 +300,84 @@ namespace wombat
         return spi_->getMotorDone();
     }
 
+    bool DeviceController::isBusServo(const PortId port) const
+    {
+        const auto state = spi_->getServoState(port);
+        return state.isSuccess() && state.value().mode == ServoMode::Bus;
+    }
+
+    Result<void> DeviceController::sendBusServoCommand(const PortId port, const BusServoCommand& command,
+                                                       const ServoPosition stateDegrees)
+    {
+        // Keeps the port in bus mode and the published servo position in degrees.
+        auto stateResult = spi_->setServoState(port, {ServoMode::Bus, stateDegrees});
+        if (stateResult.isFailure())
+            return stateResult;
+
+        auto seqResult = spi_->setBusServoCommand(port, command);
+        if (seqResult.isFailure())
+        {
+            logger_->error("Failed to send bus servo " + std::to_string(port) + " command: " + seqResult.error());
+            return Result<void>::failure(seqResult.error());
+        }
+        busCommandSeq_[port] = seqResult.value();
+        return Result<void>::success();
+    }
+
+    Result<void> DeviceController::setServoVelocity(PortId port, float degPerSec)
+    {
+        auto validationResult = validatePortId(port, MAX_SERVO_PORTS);
+        if (validationResult.isFailure())
+            return validationResult;
+        if (!isBusServo(port))
+            return Result<void>::failure("velocity needs a bus servo (servo mode 3) on port " + std::to_string(port));
+
+        const auto current = spi_->getServoState(port);
+        BusServoCommand command;
+        command.mode = BusServoMode::Wheel;
+        command.speed = busServoDegPerSecToSteps(degPerSec);
+        command.acc = BUS_SERVO_DEFAULT_ACC;
+        return sendBusServoCommand(port, command, current.isSuccess() ? current.value().position : 0.0f);
+    }
+
+    Result<BusServoFeedback> DeviceController::getBusServoFeedback(PortId port) const
+    {
+        auto validationResult = validatePortId(port, MAX_SERVO_PORTS);
+        if (validationResult.isFailure())
+            return Result<BusServoFeedback>::failure(validationResult.error());
+        return Result<BusServoFeedback>::success(lastSensorData_.busServos[port]);
+    }
+
+    Result<int32_t> DeviceController::getBusServoDone(PortId port) const
+    {
+        auto validationResult = validatePortId(port, MAX_SERVO_PORTS);
+        if (validationResult.isFailure())
+            return Result<int32_t>::failure(validationResult.error());
+
+        const auto& fb = lastSensorData_.busServos[port];
+        if (!fb.connected || fb.commandSeq != busCommandSeq_[port] || !fb.done)
+            return Result<int32_t>::success(0);
+        return Result<int32_t>::success(fb.stalled ? 2 : 1);
+    }
+
     Result<void> DeviceController::setServoCommand(PortId port, ServoPosition position)
     {
         auto validationResult = validatePortId(port, MAX_SERVO_PORTS);
         if (validationResult.isFailure())
         {
             return validationResult;
+        }
+
+        if (isBusServo(port))
+        {
+            smoothServoStates_[port].active = false;
+            servoCommands_[port] = position;
+            BusServoCommand command;
+            command.mode = BusServoMode::Position;
+            command.goalPosition = busServoDegreesToSteps(position);
+            command.speed = 0; // servo maximum
+            command.acc = BUS_SERVO_DEFAULT_ACC;
+            return sendBusServoCommand(port, command, position);
         }
 
         // A direct position command takes ownership immediately and cancels any
@@ -315,6 +406,29 @@ namespace wombat
 
         if (speedDegPerSec <= 0.0f)
             return Result<void>::failure("Speed must be > 0");
+
+        if (isBusServo(port))
+        {
+            // Firmware/servo-native slow move: the servo runs a trapezoidal
+            // profile at this speed. Linear easing gets the steepest ramp
+            // (constant speed); the eased curves get a ramp over ~1/3 of the move.
+            smoothServoStates_[port].active = false;
+            servoCommands_[port] = targetAngle;
+            BusServoCommand command;
+            command.mode = BusServoMode::Position;
+            command.goalPosition = busServoDegreesToSteps(targetAngle);
+            command.speed = std::max<int16_t>(1, busServoDegPerSecToSteps(speedDegPerSec));
+            command.acc = BUS_SERVO_DEFAULT_ACC;
+            if (easingType != 0)
+            {
+                const int from = lastSensorData_.busServos[port].rawPosition;
+                const float distance = std::max(1, std::abs(command.goalPosition - from));
+                const float v = command.speed;
+                const float accel = 3.0f * v * v / distance; // reach v after 1/3 of the move
+                command.acc = static_cast<uint8_t>(std::clamp(std::lround(accel / 100.0f), 1L, 254L));
+            }
+            return sendBusServoCommand(port, command, targetAngle);
+        }
 
         auto currentStateResult = spi_->getServoState(port);
         const float startAngle = currentStateResult.isSuccess() ? currentStateResult.value().position : 0.0f;
@@ -360,6 +474,19 @@ namespace wombat
         if (currentStateResult.isSuccess())
         {
             currentPosition = currentStateResult.value().position;
+        }
+
+        if (mode == ServoMode::Bus)
+        {
+            // Entering (or re-entering) bus mode starts relaxed: torque off,
+            // feedback running. Position / smooth / velocity commands take over.
+            BusServoCommand relaxed;
+            relaxed.mode = BusServoMode::Relaxed;
+            auto busResult = sendBusServoCommand(port, relaxed, currentPosition);
+            if (busResult.isFailure())
+                return busResult;
+            logger_->debug("Servo " + std::to_string(port) + " mode set: bus (relaxed)");
+            return Result<void>::success();
         }
 
         ServoState state{mode, currentPosition};

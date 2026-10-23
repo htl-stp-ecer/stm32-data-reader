@@ -36,7 +36,8 @@ typedef enum
 {
     SERVO_MODE_FULLY_DISABLED = 0,
     SERVO_MODE_DISABLED = 1,
-    SERVO_MODE_ENABLED = 2
+    SERVO_MODE_ENABLED = 2,
+    SERVO_MODE_BUS = 3 /* Feetech STS bus servo, see set_bus_servo_command() */
 } ServoMode;
 
 /* Shutdown flags used with set_shutdown_flag() */
@@ -65,6 +66,11 @@ void set_motor_chassis(uint8_t port);
 void set_chassis_velocity(float vx, float vy, float wz);
 void set_servo_mode(uint8_t port, ServoMode mode);
 void set_servo_pos(uint8_t port, uint16_t microseconds);
+
+/* Bus servo command for a port in SERVO_MODE_BUS (mode: BUS_SERVO_CMD_MODE).
+ * Bumps the command sequence number and returns it; the STM32 echoes it in
+ * BusServoState.commandSeq together with BUS_SERVO_FLAG_DONE. */
+uint8_t set_bus_servo_command(uint8_t port, uint8_t mode, uint16_t goal_position, int16_t speed, uint8_t acc);
 
 /* Motor PID settings */
 void set_motor_pid(uint8_t port, float kp, float ki, float kd);

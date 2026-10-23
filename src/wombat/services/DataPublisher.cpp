@@ -117,6 +117,12 @@ namespace wombat
         tempGate_.minInterval        = kFiftyHzInterval;
         tempGate_.noiseEpsilon       = kEpsTempC;
 
+        for (PortId port = 0; port < MAX_SERVO_PORTS; ++port)
+        {
+            busFeedbackGates_[port].minInterval = kFiftyHzInterval;
+            busHealthGates_[port].minInterval = std::chrono::milliseconds{200};
+        }
+
         // Odometry — rate-cap only, noise epsilon 0 so any movement
         // (even sub-mm) is forwarded for downstream filtering.
         odomPosXGate_.minInterval    = kFiftyHzInterval;
@@ -366,6 +372,47 @@ namespace wombat
         if (positionResult.isFailure())
         {
             logger_->warn("Failed to publish servo position: " + positionResult.error());
+        }
+
+        return Result<void>::success();
+    }
+
+    Result<void> DataPublisher::publishBusServo(PortId port, const BusServoFeedback& feedback, int32_t done)
+    {
+        if (port >= MAX_SERVO_PORTS)
+        {
+            return Result<void>::failure("Invalid servo port: " + std::to_string(port));
+        }
+
+        auto doneResult = broker_->publishRetained(Channels::servoDone(port), toLcmScalarI32(done));
+        if (doneResult.isFailure())
+        {
+            logger_->warn("Failed to publish servo done: " + doneResult.error());
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        const auto feedbackMsg = toLcm(Vector3f{
+            static_cast<float>(feedback.position) / BUS_SERVO_STEPS_PER_DEGREE,
+            static_cast<float>(feedback.speed) / BUS_SERVO_STEPS_PER_DEGREE,
+            static_cast<float>(feedback.load) / 10.0f,
+        });
+        if (gateAllows(busFeedbackGates_[port], feedbackMsg, now))
+        {
+            auto r = broker_->publishRetained(Channels::servoFeedback(port), feedbackMsg);
+            if (r.isFailure())
+                logger_->warn("Failed to publish servo feedback: " + r.error());
+        }
+
+        const auto healthMsg = toLcm(Vector3f{
+            feedback.voltage,
+            static_cast<float>(feedback.temperature),
+            feedback.connected ? static_cast<float>(feedback.status) : -1.0f,
+        });
+        if (gateAllows(busHealthGates_[port], healthMsg, now))
+        {
+            auto r = broker_->publishRetained(Channels::servoHealth(port), healthMsg);
+            if (r.isFailure())
+                logger_->warn("Failed to publish servo health: " + r.error());
         }
 
         return Result<void>::success();

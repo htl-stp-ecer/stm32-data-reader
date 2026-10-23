@@ -25,6 +25,9 @@ protected:
         ON_CALL(*mockSpi_, setShutdown(_)).WillByDefault(Return(Result<void>::success()));
         ON_CALL(*mockSpi_, setMotorState(_, _)).WillByDefault(Return(Result<void>::success()));
         ON_CALL(*mockSpi_, setServoState(_, _)).WillByDefault(Return(Result<void>::success()));
+        ON_CALL(*mockSpi_, getServoState(_))
+            .WillByDefault(Return(Result<ServoState>::success(ServoState{ServoMode::Disabled, 0.0f})));
+        ON_CALL(*mockSpi_, setBusServoCommand(_, _)).WillByDefault(Return(Result<uint8_t>::success(1)));
 
         controller_ = std::make_unique<DeviceController>(std::move(mockSpi), logger_);
     }
@@ -505,4 +508,139 @@ TEST_F(DeviceControllerTest, SetShutdownWhenNotInitialized)
 {
     auto result = controller_->setShutdown(true);
     EXPECT_TRUE(result.isFailure());
+}
+
+// --- Bus servos ---
+
+namespace
+{
+    ServoState busServoState(const float degrees = 0.0f)
+    {
+        return ServoState{ServoMode::Bus, degrees};
+    }
+
+    ::testing::Matcher<const BusServoCommand&> busCommand(BusServoMode mode, uint16_t goal, int16_t speed,
+                                                         uint8_t acc)
+    {
+        using ::testing::AllOf;
+        using ::testing::Field;
+        return AllOf(Field(&BusServoCommand::mode, mode), Field(&BusServoCommand::goalPosition, goal),
+                     Field(&BusServoCommand::speed, speed), Field(&BusServoCommand::acc, acc));
+    }
+}
+
+TEST_F(DeviceControllerTest, SetServoModeBusStartsRelaxed)
+{
+    initializeController();
+
+    EXPECT_CALL(*mockSpi_, setServoState(0, ::testing::Field(&ServoState::mode, ServoMode::Bus)))
+        .WillOnce(Return(Result<void>::success()));
+    EXPECT_CALL(*mockSpi_, setBusServoCommand(0, ::testing::Field(&BusServoCommand::mode, BusServoMode::Relaxed)))
+        .WillOnce(Return(Result<uint8_t>::success(1)));
+
+    EXPECT_TRUE(controller_->setServoMode(0, ServoMode::Bus).isSuccess());
+}
+
+TEST_F(DeviceControllerTest, BusServoPositionCommandUsesStepsAndFullSpeed)
+{
+    initializeController();
+    EXPECT_CALL(*mockSpi_, setServoState(_, _)).WillRepeatedly(Return(Result<void>::success()));
+    ON_CALL(*mockSpi_, getServoState(1)).WillByDefault(Return(Result<ServoState>::success(busServoState())));
+
+    EXPECT_CALL(*mockSpi_, setServoState(1, ::testing::Field(&ServoState::mode, ServoMode::Bus)))
+        .WillOnce(Return(Result<void>::success()));
+    EXPECT_CALL(*mockSpi_, setBusServoCommand(1, busCommand(BusServoMode::Position, 2048, 0, 254)))
+        .WillOnce(Return(Result<uint8_t>::success(1)));
+
+    EXPECT_TRUE(controller_->setServoCommand(1, 180.0f).isSuccess());
+}
+
+TEST_F(DeviceControllerTest, BusServoPositionCommandClampsToOneTurn)
+{
+    initializeController();
+    EXPECT_CALL(*mockSpi_, setServoState(_, _)).WillRepeatedly(Return(Result<void>::success()));
+    ON_CALL(*mockSpi_, getServoState(0)).WillByDefault(Return(Result<ServoState>::success(busServoState())));
+
+    EXPECT_CALL(*mockSpi_, setBusServoCommand(0, busCommand(BusServoMode::Position, 4095, 0, 254)))
+        .WillOnce(Return(Result<uint8_t>::success(1)));
+    EXPECT_TRUE(controller_->setServoCommand(0, 720.0f).isSuccess());
+
+    EXPECT_CALL(*mockSpi_, setBusServoCommand(0, busCommand(BusServoMode::Position, 0, 0, 254)))
+        .WillOnce(Return(Result<uint8_t>::success(2)));
+    EXPECT_TRUE(controller_->setServoCommand(0, -10.0f).isSuccess());
+}
+
+TEST_F(DeviceControllerTest, BusServoSmoothCommandRunsOnTheServo)
+{
+    initializeController();
+    EXPECT_CALL(*mockSpi_, setServoState(_, _)).WillRepeatedly(Return(Result<void>::success()));
+    ON_CALL(*mockSpi_, getServoState(0)).WillByDefault(Return(Result<ServoState>::success(busServoState())));
+
+    // 90 deg/s = 1024 steps/s; linear easing keeps the steepest ramp.
+    EXPECT_CALL(*mockSpi_, setBusServoCommand(0, busCommand(BusServoMode::Position, 1024, 1024, 254)))
+        .WillOnce(Return(Result<uint8_t>::success(1)));
+
+    EXPECT_TRUE(controller_->startSmoothServo(0, 90.0f, 90.0f, 0).isSuccess());
+}
+
+TEST_F(DeviceControllerTest, BusServoSmoothEasingGivesGentlerRamp)
+{
+    initializeController();
+    EXPECT_CALL(*mockSpi_, setServoState(_, _)).WillRepeatedly(Return(Result<void>::success()));
+    ON_CALL(*mockSpi_, getServoState(0)).WillByDefault(Return(Result<ServoState>::success(busServoState())));
+
+    // From raw 0 to 1024 at 1024 steps/s: a = 3 v^2 / d = 3072 steps/s^2 -> acc 31.
+    EXPECT_CALL(*mockSpi_, setBusServoCommand(0, busCommand(BusServoMode::Position, 1024, 1024, 31)))
+        .WillOnce(Return(Result<uint8_t>::success(1)));
+
+    EXPECT_TRUE(controller_->startSmoothServo(0, 90.0f, 90.0f, 3).isSuccess());
+}
+
+TEST_F(DeviceControllerTest, ServoVelocityNeedsBusMode)
+{
+    initializeController();
+
+    EXPECT_CALL(*mockSpi_, setBusServoCommand(_, _)).Times(0);
+    EXPECT_TRUE(controller_->setServoVelocity(0, 90.0f).isFailure());
+}
+
+TEST_F(DeviceControllerTest, ServoVelocitySendsWheelCommand)
+{
+    initializeController();
+    EXPECT_CALL(*mockSpi_, setServoState(_, _)).WillRepeatedly(Return(Result<void>::success()));
+    ON_CALL(*mockSpi_, getServoState(2)).WillByDefault(Return(Result<ServoState>::success(busServoState())));
+
+    EXPECT_CALL(*mockSpi_, setBusServoCommand(2, busCommand(BusServoMode::Wheel, 0, -512, 254)))
+        .WillOnce(Return(Result<uint8_t>::success(1)));
+
+    EXPECT_TRUE(controller_->setServoVelocity(2, -45.0f).isSuccess());
+}
+
+TEST_F(DeviceControllerTest, BusServoDoneOnlyCountsForTheLatestCommand)
+{
+    initializeController();
+    EXPECT_CALL(*mockSpi_, setServoState(_, _)).WillRepeatedly(Return(Result<void>::success()));
+    ON_CALL(*mockSpi_, getServoState(0)).WillByDefault(Return(Result<ServoState>::success(busServoState())));
+    EXPECT_CALL(*mockSpi_, setBusServoCommand(0, _)).WillOnce(Return(Result<uint8_t>::success(7)));
+    ASSERT_TRUE(controller_->setServoCommand(0, 90.0f).isSuccess());
+
+    SensorData data{};
+    data.busServos[0].connected = true;
+    data.busServos[0].done = true;
+
+    // Done flag still belongs to the previous command.
+    data.busServos[0].commandSeq = 6;
+    EXPECT_CALL(*mockSpi_, readSensorData()).WillOnce(Return(Result<SensorData>::success(data)));
+    ASSERT_TRUE(controller_->processUpdate().isSuccess());
+    EXPECT_EQ(controller_->getBusServoDone(0).value(), 0);
+
+    data.busServos[0].commandSeq = 7;
+    EXPECT_CALL(*mockSpi_, readSensorData()).WillOnce(Return(Result<SensorData>::success(data)));
+    ASSERT_TRUE(controller_->processUpdate().isSuccess());
+    EXPECT_EQ(controller_->getBusServoDone(0).value(), 1);
+
+    data.busServos[0].stalled = true;
+    EXPECT_CALL(*mockSpi_, readSensorData()).WillOnce(Return(Result<SensorData>::success(data)));
+    ASSERT_TRUE(controller_->processUpdate().isSuccess());
+    EXPECT_EQ(controller_->getBusServoDone(0).value(), 2);
 }
