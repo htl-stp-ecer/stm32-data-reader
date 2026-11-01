@@ -1,0 +1,34 @@
+name: Transport pin
+
+# The raccoon-transport submodule has to point at a released tag. The message
+# layouts and the ring format are compiled into every component, so a commit
+# without a release can not be matched against the other components.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  pin-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Submodule must be a released raccoon-transport tag
+        env:
+          SUBMODULE_PATH: raccoon-transport
+          TRANSPORT_URL: https://github.com/htl-stp-ecer/raccoon-transport.git
+        run: |
+          sha=$(git ls-tree HEAD "$SUBMODULE_PATH" | awk '$2 == "commit" {print $3}')
+          if [ -z "$sha" ]; then
+            echo "::error::No submodule found at $SUBMODULE_PATH"
+            exit 1
+          fi
+          tag=$(git ls-remote --tags "$TRANSPORT_URL" \
+            | awk -v s="$sha" '$1 == s {print $2}' \
+            | sed -e 's#^refs/tags/##' -e 's#\^{}$##' | head -n1)
+          if [ -z "$tag" ]; then
+            echo "::error::$SUBMODULE_PATH points to $sha, which is not a released raccoon-transport tag. Pin it to a release tag."
+            exit 1
+          fi
+          echo "$SUBMODULE_PATH is pinned to $tag ($sha)"
