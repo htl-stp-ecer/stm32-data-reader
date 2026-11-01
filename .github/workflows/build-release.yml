@@ -55,6 +55,8 @@ jobs:
 
   release:
     needs: [ build-firmware, build-reader ]
+    # A manual run releases too, so only allow it on main.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -87,15 +89,15 @@ jobs:
           cp systemd/stm32_data_reader.service release/
           cp systemd/lcm-loopback-multicast.service release/
           echo "Release contents:" && ls -la release/
-          cd release && tar czf ../stm32_data_reader-v1.0.${{ github.run_number }}.tar.gz *
+          cd release && tar czf ../stm32_data_reader-v${{ github.run_number }}.tar.gz *
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: v1.0.${{ github.run_number }}
+          tag_name: v${{ github.run_number }}
+          name: v${{ github.run_number }}
           generate_release_notes: true
-          files: stm32_data_reader-v1.0.${{ github.run_number }}.tar.gz
+          files: stm32_data_reader-v${{ github.run_number }}.tar.gz
 
       - name: Trigger raccoon-image bundle
         run: |
@@ -103,4 +105,4 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.GH_PAT }}" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/htl-stp-ecer/raccoon-image/dispatches \
-            -d '{"event_type":"component-released","client_payload":{"component":"stm32-data-reader","version":"v1.0.${{ github.run_number }}"}}'
+            -d '{"event_type":"component-released","client_payload":{"component":"stm32-data-reader","version":"v${{ github.run_number }}"}}'
