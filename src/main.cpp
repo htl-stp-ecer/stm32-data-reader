@@ -1,6 +1,7 @@
 #include "wombat/Application.h"
 #include "wombat/core/Logger.h"
 #include "version.h"
+#include <raccoon/ContractCheck.h>
 #include <cstdlib>
 #include <cstring>
 #include <cctype>
@@ -43,6 +44,20 @@ int main(int argc, char* argv[]) {
     if (argc == 2 && std::string(argv[1]) == "--version") {
         std::cout << STMREADER_VERSION << std::endl;
         return EXIT_SUCCESS;
+    }
+
+    // Transport contract: every component must have been built against the same
+    // transport as the bundle on this device, otherwise messages are dropped without
+    // a trace. On a mismatch (or a broken bundle file) the reader does not start; it
+    // leaves a status file for the Pi server and exits with the reserved code that the
+    // systemd unit does not restart (RestartPreventExitStatus). Off a Raccoon device
+    // the check is skipped.
+    {
+        const auto contract = raccoon::contract::startupCheck("stm32-data-reader", STMREADER_VERSION,
+                                                              /*persistent=*/true);
+        if (contract.refuseStart()) {
+            return raccoon::contract::kExitCode;
+        }
     }
 
     try {
