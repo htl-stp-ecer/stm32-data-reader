@@ -34,6 +34,10 @@ ExecStart=/home/pi/stm32_data_reader/stm32_data_reader
 
 Restart=always
 RestartSec=5
+# Exit code 78 = the reader refused to start because its transport contract does not
+# match the bundle (see raccoon-transport contract/CHECK_SPEC.md). Restarting cannot
+# fix that, it would only flood the journal; reflash or update so the components match.
+RestartPreventExitStatus=78
 
 NoNewPrivileges=true
 # All sandboxing options that build a private mount namespace MUST stay off.

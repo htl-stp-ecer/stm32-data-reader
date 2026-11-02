@@ -47,6 +47,7 @@ set(CORE_SOURCES
         src/wombat/core/Logger.cpp
         src/wombat/core/Result.cpp
         src/wombat/core/CmdTrace.cpp
+        src/wombat/core/ComponentVersionCheck.cpp
         src/wombat/messaging/LcmBroker.cpp
         src/wombat/services/DeviceController.cpp
         src/wombat/services/DataPublisher.cpp
@@ -78,6 +79,9 @@ target_link_libraries(wombat_lib PUBLIC
         spdlog::spdlog_header_only
         raccoon::transport
 )
+
+# nlohmann/json comes with raccoon-transport (vendored there with its license, MIT).
+target_include_directories(wombat_lib PRIVATE ${raccoon_transport_SOURCE_DIR}/cpp/third_party)
 
 if (USE_SPI_MOCK)
     target_compile_definitions(wombat_lib PUBLIC USE_SPI_MOCK)
