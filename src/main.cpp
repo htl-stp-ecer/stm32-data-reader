@@ -1,6 +1,7 @@
 #include "wombat/Application.h"
 #include "wombat/core/Logger.h"
 #include "version.h"
+#include "wombat/core/ComponentVersionCheck.h"
 #include <raccoon/ContractCheck.h>
 #include <cstdlib>
 #include <cstring>
@@ -53,8 +54,12 @@ int main(int argc, char* argv[]) {
     // systemd unit does not restart (RestartPreventExitStatus). Off a Raccoon device
     // the check is skipped.
     {
+        // The reader's own version check (against its bundle entry) is handed to the transport's
+        // startup check as a component check; the transport only merges and records it.
+        raccoon::contract::CheckOptions options;
+        options.componentCheck = wombat::componentVersionCheck(STMREADER_VERSION);
         const auto contract = raccoon::contract::startupCheck("stm32-data-reader", STMREADER_VERSION,
-                                                              /*persistent=*/true);
+                                                              /*persistent=*/true, options);
         if (contract.refuseStart()) {
             return raccoon::contract::kExitCode;
         }

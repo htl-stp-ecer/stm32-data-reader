@@ -4,6 +4,7 @@ add_executable(wombat_tests
         DeviceControllerTest.cpp
         SpiMockTest.cpp
         DataPublisherTest.cpp
+        ComponentVersionCheckTest.cpp
         ${CMAKE_SOURCE_DIR}/${TEST_SPI_SOURCE}
 )
 

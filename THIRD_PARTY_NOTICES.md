@@ -1,7 +1,8 @@
 # Third-party notices
 
 The reader links `raccoon-transport` (see the `raccoon-transport` submodule), which
-contains a copy of nlohmann/json.
+contains a copy of nlohmann/json, and includes that copy itself for its own version check
+(`src/wombat/core/ComponentVersionCheck.cpp`).
 
 ## nlohmann/json
 
