@@ -27,8 +27,7 @@ typedef enum
 {
     SERVO_FULLY_DISABLED = 0,
     SERVO_DISABLED,
-    SERVO_ENABLED,
-    SERVO_BUS // Feetech STS bus servo, see bus_servo.h
+    SERVO_ENABLED
 } ServoMode;
 
 extern const volatile Servo servos[NUM_SERVOS];
