@@ -34,6 +34,10 @@ namespace wombat
         virtual Result<void> setServoState(PortId port, const ServoState& state) = 0;
         virtual Result<ServoState> getServoState(PortId port) const = 0;
 
+        // Bus servo command for a port in ServoMode::Bus. Returns the command
+        // sequence number the STM32 echoes back in BusServoFeedback::commandSeq.
+        virtual Result<uint8_t> setBusServoCommand(PortId port, const BusServoCommand& command) = 0;
+
         virtual Result<void> resetMotorPosition(PortId port) = 0;
         virtual Result<void> setMotorPid(PortId port, float kp, float ki, float kd) = 0;
         virtual Result<void> setShutdown(bool enabled) = 0;

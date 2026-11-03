@@ -150,6 +150,45 @@ namespace wombat
             motors_[i].done = true;
         }
 
+        // Bus servos: move towards the goal at the commanded (or full) speed.
+        for (PortId i = 0; i < MAX_SERVO_PORTS; ++i)
+        {
+            auto& fb = busServos_[i];
+            fb.connected = servos_[i].mode == ServoMode::Bus;
+            if (!fb.connected)
+                continue;
+            const auto& cmd = busCommands_[i];
+            float speed = 0.0f;
+            if (cmd.mode == BusServoMode::Position)
+            {
+                const float maxSpeed = cmd.speed != 0 ? std::abs(static_cast<float>(cmd.speed)) : 1750.0f;
+                const float error = static_cast<float>(cmd.goalPosition) -
+                    std::fmod(std::fmod(busPositions_[i], 4096.0f) + 4096.0f, 4096.0f);
+                const float step = std::clamp(error, -maxSpeed * static_cast<float>(dt), maxSpeed * static_cast<float>(dt));
+                busPositions_[i] += step;
+                speed = dt > 0 ? step / static_cast<float>(dt) : 0.0f;
+                fb.done = std::abs(error - step) <= 10.0f;
+            }
+            else if (cmd.mode == BusServoMode::Wheel)
+            {
+                speed = cmd.speed;
+                busPositions_[i] += speed * static_cast<float>(dt);
+                fb.done = true;
+            }
+            else
+            {
+                fb.done = true;
+            }
+            fb.torque = cmd.mode != BusServoMode::Relaxed;
+            fb.moving = std::abs(speed) > 1.0f;
+            fb.position = static_cast<int32_t>(std::lround(busPositions_[i]));
+            fb.rawPosition = static_cast<uint16_t>(((fb.position % 4096) + 4096) % 4096);
+            fb.speed = static_cast<int16_t>(speed);
+            fb.voltage = 7.4f;
+            fb.temperature = 30;
+        }
+        d.busServos = busServos_;
+
         return Result<SensorData>::success(d);
     }
 
@@ -225,6 +264,16 @@ namespace wombat
     {
         if (port >= MAX_SERVO_PORTS) return Result<ServoState>::failure("servo port out of range");
         return Result<ServoState>::success(servos_[port]);
+    }
+
+    Result<uint8_t> SpiMock::setBusServoCommand(PortId port, const BusServoCommand& command)
+    {
+        if (port >= MAX_SERVO_PORTS) return Result<uint8_t>::failure("servo port out of range");
+        busCommands_[port] = command;
+        auto& fb = busServos_[port];
+        fb.commandSeq = static_cast<uint8_t>(fb.commandSeq + 1);
+        fb.done = false;
+        return Result<uint8_t>::success(fb.commandSeq);
     }
 
     Result<void> SpiMock::resetMotorPosition(PortId port)

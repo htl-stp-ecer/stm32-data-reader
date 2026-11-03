@@ -56,6 +56,9 @@ namespace wombat::test
         )
         );
 
+        MOCK_METHOD(Result<uint8_t>, setBusServoCommand, (PortId port, const BusServoCommand& command), (override)
+        );
+
         MOCK_METHOD(Result<void>, resetMotorPosition, (PortId port), (override)
         );
         MOCK_METHOD(Result<void>, setMotorPid, (PortId port, float kp, float ki, float kd), (override)
