@@ -2,7 +2,7 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 cmake_minimum_required(VERSION 3.16)
 set(BUILD_NUMBER "0" CACHE STRING "CI build number")
-project(stm32_data_reader VERSION 1.0.${BUILD_NUMBER} LANGUAGES CXX)
+project(stm32_data_reader VERSION ${BUILD_NUMBER} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -47,6 +47,7 @@ set(CORE_SOURCES
         src/wombat/core/Logger.cpp
         src/wombat/core/Result.cpp
         src/wombat/core/CmdTrace.cpp
+        src/wombat/core/ComponentVersionCheck.cpp
         src/wombat/messaging/LcmBroker.cpp
         src/wombat/services/DeviceController.cpp
         src/wombat/services/DataPublisher.cpp
@@ -78,6 +79,9 @@ target_link_libraries(wombat_lib PUBLIC
         spdlog::spdlog_header_only
         raccoon::transport
 )
+
+# nlohmann/json comes with raccoon-transport (vendored there with its license, MIT).
+target_include_directories(wombat_lib PRIVATE ${raccoon_transport_SOURCE_DIR}/cpp/third_party)
 
 if (USE_SPI_MOCK)
     target_compile_definitions(wombat_lib PUBLIC USE_SPI_MOCK)

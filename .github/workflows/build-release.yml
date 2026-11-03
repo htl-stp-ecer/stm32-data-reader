@@ -5,7 +5,59 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# One release at a time: the number is decided at the start of the run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  # Release number: one more than the highest number that already exists, as a
+  # tag v<number>. github.run_number also counts every pull request and
+  # every cancelled run, which leaves gaps.
+  version:
+    name: Release number
+    runs-on: ubuntu-latest
+    outputs:
+      number: ${{ steps.next.outputs.number }}
+    steps:
+      - name: Next release number
+        id: next
+        env:
+          PYPI_PACKAGES: ""
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          import urllib.request
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          numbers = []
+
+          tags = subprocess.run(
+              ["git", "ls-remote", "--tags", f"https://github.com/{repo}.git"],
+              check=True, capture_output=True, text=True,
+          ).stdout
+          for line in tags.splitlines():
+              match = re.search(r"refs/tags/v(\d+)$", line)
+              if match:
+                  numbers.append(int(match.group(1)))
+
+          # A number that is on PyPI can never be used again, even if the run that
+          # uploaded it failed before it created a tag.
+          for package in os.environ["PYPI_PACKAGES"].split():
+              with urllib.request.urlopen(f"https://pypi.org/pypi/{package}/json") as response:
+                  numbers += [int(v) for v in json.load(response)["releases"] if v.isdigit()]
+
+          if not numbers:
+              raise SystemExit("no earlier release number found")
+          number = max(numbers) + 1
+          print(f"next release number: {number}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"number={number}\n")
+          PY
+
   build-firmware:
     runs-on: ubuntu-latest
     steps:
@@ -31,6 +83,7 @@ jobs:
           path: firmware-out/*
 
   build-reader:
+    needs: version
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
@@ -43,7 +96,7 @@ jobs:
 
       - name: Build ARM64 binary
         run: |
-          SKIP_FIRMWARE=1 BUILD_NUMBER=${{ github.run_number }} NINJA_JOBS=4 bash ./build.sh
+          SKIP_FIRMWARE=1 BUILD_NUMBER=${{ needs.version.outputs.number }} NINJA_JOBS=4 bash ./build.sh
         env:
           CCACHE_HOST_DIR: ${{ github.workspace }}/.ccache
 
@@ -54,7 +107,9 @@ jobs:
           path: build/stm32_data_reader
 
   release:
-    needs: [ build-firmware, build-reader ]
+    needs: [ build-firmware, build-reader, version ]
+    # A manual run releases too, so only allow it on main.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -75,28 +130,52 @@ jobs:
           name: reader
           path: artifacts/reader
 
-      - name: Build .deb package
+      - name: Bundle release files
         run: |
-          chmod +x artifacts/reader/stm32_data_reader artifacts/firmware/*.sh
-          VERSION=1.0.${{ github.run_number }} \
-          READER_BIN="$PWD/artifacts/reader/stm32_data_reader" \
-          FIRMWARE_DIR="$PWD/artifacts/firmware" \
-          OUTPUT_DIR="$PWD/dist" \
-          bash scripts/build_deb.sh
-          echo "DEB_PATH=$(ls dist/*.deb)" >> "$GITHUB_ENV"
+          mkdir -p release
+          cp artifacts/reader/stm32_data_reader release/
+          cp artifacts/firmware/wombat.bin release/
+          cp artifacts/firmware/flash_wombat.sh release/
+          cp artifacts/firmware/reset_coprocessor.sh release/
+          cp artifacts/firmware/init_gpio.sh release/
+          cp install.py release/
+          cp systemd/stm32_data_reader.service release/
+          cp systemd/lcm-loopback-multicast.service release/
+          # The reader contains nlohmann/json (MIT) through raccoon-transport; ship its notice.
+          cp THIRD_PARTY_NOTICES.md release/
+          cp raccoon-transport/cpp/third_party/nlohmann/LICENSE.MIT release/LICENSE.nlohmann-json.MIT
+          echo "Release contents:" && ls -la release/
+          cd release && tar czf ../stm32_data_reader-v${{ needs.version.outputs.number }}.tar.gz *
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: v1.0.${{ github.run_number }}
+          tag_name: v${{ needs.version.outputs.number }}
+          name: v${{ needs.version.outputs.number }}
           generate_release_notes: true
-          files: ${{ env.DEB_PATH }}
+          files: stm32_data_reader-v${{ needs.version.outputs.number }}.tar.gz
+
+      # As the Raccoon OS Bot, not with a personal token. The release is already
+      # published here, so a failure only warns.
+      - name: Create an app token for raccoon-image
+        id: image-token
+        continue-on-error: true
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: htl-stp-ecer
+          repositories: raccoon-image
+          permission-contents: write
 
       - name: Trigger raccoon-image bundle
+        env:
+          TOKEN: ${{ steps.image-token.outputs.token }}
         run: |
-          curl -s -X POST \
-            -H "Authorization: Bearer ${{ secrets.GH_PAT }}" \
+          if [ -z "$TOKEN" ]; then echo "::warning::no app token; raccoon-image was not notified"; exit 0; fi
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $TOKEN" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/htl-stp-ecer/raccoon-image/dispatches \
-            -d '{"event_type":"component-released","client_payload":{"component":"stm32-data-reader","version":"v1.0.${{ github.run_number }}"}}'
+            -d '{"event_type":"component-released","client_payload":{"component":"stm32-data-reader","version":"v${{ needs.version.outputs.number }}"}}' \
+            || echo "::warning::could not notify raccoon-image"
