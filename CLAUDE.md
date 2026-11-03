@@ -173,7 +173,8 @@ from raccoon_transport.types.raccoon import vector3f_t, scalar_i32_t, scalar_f_t
 
 - All per-port motor and servo commands use `reliable=True` delivery, including velocity and power: they are also
   sent as one-shot commands, and a lost one-shot command is never repeated.
-- Only the chassis velocity command (`CHASSIS_VELOCITY_CMD`) is best-effort, because it is streamed continuously.
+- The chassis velocity command (`CHASSIS_VELOCITY_CMD`) is streamed best-effort while driving; only the stop (0, 0, 0)
+  is sent reliable (the reader subscribes it reliable to ACK it).
 - `scalar_i8_t` has field `.dir`, not `.value`. Used for servo mode only.
 - Position reset resets the counter on the STM32 directly (not just a Pi-side offset).
 - Use `time.sleep(0.3-0.5)` after reset before sending new commands.

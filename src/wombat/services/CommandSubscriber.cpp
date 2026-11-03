@@ -135,11 +135,14 @@ namespace wombat
         if (r.isFailure()) return r;
 
         // Chassis velocity command (single GLOBAL channel, not port-indexed).
-        // Continuous control loop -> plain (best-effort) delivery, like motor velocity.
+        // Streamed best-effort while driving, but raccoon-lib sends the stop
+        // (0, 0, 0) reliable, as a single frame from Drive::hardStop. Reliable
+        // here so this side ACKs it.
         logger_->debug("Subscribing to chassis velocity channel: " + std::string(Channels::CHASSIS_VELOCITY_CMD));
         auto chassisResult = broker_->subscribe<raccoon::vector3f_t>(
             Channels::CHASSIS_VELOCITY_CMD,
-            [this](const raccoon::vector3f_t& cmd) { onChassisVelocityCommand(cmd); }
+            [this](const raccoon::vector3f_t& cmd) { onChassisVelocityCommand(cmd); },
+            reliableOpts
         );
         if (chassisResult.isFailure())
         {
