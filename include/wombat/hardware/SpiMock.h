@@ -32,6 +32,7 @@ namespace wombat
 
         Result<void> setServoState(PortId port, const ServoState& state) override;
         Result<ServoState> getServoState(PortId port) const override;
+        Result<uint8_t> setBusServoCommand(PortId port, const BusServoCommand& command) override;
 
         Result<void> resetMotorPosition(PortId port) override;
         Result<void> setMotorPid(PortId port, float kp, float ki, float kd) override;
@@ -52,6 +53,9 @@ namespace wombat
         std::shared_ptr<Logger> logger_;
         std::array<MotorState, MAX_MOTOR_PORTS> motors_{};
         std::array<ServoState, MAX_SERVO_PORTS> servos_{};
+        std::array<BusServoCommand, MAX_SERVO_PORTS> busCommands_{};
+        std::array<BusServoFeedback, MAX_SERVO_PORTS> busServos_{};
+        std::array<float, MAX_SERVO_PORTS> busPositions_{}; // simulated, steps (multi-turn)
         std::array<float, 3> chassisVelocity_{};
 
         // Simulation state

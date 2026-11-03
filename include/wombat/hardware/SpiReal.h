@@ -32,6 +32,7 @@ namespace wombat
 
         Result<void> setServoState(PortId port, const ServoState& state) override;
         Result<ServoState> getServoState(PortId port) const override;
+        Result<uint8_t> setBusServoCommand(PortId port, const BusServoCommand& command) override;
 
         Result<void> resetMotorPosition(PortId port) override;
         Result<void> setMotorPid(PortId port, float kp, float ki, float kd) override;

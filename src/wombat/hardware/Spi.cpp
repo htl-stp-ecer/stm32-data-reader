@@ -368,6 +368,21 @@ void set_servo_pos(uint8_t port, uint16_t microseconds)
         exit(EXIT_FAILURE);
 }
 
+uint8_t set_bus_servo_command(uint8_t port, uint8_t mode, uint16_t goal_position, int16_t speed, uint8_t acc)
+{
+    if (port > 3)
+        return 0;
+    BusServoCommand& cmd = ctx.tx.busServo[port];
+    cmd.mode = mode;
+    cmd.goalPosition = goal_position;
+    cmd.speed = speed;
+    cmd.acc = acc;
+    cmd.seq = static_cast<uint8_t>(cmd.seq + 1);
+    if (!spi_force_update())
+        exit(EXIT_FAILURE);
+    return cmd.seq;
+}
+
 uint32_t last_update_us(void)
 {
     return ctx.rx.updateTime;
