@@ -4,6 +4,11 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Release: tag, GitHub release, PyPI and notify the other repositories. Untick to only build and test (also works on a branch)."
+        type: boolean
+        default: true
 
 # One release at a time: the number is decided at the start of the run.
 concurrency:
@@ -58,15 +63,23 @@ jobs:
               out.write(f"number={number}\n")
           PY
 
-  # The same script that builds locally: firmware and reader cross compiled in Docker, the unit
-  # tests run with qemu-user, the .deb written to builds/.
-  build-and-release:
+  # The same script that builds locally. Two builds: on a native ARM runner (the release; the unit
+  # tests run natively, no qemu) and on x86 (the cross compiled path the developers use on their PCs,
+  # so that it cannot break unnoticed). Both run in parallel.
+  build:
+    name: Build • ${{ matrix.name }}
     needs: version
-    # A manual run releases too, so only allow it on main.
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    # A manual run releases too, unless "release" is unticked; releasing is only allowed on main.
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && !inputs.release)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: arm64-native
+            os: ubuntu-24.04-arm
+          - name: x86-cross
+            os: ubuntu-latest
 
     steps:
       - name: Checkout (with submodules)
@@ -76,6 +89,29 @@ jobs:
 
       - name: Build
         run: python3 build.py --version ${{ needs.version.outputs.number }} --test
+
+      # The package of the ARM build is the one that is released (or downloaded from a test run).
+      - name: Upload the package
+        if: matrix.name == 'arm64-native'
+        uses: actions/upload-artifact@v4
+        with:
+          name: stm32-data-reader-deb
+          path: builds/stm32-data-reader_*_arm64.deb
+
+  release:
+    name: Release
+    needs: [version, build]
+    if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.release)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download the package
+        uses: actions/download-artifact@v4
+        with:
+          name: stm32-data-reader-deb
+          path: dist
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -93,7 +129,7 @@ jobs:
             Installs the reader to `/usr/bin`, the STM32 firmware with its flash scripts to
             `/usr/lib/stm32-data-reader/firmware`, flashes the firmware when the hardware is
             there, and starts the services.
-          files: builds/stm32-data-reader_${{ needs.version.outputs.number }}_arm64.deb
+          files: dist/stm32-data-reader_${{ needs.version.outputs.number }}_arm64.deb
 
       # As the Raccoon OS Bot, not with a personal token. The release is already
       # published here, so a failure only warns.

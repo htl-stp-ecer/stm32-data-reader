@@ -12,7 +12,8 @@ STM32 Data Reader is a C++20 application that runs on a Raspberry Pi, communicat
 ```bash
 python3 build.py                        # reader + firmware -> builds/stm32-data-reader_0.0_arm64.deb
 python3 build.py --version 60           # release build (CI does this)
-python3 build.py --test                 # also run the unit tests with qemu-user
+python3 build.py --test                 # also run the unit tests (qemu-user in cross mode)
+python3 build.py --mode native          # default on aarch64 (CI ARM runner); on x86 the default is cross
 python3 build.py --skip-firmware        # reuse the firmware of the last build
 ```
 

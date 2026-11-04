@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """build.py — build the stm32-data-reader .deb (reader and STM32 firmware) in Docker.
 
-Nothing is installed on the host and nothing is written outside ./builds/. Both parts are
-cross compiled on your PC at native speed, nothing is emulated:
+Nothing is installed on the host and nothing is written outside ./builds/. Nothing is emulated
+while compiling:
 
-  * the reader (C++ for the Pi, aarch64) with the aarch64 cross compiler,
-  * the firmware (wombat.bin for the STM32) with arm-none-eabi-gcc.
+  * the reader (C++ for the Pi, aarch64): on an x86_64 PC with the aarch64 cross compiler (mode
+    "cross"), on an arm64 machine, e.g. the CI's ARM runner, with the normal compiler (mode "native").
+    The mode is picked by the CPU of the machine, or with --mode.
+  * the firmware (wombat.bin for the STM32) with arm-none-eabi-gcc, on either.
 
 The .deb contains the reader, the firmware with its flash scripts and the systemd units.
 CI runs exactly this script.
@@ -14,14 +16,16 @@ Usage:
     python3 build.py                  # local build, version 0.0
     python3 build.py --version 60     # release build (CI)
     python3 build.py --test           # also build the unit tests and run them (see below)
+    python3 build.py --mode native    # force a mode (native on x86 makes an x86_64 reader, to test the script)
     python3 build.py --skip-firmware  # reuse the firmware of the last build
 
 Result:
     builds/stm32-data-reader_<version>_arm64.deb
     builds/manifest.json
 
---test builds the tests for the Pi and runs them with qemu-user (`qemu-aarch64`, only the finished
-test programs are emulated, nothing is compiled under emulation; no binfmt, no --privileged).
+--test builds the unit tests and runs them. In cross mode they are built for the Pi and run with
+qemu-user (`qemu-aarch64`, only the finished test programs are emulated, nothing is compiled under
+emulation; no binfmt, no --privileged); in native mode they simply run.
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -39,7 +44,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 BUILDS = ROOT / "builds"
-READER_IMAGE = "stm32-data-reader-build"
+READER_IMAGE = "stm32-data-reader-build"  # + "-cross" / "-native"
 FIRMWARE_IMAGE = "stm32-firmware-build"
 VERSION_PATTERN = re.compile(r"^[0-9]+(\.[0-9]+)*$")
 
@@ -82,29 +87,34 @@ def sha256(path: Path) -> str:
 # ── inside the reader container ──────────────────────────────────────────
 
 
-def cross_configure(build_dir: Path, version: str, spi_mock: bool) -> None:
-    run([
+def configure(build_dir: Path, version: str, spi_mock: bool, mode: str) -> None:
+    command = [
         "cmake", "-S", "/src", "-B", str(build_dir), "-G", "Ninja",
         "-DCMAKE_BUILD_TYPE=Release",
         f"-DUSE_SPI_MOCK={'ON' if spi_mock else 'OFF'}",
         f"-DBUILD_NUMBER={version}",
-        "-DCMAKE_SYSTEM_NAME=Linux", "-DCMAKE_SYSTEM_PROCESSOR=aarch64",
-        "-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc", "-DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++",
-        f"-DCMAKE_FIND_ROOT_PATH={SYSROOT}",
-        # CMake runs test programs (gtest discovery, ctest) through this.
-        f"-DCMAKE_CROSSCOMPILING_EMULATOR={EMULATOR}",
         "-DCMAKE_C_COMPILER_LAUNCHER=ccache", "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
-    ])
+    ]
+    if mode == "cross":
+        command += [
+            "-DCMAKE_SYSTEM_NAME=Linux", "-DCMAKE_SYSTEM_PROCESSOR=aarch64",
+            "-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc", "-DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++",
+            f"-DCMAKE_FIND_ROOT_PATH={SYSROOT}",
+            # CMake runs test programs (gtest discovery, ctest) through this.
+            f"-DCMAKE_CROSSCOMPILING_EMULATOR={EMULATOR}",
+        ]
+    run(command)
 
 
-def run_tests(cache: Path, version: str) -> None:
-    """Build the tests with the mock SPI (as the developers do) and run them with qemu-user."""
-    build_dir = cache / "reader-build-test"
-    cross_configure(build_dir, version, spi_mock=True)
+def run_tests(cache: Path, version: str, mode: str) -> None:
+    """Build the tests with the mock SPI (as the developers do) and run them (cross: with qemu-user)."""
+    build_dir = cache / f"reader-build-test-{mode}"
+    configure(build_dir, version, spi_mock=True, mode=mode)
     run(["cmake", "--build", str(build_dir), "-j", str(os.cpu_count() or 4)])
-    # reader_contract_smoke starts the real binary from a shell script, which needs binfmt;
-    # the gtest cases cover everything else.
-    run(["ctest", "--test-dir", str(build_dir), "--output-on-failure", "-E", "reader_contract_smoke"])
+    # In cross mode reader_contract_smoke is skipped: it starts the real binary from a shell
+    # script, which needs binfmt. The gtest cases cover everything else.
+    skip = ["-E", "reader_contract_smoke"] if mode == "cross" else []
+    run(["ctest", "--test-dir", str(build_dir), "--output-on-failure", *skip])
 
 
 def build_deb(binary: Path, firmware: Path, version: str, output: Path) -> None:
@@ -157,21 +167,21 @@ def build_deb(binary: Path, firmware: Path, version: str, output: Path) -> None:
 ROOT_IN_CONTAINER = Path("/src")
 
 
-def run_in_container(version: str, owner: str, test: bool) -> None:
+def run_in_container(version: str, owner: str, test: bool, mode: str) -> None:
     """Reader build. /src is the repository (read-only), /cache keeps the build state, /out is ./builds."""
     cache = Path("/cache")
     firmware = cache / "firmware-out" / "wombat.bin"
     if not firmware.is_file():
         fail("no firmware (wombat.bin) found. Run once without --skip-firmware.")
 
-    build_dir = cache / "reader-build"
-    cross_configure(build_dir, version, spi_mock=False)
+    build_dir = cache / f"reader-build-{mode}"
+    configure(build_dir, version, spi_mock=False, mode=mode)
     run(["cmake", "--build", str(build_dir), "--target", "stm32_data_reader", "-j", str(os.cpu_count() or 4)])
     binary = build_dir / "stm32_data_reader"
     run(["file", str(binary)]) if shutil.which("file") else None
 
     if test:
-        run_tests(cache, version)
+        run_tests(cache, version, mode)
 
     deb = Path("/out") / f"{PKG}_{version}_arm64.deb"
     build_deb(binary, firmware, version, deb)
@@ -182,15 +192,19 @@ def run_in_container(version: str, owner: str, test: bool) -> None:
 # ── on the host ──────────────────────────────────────────────────────────
 
 
-def build_image(tag: str, dockerfile: str) -> None:
+def build_image(tag: str, dockerfile: str, target: str | None = None) -> None:
     print(f"▶ Building Docker image {tag}")
-    subprocess.run(["docker", "build", "-t", tag, "-f", str(ROOT / dockerfile), str(ROOT)], check=True)
+    subprocess.run(["docker", "build", *(["--target", target] if target else []), "-t", tag,
+                    "-f", str(ROOT / dockerfile), str(ROOT)], check=True)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build the stm32-data-reader .deb in Docker.")
     parser.add_argument("--version", default="0.0", help="version of the package (default: 0.0 = local build)")
-    parser.add_argument("--test", action="store_true", help="also build the unit tests and run them with qemu-user")
+    parser.add_argument("--test", action="store_true", help="also build the unit tests and run them")
+    parser.add_argument("--mode", choices=["auto", "cross", "native"], default="auto",
+                        help="cross: aarch64 compiler on x86_64; native: compile on an arm64 machine "
+                             "(default: native on aarch64, cross otherwise)")
     parser.add_argument("--skip-firmware", action="store_true", help="reuse the firmware of the last build")
     parser.add_argument("--image", help="use this Docker image for the reader instead of building ./Dockerfile")
     parser.add_argument("--firmware-image", help="use this Docker image for the firmware instead of ./Dockerfile.firmware")
@@ -206,8 +220,9 @@ def main() -> None:
     if not VERSION_PATTERN.match(args.version):
         fail(f"--version must be numbers separated by dots (got {args.version!r})")
 
+    mode = args.mode if args.mode != "auto" else ("native" if platform.machine() in ("aarch64", "arm64") else "cross")
     if args.in_container:
-        run_in_container(args.version, args.owner, args.test)
+        run_in_container(args.version, args.owner, args.test, mode)
         return
 
     if not shutil.which("docker"):
@@ -238,15 +253,15 @@ def main() -> None:
 
     image = args.image
     if not image:
-        image = READER_IMAGE
-        build_image(image, "Dockerfile")
+        image = f"{READER_IMAGE}-{mode}"
+        build_image(image, "Dockerfile", target=mode)
 
-    print(f"▶ Building the reader {args.version} (cross compiled for aarch64)")
+    print(f"▶ Building the reader {args.version} ({'cross compiled for aarch64' if mode == 'cross' else 'native'})")
     command = [
         "docker", "run", "--rm", "--user", user, "-e", "HOME=/tmp",
         "-e", "CCACHE_DIR=/cache/ccache", "-e", "CCACHE_MAXSIZE=3G", "-e", "CCACHE_COMPRESS=1",
         "-v", f"{ROOT}:/src:ro", "-v", f"{BUILDS}:/out", "-v", f"{cache}:/cache",
-        image, "python3", "/src/build.py", "--in-container", "--version", args.version, "--owner", user,
+        image, "python3", "/src/build.py", "--in-container", "--mode", mode, "--version", args.version, "--owner", user,
     ]
     if args.test:
         command.append("--test")
