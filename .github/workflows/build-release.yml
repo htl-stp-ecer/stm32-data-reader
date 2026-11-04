@@ -4,6 +4,11 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Release: tag, GitHub release, PyPI and notify the other repositories. Untick to only build and test (also works on a branch)."
+        type: boolean
+        default: true
 
 # One release at a time: the number is decided at the start of the run.
 concurrency:
@@ -58,35 +63,14 @@ jobs:
               out.write(f"number={number}\n")
           PY
 
-  build-firmware:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Build firmware
-        run: |
-          cd firmware
-          docker compose build
-          docker compose up --exit-code-from build-wombat-firmware
-
-      - name: Stage firmware artifacts
-        run: |
-          mkdir -p firmware-out
-          cp firmware/build/Firmware/wombat.bin firmware-out/
-          cp firmware/flashFiles/* firmware-out/
-
-      - name: Upload firmware artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: firmware
-          path: firmware-out/*
-
-  build-reader:
+  # The same script that builds locally, natively on an ARM runner (the unit tests run natively too,
+  # no qemu). This is the release.
+  build:
+    name: Build
     needs: version
+    # A manual run releases too, unless "release" is unticked; releasing is only allowed on main.
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && !inputs.release)
     runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout (with submodules)
@@ -94,58 +78,29 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Build ARM64 binary
-        run: |
-          SKIP_FIRMWARE=1 BUILD_NUMBER=${{ needs.version.outputs.number }} NINJA_JOBS=4 bash ./build.sh
-        env:
-          CCACHE_HOST_DIR: ${{ github.workspace }}/.ccache
+      - name: Build
+        run: python3 build.py --version ${{ needs.version.outputs.number }} --test
 
-      - name: Upload reader artifact
+      - name: Upload the package
         uses: actions/upload-artifact@v4
         with:
-          name: reader
-          path: build/stm32_data_reader
+          name: stm32-data-reader-deb
+          path: builds/stm32-data-reader_*_arm64.deb
 
   release:
-    needs: [ build-firmware, build-reader, version ]
-    # A manual run releases too, so only allow it on main.
-    if: github.ref == 'refs/heads/main'
+    name: Release
+    needs: [version, build]
+    if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.release)
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download firmware artifact
+      - name: Download the package
         uses: actions/download-artifact@v4
         with:
-          name: firmware
-          path: artifacts/firmware
-
-      - name: Download reader artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: reader
-          path: artifacts/reader
-
-      - name: Bundle release files
-        run: |
-          mkdir -p release
-          cp artifacts/reader/stm32_data_reader release/
-          cp artifacts/firmware/wombat.bin release/
-          cp artifacts/firmware/flash_wombat.sh release/
-          cp artifacts/firmware/reset_coprocessor.sh release/
-          cp artifacts/firmware/init_gpio.sh release/
-          cp install.py release/
-          cp systemd/stm32_data_reader.service release/
-          cp systemd/lcm-loopback-multicast.service release/
-          # The reader contains nlohmann/json (MIT) through raccoon-transport; ship its notice.
-          cp THIRD_PARTY_NOTICES.md release/
-          cp raccoon-transport/cpp/third_party/nlohmann/LICENSE.MIT release/LICENSE.nlohmann-json.MIT
-          echo "Release contents:" && ls -la release/
-          cd release && tar czf ../stm32_data_reader-v${{ needs.version.outputs.number }}.tar.gz *
+          name: stm32-data-reader-deb
+          path: dist
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -153,7 +108,17 @@ jobs:
           tag_name: v${{ needs.version.outputs.number }}
           name: v${{ needs.version.outputs.number }}
           generate_release_notes: true
-          files: stm32_data_reader-v${{ needs.version.outputs.number }}.tar.gz
+          body: |
+            Install on the Pi (arm64):
+
+            ```
+            sudo apt install ./stm32-data-reader_${{ needs.version.outputs.number }}_arm64.deb
+            ```
+
+            Installs the reader to `/usr/bin`, the STM32 firmware with its flash scripts to
+            `/usr/lib/stm32-data-reader/firmware`, flashes the firmware when the hardware is
+            there, and starts the services.
+          files: dist/stm32-data-reader_${{ needs.version.outputs.number }}_arm64.deb
 
       # As the Raccoon OS Bot, not with a personal token. The release is already
       # published here, so a failure only warns.

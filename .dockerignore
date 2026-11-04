@@ -1,0 +1,5 @@
+.git
+builds
+build
+firmware/build
+__pycache__

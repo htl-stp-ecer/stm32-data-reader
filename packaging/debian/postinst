@@ -21,6 +21,17 @@ case "$1" in
     rm -f /etc/systemd/system/iox2-janitor.service \
           /home/pi/stm32_data_reader/iox2_janitor 2>/dev/null || true
 
+    # --- Units from the old install.py / image script ---
+    # They live in /etc/systemd/system and point at /home/pi/stm32_data_reader, so they would
+    # shadow the packaged units and keep the old binary running. Remove them if they are plain
+    # files (an admin-managed symlink or override stays).
+    for unit in stm32_data_reader.service lcm-loopback-multicast.service; do
+      stale="/etc/systemd/system/$unit"
+      if [ -f "$stale" ] && [ ! -L "$stale" ]; then
+        rm -f "$stale"
+      fi
+    done
+
     systemctl daemon-reload || true
 
     # --- Keep raccoon_ring /dev/shm files alive across SSH disconnects ---
@@ -28,6 +39,22 @@ case "$1" in
     # wipes /dev/shm/raccoon_ring_* and kills every subscriber.
     if id "$RUNTIME_USER" >/dev/null 2>&1; then
       loginctl enable-linger "$RUNTIME_USER" 2>/dev/null || true
+    fi
+
+    # --- ~/flashFiles ---
+    # The reader runs `bash ~/flashFiles/flash_wombat.sh` and `reset_coprocessor.sh` itself
+    # (Spi.cpp: re-flash on a firmware mismatch, coprocessor reset), and people are told to
+    # use ~/flashFiles. The packaged scripts live in $FIRMWARE_DIR: link them.
+    if id "$RUNTIME_USER" >/dev/null 2>&1; then
+      HOME_DIR="$(getent passwd "$RUNTIME_USER" | cut -d: -f6)"
+      if [ -n "$HOME_DIR" ] && [ -d "$HOME_DIR" ]; then
+        if [ -d "$HOME_DIR/flashFiles" ] && [ ! -L "$HOME_DIR/flashFiles" ]; then
+          # a real directory from the old install.py: keep it as flashFiles.old
+          rm -rf "$HOME_DIR/flashFiles.old"
+          mv "$HOME_DIR/flashFiles" "$HOME_DIR/flashFiles.old"
+        fi
+        ln -sfn "$FIRMWARE_DIR" "$HOME_DIR/flashFiles"
+      fi
     fi
 
     # --- Flash STM32 firmware (best effort, only with hardware present) ---
