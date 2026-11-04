@@ -13,7 +13,10 @@ namespace wombat
         //   bit 1 (0x02): motor shutdown active
         //   bit 2 (0x04): source = watchdog (else: user-initiated)
         constexpr uint8_t kShutdownClear = 0x00;
-        constexpr uint8_t kShutdownByWatchdog = 0x07;
+        // Motor + watchdog source. The servo bit is intentionally NOT set: a
+        // watchdog fire stops the motors but leaves the servos holding their
+        // last position (see DeviceController::setShutdown).
+        constexpr uint8_t kShutdownByWatchdog = 0x06;
     } // namespace
 
     MotorWatchdog::MotorWatchdog(Duration timeout, int recoverFeeds)

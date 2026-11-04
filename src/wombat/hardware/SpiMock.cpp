@@ -243,7 +243,7 @@ namespace wombat
 
     Result<void> SpiMock::setShutdown(bool enabled)
     {
-        if (logger_) logger_->info("SPI Mock: Shutdown " + std::string(enabled ? "enabled" : "disabled"));
+        if (logger_) logger_->info("SPI Mock: Motor shutdown " + std::string(enabled ? "enabled" : "disabled"));
         return Result<void>::success();
     }
 

@@ -1,33 +1,29 @@
-FROM --platform=linux/arm64/v8 debian:13-slim
+# Builder for the reader (Pi, aarch64). Used by build.py, which picks the stage with
+# `docker build --target`.
+#
+#   cross   x86_64 image with the aarch64 cross compiler (a PC). Runs at native speed, no emulation.
+#           qemu-user only runs the finished test programs (qemu-aarch64 -L <sysroot>), it compiles nothing.
+#   native  image for the machine it is built on (an arm64 machine, e.g. the CI's ARM runner) with the
+#           normal compiler. Everything runs natively.
+#
+# The reader has no system libraries to link besides glibc and libstdc++: spdlog and googletest
+# are built from source by CMake (FetchContent), nlohmann/json is vendored, and raccoon_ring is
+# part of raccoon-transport. So the compiler's own sysroot is enough.
+FROM debian:13-slim AS base
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG TZ=Europe/Vienna
-
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ >/etc/timezone
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      build-essential cmake ninja-build git pkg-config ccache ca-certificates \
-    && git config --system http.sslCAinfo /etc/ssl/certs/ca-certificates.crt \
-    && update-ca-certificates \
+        ca-certificates git cmake ninja-build ccache python3 dpkg file \
     && rm -rf /var/lib/apt/lists/*
 
+
+FROM base AS native
+RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+
+FROM base AS cross
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      libglib2.0-dev libpcre2-dev zlib1g-dev \
-      libfmt-dev libspdlog-dev \
-      liblcm-dev \
-      cargo rustc \
-      clang libclang-19-dev llvm-dev \
-      libacl1-dev libssl-dev \
+        gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user \
     && rm -rf /var/lib/apt/lists/*
-
-# iceoryx2's bindgen needs libclang.so (unversioned).
-RUN ln -sf /usr/lib/aarch64-linux-gnu/libclang-19.so.19 \
-           /usr/lib/aarch64-linux-gnu/libclang.so 2>/dev/null || true
-
-ENV CCACHE_DIR=/ccache \
-    CCACHE_MAXSIZE=3G \
-    CCACHE_COMPRESS=1
-
-WORKDIR /src
-
-CMD ["/bin/bash"]

@@ -52,11 +52,18 @@ namespace wombat
 
         static const raccoon::SubscribeOptions reliableOpts{.reliable = true};
 
-        // Motor commands (per-port) — power and velocity are continuous control loops (plain)
+        // Motor commands (per-port). power and velocity used to be plain
+        // ("continuous control loops"), but they are also issued as discrete
+        // one-shot commands (e.g. the cone-pusher lower: a single
+        // motor/3/velocity_cmd=-1300). A one-shot best-effort command that is
+        // lost in transport is unrecoverable — that is the dropped-cone-pusher
+        // bug (run1_20260711-213952). Subscribe reliable so this side ACKs and
+        // the publisher re-sends until confirmed. Continuous *chassis* velocity
+        // is a separate channel and stays best-effort (self-heals per frame).
         auto r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorPowerCommand,
             [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorPowerCommand(p, cmd); },
-            "motor power command");
+            "motor power command", reliableOpts);
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<raccoon::scalar_i32_t>(
@@ -74,7 +81,7 @@ namespace wombat
         r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorVelocityCommand,
             [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorVelocityCommand(p, cmd); },
-            "motor velocity command");
+            "motor velocity command", reliableOpts);
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<raccoon::vector3f_t>(
@@ -128,11 +135,14 @@ namespace wombat
         if (r.isFailure()) return r;
 
         // Chassis velocity command (single GLOBAL channel, not port-indexed).
-        // Continuous control loop -> plain (best-effort) delivery, like motor velocity.
+        // Streamed best-effort while driving, but raccoon-lib sends the stop
+        // (0, 0, 0) reliable, as a single frame from Drive::hardStop. Reliable
+        // here so this side ACKs it.
         logger_->debug("Subscribing to chassis velocity channel: " + std::string(Channels::CHASSIS_VELOCITY_CMD));
         auto chassisResult = broker_->subscribe<raccoon::vector3f_t>(
             Channels::CHASSIS_VELOCITY_CMD,
-            [this](const raccoon::vector3f_t& cmd) { onChassisVelocityCommand(cmd); }
+            [this](const raccoon::vector3f_t& cmd) { onChassisVelocityCommand(cmd); },
+            reliableOpts
         );
         if (chassisResult.isFailure())
         {

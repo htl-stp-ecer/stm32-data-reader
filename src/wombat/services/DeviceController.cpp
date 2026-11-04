@@ -207,11 +207,39 @@ namespace wombat
             return Result<void>::failure("Device controller not initialized");
         }
 
-        // Ensure all four motors are in chassis-velocity mode. setMotorState is
+        // A zero body velocity is a full stop: passive-brake every motor instead
+        // of holding it in chassis mode at a zero setpoint (the per-wheel velocity
+        // PID would otherwise creep). This makes the chassis-velocity channel the
+        // single, deterministic stop path — no separate motor mode_cmd is needed,
+        // so there is no cross-channel race that could re-arm CHASSIS after a stop.
+        if (vx == 0.0f && vy == 0.0f && wz == 0.0f)
+        {
+            for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
+            {
+                // Leave non-drive ports (arm/other actuators) untouched — braking
+                // them here would clobber whatever they were commanded to do.
+                if (!driveMotors_[port])
+                    continue;
+                auto brakeResult = setMotorBrake(port);
+                if (brakeResult.isFailure())
+                {
+                    logger_->error("Failed to brake motor " + std::to_string(port) +
+                        " on zero chassis velocity: " + brakeResult.error());
+                    return brakeResult;
+                }
+            }
+            logger_->debug("Chassis velocity zero -> drive motors passive-braked");
+            return Result<void>::success();
+        }
+
+        // Ensure the drive motors are in chassis-velocity mode. setMotorState is
         // idempotent (skips SPI when the command is unchanged), so repeated
-        // chassis commands only push the mode bits once.
+        // chassis commands only push the mode bits once. Non-drive ports are left
+        // alone so a 2-motor base can drive its arm motors independently.
         for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
         {
+            if (!driveMotors_[port])
+                continue;
             auto modeResult = setMotorState(port, MotorState{.controlMode = MotorControlMode::Chassis});
             if (modeResult.isFailure())
             {
@@ -432,18 +460,34 @@ namespace wombat
 
         if (enabled)
         {
-            // Clear all motor and servo commands so stale state doesn't
-            // re-activate actuators when shutdown is later disabled
+            // Clear all motor commands so stale state doesn't re-activate the
+            // motors when shutdown is later cleared.
             for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
             {
                 motorStates_[port] = MotorState{};
                 spi_->setMotorState(port, motorStates_[port]);
             }
+
+            // Servos must HOLD their last position on shutdown — they are not
+            // disabled here (only fully_disable_servos() releases them). Any
+            // in-flight smooth motion is frozen at its current interpolated
+            // position so the servo stops lerping and just holds. Idle servos
+            // are left untouched: the firmware already keeps their last mode
+            // and position.
+            const auto now = std::chrono::steady_clock::now();
             for (PortId port = 0; port < MAX_SERVO_PORTS; ++port)
             {
-                servoCommands_[port] = 0;
-                smoothServoStates_[port].active = false;
-                spi_->setServoState(port, {ServoMode::Disabled, 0.0f});
+                auto& s = smoothServoStates_[port];
+                if (!s.active)
+                    continue;
+
+                const float elapsed = std::chrono::duration<float>(now - s.startTime).count();
+                const float t = std::min(elapsed / s.durationSec, 1.0f);
+                const float eased = applyEasing(t, s.easingType);
+                const float pos = s.startAngle + (s.targetAngle - s.startAngle) * eased;
+
+                s.active = false;
+                spi_->setServoState(port, {ServoMode::Enabled, pos});
             }
         }
 
@@ -465,6 +509,28 @@ namespace wombat
         {
             return Result<void>::failure("Device controller not initialized");
         }
+
+        // Derive the drive-motor mask from ticks_to_rad. The firmware treats a
+        // wheel with |ticks_to_rad| < 1e-9 as dead (odometry_chassis_wheel_target
+        // returns 0), so those ports are not chassis wheels and setChassisVelocity
+        // must not brake or mode-switch them. Matches the firmware epsilon.
+        std::array<bool, MAX_MOTOR_PORTS> mask{};
+        int driveCount = 0;
+        for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
+        {
+            mask[port] = std::fabs(ticks_to_rad[port]) >= 1e-9f;
+            if (mask[port]) ++driveCount;
+        }
+        // Guard against an empty/invalid config silently disabling the drivetrain:
+        // if no motor qualifies, keep the legacy "drive all four" behaviour.
+        if (driveCount == 0)
+        {
+            logger_->warn("Kinematics config has no drive motors (all ticks_to_rad ~0); "
+                "keeping all motors as chassis drive wheels");
+            mask.fill(true);
+        }
+        driveMotors_ = mask;
+
         return spi_->sendKinematicsConfig(inv_matrix, ticks_to_rad, fwd_matrix, bemf_offset);
     }
 

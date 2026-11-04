@@ -1,0 +1,14 @@
+#!/bin/sh
+# prerm — stop the reader before its files are removed.
+set -e
+
+case "$1" in
+  remove|deconfigure)
+    systemctl stop stm32_data_reader.service 2>/dev/null || true
+    ;;
+  upgrade)
+    # leave it running; postinst restarts it after the new files land
+    ;;
+esac
+
+exit 0

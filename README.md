@@ -42,17 +42,16 @@ Full channel reference: see [LCM Channels](#lcm-channels) below.
 
 ## Building
 
-The recommended build targets ARM64 via Docker cross-compilation.
+Reader and firmware are cross compiled for the Pi in Docker on your PC at native speed (no emulation). You only need Docker and Python 3.
 
 ```bash
-./build.sh                       # Release build (reader + firmware)
-SKIP_FIRMWARE=1 ./build.sh       # Reader only
-CMAKE_BUILD_TYPE=Debug ./build.sh
-FORCE_RECONFIGURE=1 ./build.sh   # Force CMake reconfiguration
-REBUILD_IMAGE=1 ./build.sh       # Rebuild Docker image
+python3 build.py                  # reader + firmware -> builds/stm32-data-reader_0.0_arm64.deb
+python3 build.py --version 60     # release build (what CI does)
+python3 build.py --test           # also build the unit tests and run them with qemu-user
+python3 build.py --skip-firmware  # reuse the firmware of the last build
 ```
 
-Output: `build/stm32_data_reader`
+Output: `builds/stm32-data-reader_<version>_arm64.deb` (the reader, the STM32 firmware with its flash scripts, the systemd units) and `builds/manifest.json`. Measured: about 50 seconds from scratch (without cache), a few seconds with the cache.
 
 ### Local build (mock SPI, no hardware needed)
 
@@ -71,14 +70,24 @@ cmake --build . -j$(nproc)
 
 ## Deployment
 
+### Install a release (recommended)
+
+Each [release](https://github.com/htl-stp-ecer/stm32-data-reader/releases/latest) ships
+`stm32-data-reader_<number>_arm64.deb`. `raccoon update` installs it, or on the Pi:
+
 ```bash
-./deploy.sh                              # Build both + deploy to Pi + flash firmware
-RPI_HOST=<your-pi-ip> ./deploy.sh        # Override target
-RPI_USER=myuser ./deploy.sh
-RPI_DIR=/opt/stm32_data_reader ./deploy.sh
+sudo apt install ./stm32-data-reader_<number>_arm64.deb
 ```
 
-The deploy script cross-compiles, stops any running service, copies the binary and systemd service files, and sets up the LCM multicast loopback service.
+That installs the reader to `/usr/bin`, the firmware with its flash scripts to `/usr/lib/stm32-data-reader/firmware`, flashes the STM32 when the hardware is there and starts the services.
+
+### Dev deploy (from source)
+
+```bash
+python3 deploy.py --host <your-pi-ip>     # installs builds/*.deb, flashes the firmware
+```
+
+`deploy.py` copies the `.deb` from `builds/` (made by `build.py`) to the Pi, sets `stm32-data-reader` to `dev` in `/etc/raccoon-bundle.json` (a deployed build is a custom build) and installs it with `apt`. The package installs the units, flashes the firmware and restarts the reader, so every deploy flashes the STM32 again.
 
 ### Running as a systemd service
 
@@ -94,8 +103,8 @@ journalctl -u stm32_data_reader -f
 The STM32 firmware lives in `firmware/` and shares the SPI protocol header (`shared/spi/pi_buffer.h`) with the reader — single source of truth for both sides.
 
 ```bash
-# Build firmware only
-cd firmware && bash build.sh
+# Reader and firmware together, in Docker
+python3 build.py
 
 # Build firmware natively (requires gcc-arm-none-eabi)
 cd firmware && mkdir -p build && cd build
@@ -103,7 +112,7 @@ cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=../CMake/GNU-ARM-Toolchain.cmak
 cmake --build . -- -j$(nproc)
 ```
 
-`./build.sh` from the repo root builds both reader and firmware together. `./deploy.sh` flashes the firmware to the STM32 after copying.
+`python3 build.py` builds reader and firmware together (the firmware in `Dockerfile.firmware`). `python3 deploy.py --host <pi>` installs the package, which flashes the firmware to the STM32.
 
 ---
 
@@ -189,9 +198,11 @@ stm32-data-reader/
 ├── firmware/                # STM32 firmware source
 ├── lcm-messages/types/      # LCM message definitions (.lcm files)
 ├── systemd/                 # Service files
-├── build.sh                 # Cross-compilation script
-├── deploy.sh                # Build + deploy + flash
-└── Dockerfile               # ARM64 build environment
+├── packaging/debian/        # control and maintainer scripts of the .deb
+├── build.py                 # Cross-compiles reader + firmware in Docker, makes the .deb (builds/)
+├── deploy.py                # Installs the .deb on a Pi (development)
+├── Dockerfile               # aarch64 cross compiler for the reader
+└── Dockerfile.firmware      # arm-none-eabi-gcc for the firmware
 ```
 
 ---

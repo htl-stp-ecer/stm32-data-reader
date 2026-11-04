@@ -8,11 +8,13 @@ STM32 Data Reader is a C++20 application that runs on a Raspberry Pi, communicat
 
 ## Build Commands
 
-### Cross-compile for ARM64 (production build):
+### Build for the Pi (cross compiled in Docker, no emulation):
 ```bash
-./build.sh                              # Uses Docker to cross-compile for ARM64
-FORCE_RECONFIGURE=1 ./build.sh          # Force CMake reconfiguration
-CMAKE_BUILD_TYPE=Debug ./build.sh       # Debug build
+python3 build.py                        # reader + firmware -> builds/stm32-data-reader_0.0_arm64.deb
+python3 build.py --version 60           # release build (CI does this)
+python3 build.py --test                 # also run the unit tests (qemu-user in cross mode)
+python3 build.py --mode native          # default on aarch64 (CI ARM runner); on x86 the default is cross
+python3 build.py --skip-firmware        # reuse the firmware of the last build
 ```
 
 ### Local development (mock SPI):
@@ -24,9 +26,9 @@ cmake --build . -j$(nproc)
 
 ### Deploy to Raspberry Pi:
 ```bash
-./deploy.sh                             # Build and deploy to Pi
-RPI_HOST=192.168.1.100 ./deploy.sh      # Override target host
+python3 deploy.py --host 192.168.1.100  # installs builds/*.deb, flashes the firmware, sets the reader to "dev" in the bundle file
 ```
+Only `build.py` and `deploy.py` build and install; CI runs `build.py` too. `deploy.py` is for local builds; releases are installed by `raccoon update`.
 
 ## Architecture
 
@@ -97,11 +99,9 @@ Fetched via CMake FetchContent:
 The STM32 firmware lives in `firmware/` (merged from Firmware-Stp). It shares the SPI protocol header at
 `shared/spi/pi_buffer.h`.
 
-### Firmware build (requires Docker or gcc-arm-none-eabi):
+### Firmware build:
 
-```bash
-cd firmware && bash build.sh              # Builds wombat.bin via Docker
-```
+`python3 build.py` builds the firmware in Docker together with the reader.
 
 ### Firmware build (native, no Docker):
 
@@ -111,17 +111,10 @@ cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=../CMake/GNU-ARM-Toolchain.cmak
 cmake --build . -- -j$(nproc)
 ```
 
-### Combined build (reader + firmware):
+### Combined build and deploy (reader + firmware):
 
 ```bash
-./build.sh                                # Builds both; firmware artifacts in build/
-SKIP_FIRMWARE=1 ./build.sh                # Skip firmware, reader only
-```
-
-### Deploy both to Pi:
-
-```bash
-./deploy.sh                               # Builds both, uploads, flashes firmware, starts reader
+python3 build.py && python3 deploy.py --host <ip>   # the package flashes the firmware when installed
 ```
 
 ## Systemd Services
@@ -137,7 +130,7 @@ user doesn't provide the Pi's IP address, ask for it.
 ### Deploy & test workflow:
 
 ```bash
-RPI_HOST=<ip> bash deploy.sh              # Build + deploy reader + firmware
+python3 build.py && python3 deploy.py --host <ip>   # Build + deploy reader + firmware
 ```
 
 ### Running Python test scripts on the Pi:
@@ -171,8 +164,10 @@ from raccoon_transport.types.raccoon import vector3f_t, scalar_i32_t, scalar_f_t
 
 ### Important notes:
 
-- Motor commands that change state (position, stop, reset, mode) use `reliable=True` delivery.
-- Velocity/power commands (continuous) do NOT use reliable delivery.
+- All per-port motor and servo commands use `reliable=True` delivery, including velocity and power: they are also
+  sent as one-shot commands, and a lost one-shot command is never repeated.
+- The chassis velocity command (`CHASSIS_VELOCITY_CMD`) is streamed best-effort while driving; only the stop (0, 0, 0)
+  is sent reliable (the reader subscribes it reliable to ACK it).
 - `scalar_i8_t` has field `.dir`, not `.value`. Used for servo mode only.
 - Position reset resets the counter on the STM32 directly (not just a Pi-side offset).
 - Use `time.sleep(0.3-0.5)` after reset before sending new commands.

@@ -312,9 +312,14 @@ namespace wombat
 
     Result<void> SpiReal::setShutdown(bool enabled)
     {
+        // Motor-only safety shutdown. Servos are deliberately NOT touched here:
+        // a shutdown (program exit or watchdog fire) must stop the motors so the
+        // robot can't run away, but servos should keep holding their last
+        // commanded position. Fully releasing the servos (PWM off) is an explicit
+        // user action (fully_disable_servos()), which sets SERVO_FULLY_DISABLED
+        // per-port — it never rides the shutdown flag.
         set_shutdown_flag(SHUTDOWN_MOTOR_FLAG, enabled);
-        set_shutdown_flag(SHUTDOWN_SERVO_FLAG, enabled);
-        if (logger_) logger_->info("SPI: Shutdown " + std::string(enabled ? "enabled" : "disabled"));
+        if (logger_) logger_->info("SPI: Motor shutdown " + std::string(enabled ? "enabled" : "disabled"));
         return Result<void>::success();
     }
 

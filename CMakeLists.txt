@@ -1,7 +1,7 @@
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 cmake_minimum_required(VERSION 3.16)
-set(BUILD_NUMBER "0" CACHE STRING "CI build number")
+set(BUILD_NUMBER "0.0" CACHE STRING "CI build number (0.0 = local build)")
 project(stm32_data_reader VERSION ${BUILD_NUMBER} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)

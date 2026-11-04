@@ -252,10 +252,118 @@ TEST_F(DeviceControllerTest, SetChassisVelocitySetsAllMotorsAndStagesSetpoint)
     EXPECT_TRUE(result.isSuccess());
 }
 
+TEST_F(DeviceControllerTest, SetChassisVelocityZeroPassiveBrakesAllMotors)
+{
+    initializeController();
+
+    // A zero body velocity is a full stop: every motor must be passive-braked,
+    // and NO chassis setpoint may be staged (otherwise the velocity PID creeps).
+    for (PortId p = 0; p < MAX_MOTOR_PORTS; ++p)
+    {
+        EXPECT_CALL(*mockSpi_, setMotorState(p, ::testing::Field(&MotorState::controlMode,
+                                                                 MotorControlMode::PassiveBrake)))
+            .WillOnce(Return(Result<void>::success()));
+    }
+    EXPECT_CALL(*mockSpi_, setChassisVelocity(_, _, _)).Times(0);
+
+    auto result = controller_->setChassisVelocity(0.0f, 0.0f, 0.0f);
+    EXPECT_TRUE(result.isSuccess());
+}
+
 TEST_F(DeviceControllerTest, SetChassisVelocityWhenNotInitialized)
 {
     auto result = controller_->setChassisVelocity(0.1f, 0.2f, 0.3f);
     EXPECT_TRUE(result.isFailure());
+}
+
+namespace
+{
+    // A differential/2-motor kinematics config: ports 0 and 1 are drive wheels,
+    // ports 2 and 3 are unused (ticks_to_rad == 0, e.g. reserved for arm motors).
+    void sendDifferentialConfig(DeviceController& controller)
+    {
+        const float inv[3][4] = {};
+        const float fwd[4][3] = {};
+        const float bemf[4] = {};
+        const float ticks_to_rad[4] = {0.01f, -0.01f, 0.0f, 0.0f};
+        ASSERT_TRUE(controller.sendKinematicsConfig(inv, ticks_to_rad, fwd, bemf).isSuccess());
+    }
+}
+
+TEST_F(DeviceControllerTest, SetChassisVelocityOnlyDrivesConfiguredMotors)
+{
+    initializeController();
+
+    EXPECT_CALL(*mockSpi_, sendKinematicsConfig(_, _, _, _))
+        .WillOnce(Return(Result<void>::success()));
+    sendDifferentialConfig(*controller_);
+
+    // Only the two drive motors (ports 0, 1) may be put into Chassis mode; the
+    // unused ports 2, 3 must never be touched (they belong to other actuators).
+    for (PortId p = 0; p < 2; ++p)
+    {
+        EXPECT_CALL(*mockSpi_, setMotorState(p, ::testing::Field(&MotorState::controlMode,
+                                                                 MotorControlMode::Chassis)))
+            .WillOnce(Return(Result<void>::success()));
+    }
+    EXPECT_CALL(*mockSpi_, setMotorState(2, _)).Times(0);
+    EXPECT_CALL(*mockSpi_, setMotorState(3, _)).Times(0);
+    EXPECT_CALL(*mockSpi_, setChassisVelocity(0.5f, 0.0f, 1.5f))
+        .WillOnce(Return(Result<void>::success()));
+
+    auto result = controller_->setChassisVelocity(0.5f, 0.0f, 1.5f);
+    EXPECT_TRUE(result.isSuccess());
+}
+
+TEST_F(DeviceControllerTest, SetChassisVelocityZeroOnlyBrakesConfiguredMotors)
+{
+    initializeController();
+
+    EXPECT_CALL(*mockSpi_, sendKinematicsConfig(_, _, _, _))
+        .WillOnce(Return(Result<void>::success()));
+    sendDifferentialConfig(*controller_);
+
+    // A stop only passive-brakes the drive motors; the unused ports keep whatever
+    // command their own actuator logic gave them.
+    for (PortId p = 0; p < 2; ++p)
+    {
+        EXPECT_CALL(*mockSpi_, setMotorState(p, ::testing::Field(&MotorState::controlMode,
+                                                                 MotorControlMode::PassiveBrake)))
+            .WillOnce(Return(Result<void>::success()));
+    }
+    EXPECT_CALL(*mockSpi_, setMotorState(2, _)).Times(0);
+    EXPECT_CALL(*mockSpi_, setMotorState(3, _)).Times(0);
+    EXPECT_CALL(*mockSpi_, setChassisVelocity(_, _, _)).Times(0);
+
+    auto result = controller_->setChassisVelocity(0.0f, 0.0f, 0.0f);
+    EXPECT_TRUE(result.isSuccess());
+}
+
+TEST_F(DeviceControllerTest, EmptyKinematicsConfigKeepsAllMotorsAsDrive)
+{
+    initializeController();
+
+    // A config with all-zero ticks_to_rad is invalid; the controller must fall
+    // back to driving all four motors rather than silently disabling the base.
+    EXPECT_CALL(*mockSpi_, sendKinematicsConfig(_, _, _, _))
+        .WillOnce(Return(Result<void>::success()));
+    const float inv[3][4] = {};
+    const float fwd[4][3] = {};
+    const float bemf[4] = {};
+    const float ticks_to_rad[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    ASSERT_TRUE(controller_->sendKinematicsConfig(inv, ticks_to_rad, fwd, bemf).isSuccess());
+
+    for (PortId p = 0; p < MAX_MOTOR_PORTS; ++p)
+    {
+        EXPECT_CALL(*mockSpi_, setMotorState(p, ::testing::Field(&MotorState::controlMode,
+                                                                 MotorControlMode::Chassis)))
+            .WillOnce(Return(Result<void>::success()));
+    }
+    EXPECT_CALL(*mockSpi_, setChassisVelocity(_, _, _))
+        .WillOnce(Return(Result<void>::success()));
+
+    auto result = controller_->setChassisVelocity(0.5f, 0.0f, 0.0f);
+    EXPECT_TRUE(result.isSuccess());
 }
 
 // --- Servo commands ---
@@ -367,14 +475,16 @@ TEST_F(DeviceControllerTest, SetShutdownSuccess)
 {
     initializeController();
 
-    // setShutdown(true) clears all motor/servo commands before setting the flag;
-    // destructor also calls setShutdown(true), so allow additional calls
+    // setShutdown(true) clears all motor commands before setting the flag;
+    // destructor also calls setShutdown(true), so allow additional calls.
+    // Servos are intentionally NOT disabled on shutdown — they hold their last
+    // position — so no setServoState calls are expected here (no smooth motion
+    // is in flight to freeze).
     EXPECT_CALL(*mockSpi_, setMotorState(_, _))
         .Times(::testing::AtLeast(MAX_MOTOR_PORTS))
         .WillRepeatedly(Return(Result<void>::success()));
     EXPECT_CALL(*mockSpi_, setServoState(_, _))
-        .Times(::testing::AtLeast(MAX_SERVO_PORTS))
-        .WillRepeatedly(Return(Result<void>::success()));
+        .Times(0);
     EXPECT_CALL(*mockSpi_, setShutdown(true))
         .Times(::testing::AtLeast(1))
         .WillRepeatedly(Return(Result<void>::success()));
