@@ -41,6 +41,22 @@ case "$1" in
       loginctl enable-linger "$RUNTIME_USER" 2>/dev/null || true
     fi
 
+    # --- ~/flashFiles ---
+    # The reader runs `bash ~/flashFiles/flash_wombat.sh` and `reset_coprocessor.sh` itself
+    # (Spi.cpp: re-flash on a firmware mismatch, coprocessor reset), and people are told to
+    # use ~/flashFiles. The packaged scripts live in $FIRMWARE_DIR: link them.
+    if id "$RUNTIME_USER" >/dev/null 2>&1; then
+      HOME_DIR="$(getent passwd "$RUNTIME_USER" | cut -d: -f6)"
+      if [ -n "$HOME_DIR" ] && [ -d "$HOME_DIR" ]; then
+        if [ -d "$HOME_DIR/flashFiles" ] && [ ! -L "$HOME_DIR/flashFiles" ]; then
+          # a real directory from the old install.py: keep it as flashFiles.old
+          rm -rf "$HOME_DIR/flashFiles.old"
+          mv "$HOME_DIR/flashFiles" "$HOME_DIR/flashFiles.old"
+        fi
+        ln -sfn "$FIRMWARE_DIR" "$HOME_DIR/flashFiles"
+      fi
+    fi
+
     # --- Flash STM32 firmware (best effort, only with hardware present) ---
     if [ -e /dev/ttyAMA0 ] && command -v stm32flash >/dev/null 2>&1 \
        && command -v pinctrl >/dev/null 2>&1; then
