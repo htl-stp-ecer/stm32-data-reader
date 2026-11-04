@@ -21,6 +21,17 @@ case "$1" in
     rm -f /etc/systemd/system/iox2-janitor.service \
           /home/pi/stm32_data_reader/iox2_janitor 2>/dev/null || true
 
+    # --- Units from the old install.py / image script ---
+    # They live in /etc/systemd/system and point at /home/pi/stm32_data_reader, so they would
+    # shadow the packaged units and keep the old binary running. Remove them if they are plain
+    # files (an admin-managed symlink or override stays).
+    for unit in stm32_data_reader.service lcm-loopback-multicast.service; do
+      stale="/etc/systemd/system/$unit"
+      if [ -f "$stale" ] && [ ! -L "$stale" ]; then
+        rm -f "$stale"
+      fi
+    done
+
     systemctl daemon-reload || true
 
     # --- Keep raccoon_ring /dev/shm files alive across SSH disconnects ---

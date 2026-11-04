@@ -15,7 +15,7 @@ cmake --build . -j$(nproc)
 To build for the Pi (ARM64):
 
 ```bash
-./build.sh           # requires Docker with BuildX + QEMU user-mode emulation
+python3 build.py     # requires only Docker; cross compiled, add --test to run the tests with qemu-user
 ```
 
 ---
@@ -108,13 +108,9 @@ Do not change the protocol without also updating and rebuilding the firmware.
 
 ## Firmware
 
-STM32 firmware lives in `firmware/`. Build it with Docker:
+STM32 firmware lives in `firmware/`. `python3 build.py` builds it in Docker (`Dockerfile.firmware`, `gcc-arm-none-eabi`) together with the reader.
 
-```bash
-cd firmware && bash build.sh
-```
-
-Or natively with `gcc-arm-none-eabi`:
+Natively with `gcc-arm-none-eabi` installed:
 
 ```bash
 cd firmware/build
@@ -122,14 +118,14 @@ cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=../CMake/GNU-ARM-Toolchain.cmak
 cmake --build . -- -j$(nproc)
 ```
 
-`./deploy.sh` from the repo root builds and flashes the firmware to the STM32 after deploying the reader.
+`python3 deploy.py --host <pi>` installs the package, which flashes the firmware to the STM32.
 
 ---
 
 ## Testing on hardware
 
 ```bash
-RPI_HOST=<your-pi-ip> bash deploy.sh   # build + deploy reader + firmware
+python3 build.py && python3 deploy.py --host <your-pi-ip>   # build + deploy reader + firmware
 
 # Monitor LCM traffic on the Pi
 lcm-spy
