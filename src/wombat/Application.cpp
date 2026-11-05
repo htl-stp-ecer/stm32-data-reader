@@ -323,7 +323,7 @@ namespace wombat
                 logger_->error(std::string("SPI guard rejected command: ") + ex.what());
                 // Recovery: force all motors to OFF so the rejected command can't
                 // get re-driven on the next transfer. Caller (raccoon-lib) gets the
-                // motor/done channel back at zero and can re-issue a valid command.
+                // motors back at OFF and can re-issue a valid command.
                 for (PortId port = 0; port < MAX_MOTOR_PORTS; ++port)
                 {
                     auto offResult = deviceController_->setMotorOff(port);

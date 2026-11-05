@@ -427,12 +427,6 @@ TEST_F(DeviceControllerTest, GetMotorPositionWhenNotInitialized)
     EXPECT_TRUE(result.isFailure());
 }
 
-TEST_F(DeviceControllerTest, GetMotorDoneWhenNotInitialized)
-{
-    auto result = controller_->getMotorDone();
-    EXPECT_TRUE(result.isFailure());
-}
-
 // --- Position reset operations require initialization ---
 
 TEST_F(DeviceControllerTest, ResetMotorPositionWhenNotInitialized)

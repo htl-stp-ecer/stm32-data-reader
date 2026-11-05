@@ -29,7 +29,6 @@ namespace wombat
         Result<void> publishSensorData(const SensorData& data);
         Result<void> publishMotorState(PortId port, const MotorState& state);
         Result<void> publishMotorPosition(PortId port, int32_t position);
-        Result<void> publishMotorDone(PortId port, bool done);
         Result<void> publishServoState(PortId port, const ServoState& state);
         Result<void> publishShutdownStatus(uint8_t shutdownFlags);
         // Publishes the BEMF-enabled state as retained scalar_i32_t (1 = enabled, 0 = disabled).
