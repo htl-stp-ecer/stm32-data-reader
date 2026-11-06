@@ -111,7 +111,6 @@ TEST(MotorStateTest, DefaultValues)
     EXPECT_EQ(m.goalPosition, 0);
     EXPECT_EQ(m.backEmf, 0);
     EXPECT_EQ(m.position, 0);
-    EXPECT_FALSE(m.done);
 }
 
 // --- ServoState defaults ---

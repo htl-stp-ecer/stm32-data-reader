@@ -146,8 +146,6 @@ namespace wombat
             // Position: simple mock based on target
             motors_[i].position = motors_[i].target;
 
-            // All motors report done in mock mode
-            motors_[i].done = true;
         }
 
         return Result<SensorData>::success(d);
@@ -201,11 +199,6 @@ namespace wombat
     {
         if (port >= MAX_MOTOR_PORTS) return Result<int32_t>::failure("motor port out of range");
         return Result<int32_t>::success(motors_[port].position);
-    }
-
-    Result<uint8_t> SpiMock::getMotorDone()
-    {
-        return Result<uint8_t>::success(0x0F); // All motors done
     }
 
     Result<MotorState> SpiMock::getMotorState(PortId port) const

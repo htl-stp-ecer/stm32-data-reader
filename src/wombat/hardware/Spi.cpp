@@ -531,13 +531,6 @@ void reset_motor_position_on_stm32(uint8_t port)
         exit(EXIT_FAILURE);
 }
 
-uint8_t get_motor_done(void)
-{
-    if (!spi_update())
-        exit(EXIT_FAILURE);
-    return ctx.rx.motor.done;
-}
-
 uint16_t analog_in(uint8_t idx)
 {
     if (idx > 5)

@@ -28,7 +28,6 @@ namespace wombat
         // for MOT_MODE_CHASSIS. Callers set the motors to chassis mode separately.
         virtual Result<void> setChassisVelocity(float vx, float vy, float wz) = 0;
         virtual Result<int32_t> getMotorPosition(PortId port) = 0;
-        virtual Result<uint8_t> getMotorDone() = 0;
         virtual Result<MotorState> getMotorState(PortId port) const = 0;
 
         virtual Result<void> setServoState(PortId port, const ServoState& state) = 0;
