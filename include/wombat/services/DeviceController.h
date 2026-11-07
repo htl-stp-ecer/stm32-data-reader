@@ -37,7 +37,6 @@ namespace wombat
         // 2-motor differential base) are never braked or forced into chassis mode.
         Result<void> setChassisVelocity(float vx, float vy, float wz);
         Result<int32_t> getMotorPosition(PortId port) const;
-        Result<uint8_t> getMotorDone() const;
         Result<void> setServoCommand(PortId port, ServoPosition position);
         Result<void> setServoMode(PortId port, ServoMode mode);
         Result<void> startSmoothServo(PortId port, float targetAngle, float speedDegPerSec, int easingType);

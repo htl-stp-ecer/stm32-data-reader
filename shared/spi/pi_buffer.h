@@ -82,7 +82,6 @@ typedef struct __attribute__ ((packed))
 {
     int32_t bemf[4]; // Instantaneous filtered BEMF reading per motor
     int32_t position[4]; // Motor position (accumulated BEMF ticks)
-    uint8_t done; // Bit N set when motor N reached position goal
 }
 
 MotorData;

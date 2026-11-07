@@ -222,7 +222,7 @@ retry and eventually reset the STM32.
 typedef struct __attribute__((packed)) {
     uint8_t    transferVersion;       // Must equal TRANSFER_VERSION
     uint32_t   updateTime;            // Microsecond timestamp
-    MotorData  motor;                 // .bemf[4], .position[4], .done (bitmask)
+    MotorData  motor;                 // .bemf[4], .position[4]
     int16_t    analogSensor[6];       // 6 analog input ports
     int16_t    batteryVoltage;        // Raw 12-bit ADC, 11x voltage divider
     uint16_t   digitalSensors;        // Bits 0-9: DIN ports, bit 10: button
@@ -273,10 +273,11 @@ Updates are only applied when the parity check passes (`updates % 2 == 1`). The 
 
 **Direction** is derived from the PID output sign: positive = CW (D1 high), negative = CCW (D0 high).
 
-**Mode changes** automatically reset both PID controllers and clear the done flag.
+**Mode changes** automatically reset both PID controllers and the MTP hold state.
 
-**Done detection** (MTP only): the `motorDone` bit for a channel is set when `|goalPosition - currentPosition| <= 50`
-BEMF ticks.
+**Position hold** (MTP only): there is no done flag. Within `MTP_DONE_THRESHOLD` (3) BEMF ticks of the goal the motor
+brakes and keeps holding; if it is pushed more than `MTP_HOLD_RELEASE` (8) ticks away it is driven back with a fresh
+profile. MTP stays active until another mode is commanded. Clients detect arrival via the position channel.
 
 ### BEMF Sensing
 
@@ -503,7 +504,6 @@ bumping `TRANSFER_VERSION` on both sides.
 - `libstp/linear_accel/value` - gravity-subtracted acceleration
 - `libstp/motor/{0-3}/value` - motor BEMF (speed proxy)
 - `libstp/motor/{0-3}/position` - accumulated BEMF ticks
-- `libstp/motor/{0-3}/done` - position goal reached flag
 - `libstp/analog/{0-5}/value` - analog port readings
 - `libstp/digital/{0-10}/value` - digital port states
 - `libstp/battery/voltage` - battery voltage

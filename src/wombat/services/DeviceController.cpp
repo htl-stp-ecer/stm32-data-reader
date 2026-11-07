@@ -272,15 +272,6 @@ namespace wombat
         return spi_->getMotorPosition(port);
     }
 
-    Result<uint8_t> DeviceController::getMotorDone() const
-    {
-        if (!isInitialized_)
-        {
-            return Result<uint8_t>::failure("Device controller not initialized");
-        }
-        return spi_->getMotorDone();
-    }
-
     Result<void> DeviceController::setServoCommand(PortId port, ServoPosition position)
     {
         auto validationResult = validatePortId(port, MAX_SERVO_PORTS);

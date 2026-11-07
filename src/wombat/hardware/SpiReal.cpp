@@ -118,12 +118,10 @@ namespace wombat
         d.digitalBits = rx->digitalSensors;
         d.lastUpdate = rx->updateTime;
 
-        const uint8_t doneFlags = rx->motor.done;
         for (uint8_t i = 0; i < MAX_MOTOR_PORTS; ++i)
         {
             motors_[i].backEmf = rx->motor.bemf[i];
             motors_[i].position = rx->motor.position[i];
-            motors_[i].done = (doneFlags & (1u << i)) != 0;
         }
 
         // Debug: log raw BEMF values from SPI buffer
@@ -239,11 +237,6 @@ namespace wombat
     {
         if (port >= MAX_MOTOR_PORTS) return Result<int32_t>::failure("motor port out of range");
         return Result<int32_t>::success(get_motor_position(port));
-    }
-
-    Result<uint8_t> SpiReal::getMotorDone()
-    {
-        return Result<uint8_t>::success(get_motor_done());
     }
 
     Result<MotorState> SpiReal::getMotorState(PortId port) const

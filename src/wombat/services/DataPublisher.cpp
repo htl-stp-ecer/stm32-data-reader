@@ -293,15 +293,6 @@ namespace wombat
             logger_->warn("Failed to publish motor position: " + posResult.error());
         }
 
-        auto doneResult = broker_->publishRetained(
-            Channels::motorDone(port),
-            toLcmScalarI32(state.done ? 1 : 0)
-        );
-        if (doneResult.isFailure())
-        {
-            logger_->warn("Failed to publish motor done: " + doneResult.error());
-        }
-
         return Result<void>::success();
     }
 
@@ -319,25 +310,6 @@ namespace wombat
         if (result.isFailure())
         {
             logger_->warn("Failed to publish motor position: " + result.error());
-        }
-
-        return Result<void>::success();
-    }
-
-    Result<void> DataPublisher::publishMotorDone(PortId port, bool done)
-    {
-        if (port >= MAX_MOTOR_PORTS)
-        {
-            return Result<void>::failure("Invalid motor port: " + std::to_string(port));
-        }
-
-        auto result = broker_->publish(
-            Channels::motorDone(port),
-            toLcmScalarI32(done ? 1 : 0)
-        );
-        if (result.isFailure())
-        {
-            logger_->warn("Failed to publish motor done: " + result.error());
         }
 
         return Result<void>::success();

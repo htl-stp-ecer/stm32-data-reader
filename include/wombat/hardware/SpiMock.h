@@ -27,7 +27,6 @@ namespace wombat
         Result<void> setMotorPosition(PortId port, int32_t velocity, int32_t goalPosition) override;
         Result<void> setChassisVelocity(float vx, float vy, float wz) override;
         Result<int32_t> getMotorPosition(PortId port) override;
-        Result<uint8_t> getMotorDone() override;
         Result<MotorState> getMotorState(PortId port) const override;
 
         Result<void> setServoState(PortId port, const ServoState& state) override;

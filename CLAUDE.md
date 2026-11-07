@@ -159,7 +159,6 @@ from raccoon_transport.types.raccoon import vector3f_t, scalar_i32_t, scalar_f_t
   `Channels.motor_position_reset_command(port)` with `reliable=True`.
 - **Stop motor** (`scalar_i32_t`): Publish to `Channels.motor_stop_command(port)` with `reliable=True`.
 - **Read position**: Subscribe to `Channels.motor_position(port)`, decode as `scalar_i32_t`, field is `.value`.
-- **Read done flag**: Subscribe to `Channels.motor_done(port)`, decode as `scalar_i32_t`, field is `.value`.
 - **Read BEMF**: Subscribe to `Channels.back_emf(port)`, decode as `scalar_i32_t`, field is `.value`.
 
 ### Important notes:
@@ -171,5 +170,9 @@ from raccoon_transport.types.raccoon import vector3f_t, scalar_i32_t, scalar_f_t
 - `scalar_i8_t` has field `.dir`, not `.value`. Used for servo mode only.
 - Position reset resets the counter on the STM32 directly (not just a Pi-side offset).
 - Use `time.sleep(0.3-0.5)` after reset before sending new commands.
-- Use timeouts when waiting for done — motors may not finish if blocked or misconfigured.
+- There is no done flag. A client detects "reached" by comparing `Channels.motor_position(port)` with the goal
+  (with a tolerance) and should use a timeout — motors may not arrive if blocked or misconfigured.
+- Position mode (MTP) is sticky: after reaching the goal the firmware keeps holding it (and drives back if pushed
+  away) until another mode is commanded (off, brake, velocity, power).
+- Only absolute position commands exist; relative moves are resolved by the client (`goal = position + delta`).
 - The `test_mtp.py` script in the repo root is a reference for MTP testing.
