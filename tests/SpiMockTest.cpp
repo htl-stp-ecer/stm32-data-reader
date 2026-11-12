@@ -204,15 +204,6 @@ TEST_F(SpiMockTest, SetChassisVelocityStagesSetpoint)
     EXPECT_FLOAT_EQ(cv[2], 1.5f);
 }
 
-TEST_F(SpiMockTest, GetMotorDoneAllDone)
-{
-    initializeSpi();
-
-    auto result = spiMock_->getMotorDone();
-    ASSERT_TRUE(result.isSuccess());
-    EXPECT_EQ(result.value(), 0x0F); // All 4 motors done
-}
-
 // --- Servo state tracking ---
 
 TEST_F(SpiMockTest, SetServoStateSuccess)

@@ -127,7 +127,7 @@ int main(void)
             const uint8_t m3 = (rxBuffer.motorControlMode >> 9) & 0x07;
             printf(
                 "[stp] hb #%lu t=%lus conv=%lu st=%d bemfMot=%d adc=[%u,%u] "
-                "modes=[%u,%u,%u,%u] pos=[%ld,%ld,%ld,%ld] bemf=[%ld,%ld,%ld,%ld] done=%u\r\n",
+                "modes=[%u,%u,%u,%u] pos=[%ld,%ld,%ld,%ld] bemf=[%ld,%ld,%ld,%ld]\r\n",
                 ++heartbeat_count, current_time / 1000,
                 (unsigned long)bemfConvCount, (int)bemfState,
                 (int)bemfCurrentMotor,
@@ -136,8 +136,7 @@ int main(void)
                 (long)motor_data.position[0], (long)motor_data.position[1],
                 (long)motor_data.position[2], (long)motor_data.position[3],
                 (long)motor_data.bemf[0], (long)motor_data.bemf[1],
-                (long)motor_data.bemf[2], (long)motor_data.bemf[3],
-                (unsigned)motor_data.done);
+                (long)motor_data.bemf[2], (long)motor_data.bemf[3]);
             last_heartbeat = current_time;
         }
 

@@ -95,7 +95,6 @@ namespace wombat
         int32_t goalPosition{0}; // Target position for MTP mode (BEMF ticks)
         mutable int32_t backEmf{0};
         int32_t position{0};
-        bool done{false};
 
         bool hasSameCommand(const MotorState& other) const noexcept
         {
