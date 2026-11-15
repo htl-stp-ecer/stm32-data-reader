@@ -19,7 +19,7 @@
 
 ---
 
-This service runs on the Raspberry Pi inside the [KIPR Wombat](https://www.kipr.org/kipr/hardware-software) and acts as the hardware bridge between the STM32 microcontroller and the rest of RaccoonOS. It communicates with the STM32 over SPI, reads IMU, analog, and digital sensor data, and publishes everything onto the LCM multicast bus — where [RaccoonLib](https://github.com/htl-stp-ecer/raccoon-lib) and [botui](https://github.com/htl-stp-ecer/botui) can consume it. Motor and servo commands flow the other way: received from LCM and forwarded to the STM32.
+This service runs on the Raspberry Pi inside the [KIPR Wombat](https://www.kipr.org/kipr/hardware-software) and acts as the hardware bridge between the STM32 microcontroller and the rest of RaccoonOS. It communicates with the STM32 over SPI, reads IMU, analog, and digital sensor data, and publishes everything onto the LCM multicast bus — where [raccoon-lib](https://github.com/htl-stp-ecer/raccoon-lib) and [botui](https://github.com/htl-stp-ecer/botui) can consume it. Motor and servo commands flow the other way: received from LCM and forwarded to the STM32.
 
 ---
 
@@ -189,14 +189,16 @@ For network operation, ensure multicast is enabled and UDP port 7667 is open.
 stm32-data-reader/
 ├── src/wombat/
 │   ├── Application.cpp
-│   ├── services/            # DataPublisher, CommandSubscriber, DeviceController
-│   ├── hardware/            # Spi, SpiMock
+│   ├── services/            # DataPublisher, CommandSubscriber, DeviceController, MotorWatchdog, SystemMonitor, UartMonitor
+│   ├── hardware/            # Spi, SpiReal, SpiMock
 │   ├── messaging/           # LcmBroker
-│   └── core/                # Logger, Result<T>, utilities
+│   └── core/                # Logger, Result<T>, CmdTrace, version checks
 ├── include/wombat/          # Headers matching src/
 ├── shared/spi/pi_buffer.h   # SPI protocol (shared with STM32 firmware)
 ├── firmware/                # STM32 firmware source
-├── lcm-messages/types/      # LCM message definitions (.lcm files)
+├── raccoon-transport/       # LCM message definitions (git submodule)
+├── scripts/                 # Tools, e.g. pid_tune.py
+├── docs/                    # Architecture diagram
 ├── systemd/                 # Service files
 ├── packaging/debian/        # control and maintainer scripts of the .deb
 ├── build.py                 # Cross-compiles reader + firmware in Docker, makes the .deb (builds/)
@@ -204,17 +206,6 @@ stm32-data-reader/
 ├── Dockerfile               # aarch64 cross compiler for the reader
 └── Dockerfile.firmware      # arm-none-eabi-gcc for the firmware
 ```
-
----
-
-## Part of RaccoonOS
-
-| Repository | What it is |
-|:-----------|:-----------|
-| [raccoon-lib](https://github.com/htl-stp-ecer/raccoon-lib) | Core robotics library — consumes LCM data published here |
-| [raccoon-transport](https://github.com/htl-stp-ecer/raccoon-transport) | Shared LCM message types |
-| [botui](https://github.com/htl-stp-ecer/botui) | Flutter UI — visualises sensor data from this service |
-| [documentation](https://raccoon-docs.pages.dev/) | Full platform docs |
 
 ---
 
