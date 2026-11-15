@@ -4,7 +4,7 @@
 
 # stm32-data-reader
 
-**Raspberry Pi ↔ STM32 SPI bridge — reads sensor data and publishes it via LCM for RaccoonOS.**
+**Raspberry Pi ↔ STM32 SPI bridge — reads sensor data and publishes it on the raccoon-transport bus for RaccoonOS.**
 
 [![Build & Release](https://github.com/htl-stp-ecer/stm32-data-reader/actions/workflows/build-release.yml/badge.svg)](https://github.com/htl-stp-ecer/stm32-data-reader/actions/workflows/build-release.yml)
 [![Latest Release](https://img.shields.io/github/v/release/htl-stp-ecer/stm32-data-reader)](https://github.com/htl-stp-ecer/stm32-data-reader/releases/latest)
@@ -19,24 +19,26 @@
 
 ---
 
-This service runs on the Raspberry Pi inside the [KIPR Wombat](https://www.kipr.org/kipr/hardware-software) and acts as the hardware bridge between the STM32 microcontroller and the rest of RaccoonOS. It communicates with the STM32 over SPI, reads IMU, analog, and digital sensor data, and publishes everything onto the LCM multicast bus — where [raccoon-lib](https://github.com/htl-stp-ecer/raccoon-lib) and [botui](https://github.com/htl-stp-ecer/botui) can consume it. Motor and servo commands flow the other way: received from LCM and forwarded to the STM32.
+This service runs on the Raspberry Pi inside the [KIPR Wombat](https://www.kipr.org/kipr/hardware-software) and acts as the hardware bridge between the STM32 microcontroller and the rest of RaccoonOS. It communicates with the STM32 over SPI, reads IMU, analog, and digital sensor data, and publishes everything via [raccoon-transport](https://github.com/htl-stp-ecer/raccoon-transport) (shared-memory ring under `/dev/shm`) — where [raccoon-lib](https://github.com/htl-stp-ecer/raccoon-lib) and [botui](https://github.com/htl-stp-ecer/botui) can consume it. Motor and servo commands flow the other way: received from the bus and forwarded to the STM32.
 
 ---
 
 ## What it bridges
 
-**Publishes (STM32 → LCM):**
-- IMU — gyroscope, accelerometer, magnetometer, orientation quaternion, calibration accuracy
-- Analog inputs (6 ports), digital inputs (16-bit)
-- Motor back-EMF readings (4 ports)
-- System — battery voltage, IMU temperature, CPU temperature
+**Publishes (STM32 → bus):**
+- IMU — gyroscope, accelerometer, linear acceleration, magnetometer, orientation quaternion, heading, calibration accuracy
+- Odometry computed on the STM32 — position, heading, velocities
+- Analog inputs (6 ports), digital inputs
+- Motor power, position and back-EMF, servo mode and position (4 ports each)
+- System — battery voltage, IMU temperature, CPU temperature, shutdown status
 
-**Subscribes (LCM → STM32):**
-- Motor power and stop commands (4 ports)
-- Servo position commands (4 ports)
-- BEMF reset, scale, and offset commands
+**Subscribes (bus → STM32):**
+- Motor commands per port — power, mode, stop, velocity, position, PID, position reset
+- Servo commands per port — position, mode, smooth position
+- Chassis velocity command (the firmware runs the wheel loop on the MCU)
+- Kinematics config, odometry reset, BEMF scale, offset and enable, shutdown
 
-Full channel reference: see [LCM Channels](#lcm-channels) below.
+Full channel reference: see [Channels](#channels) below.
 
 ---
 
@@ -126,60 +128,70 @@ cmake --build . -- -j$(nproc)
 |:----------|:-------------|
 | `Application` | Main orchestrator — lifecycle, signal handling |
 | `DeviceController` | Owns SPI state: motors, servos, sensors |
-| `DataPublisher` | Publishes sensor data to LCM with change detection |
-| `CommandSubscriber` | Receives LCM commands and routes to DeviceController |
-| `LcmBroker` | Typed publish/subscribe wrapper (PIMPL pattern) |
+| `DataPublisher` | Publishes sensor data with change detection |
+| `CommandSubscriber` | Receives commands and routes them to DeviceController |
+| `LcmBroker` | Typed publish/subscribe wrapper around `raccoon::Transport` (PIMPL pattern) |
 | `Spi` / `SpiMock` | Hardware abstraction toggled via `USE_SPI_MOCK` |
 
 ---
 
-## LCM Channels
+## Channels
 
-### Published (sensor data)
+Channel names come from [raccoon-transport](https://github.com/htl-stp-ecer/raccoon-transport) (`cpp/include/raccoon/Channels.h`). `{n}` is the port number.
+
+### Published
 
 | Channel | Type | Description |
 |:--------|:-----|:------------|
-| `libstp/gyro/value` | `vector3f_t` | Gyroscope (rad/s) |
-| `libstp/accel/value` | `vector3f_t` | Accelerometer (m/s²) |
-| `libstp/mag/value` | `vector3f_t` | Magnetometer |
-| `libstp/imu/quaternion` | `quaternion_t` | Orientation quaternion |
-| `libstp/imu/temp/value` | `scalar_f_t` | IMU temperature (°C) |
-| `libstp/cpu/temp/value` | `scalar_f_t` | CPU temperature (°C) |
-| `libstp/battery/voltage` | `scalar_f_t` | Battery voltage |
-| `libstp/analog/{0-5}/value` | `scalar_i32_t` | Analog sensor readings |
-| `libstp/digital/{0-15}/value` | `scalar_i32_t` | Digital input states |
-| `libstp/bemf/{0-3}/value` | `scalar_i32_t` | Motor back-EMF |
-| `libstp/gyro/accuracy` | `scalar_i8_t` | Gyro calibration status (0–3) |
-| `libstp/accel/accuracy` | `scalar_i8_t` | Accelerometer calibration status |
-| `libstp/mag/accuracy` | `scalar_i8_t` | Magnetometer calibration status |
-| `libstp/imu/quaternion_accuracy` | `scalar_i8_t` | Quaternion accuracy |
+| `raccoon/gyro/value` | `vector3f_t` | Gyroscope (rad/s) |
+| `raccoon/accel/value` | `vector3f_t` | Accelerometer (m/s²) |
+| `raccoon/linear_accel/value` | `vector3f_t` | Linear acceleration |
+| `raccoon/mag/value` | `vector3f_t` | Magnetometer |
+| `raccoon/imu/quaternion` | `quaternion_t` | Orientation quaternion |
+| `raccoon/imu/heading` | `scalar_f_t` | Heading (retained) |
+| `raccoon/imu/temp/value` | `scalar_f_t` | IMU temperature (°C) |
+| `raccoon/cpu/temp/value` | `scalar_f_t` | CPU temperature (°C) |
+| `raccoon/battery/voltage` | `scalar_f_t` | Battery voltage |
+| `raccoon/{gyro,accel,mag}/accuracy`, `raccoon/imu/quaternion_accuracy` | `scalar_i8_t` | Calibration status (0–3) |
+| `raccoon/odometry/{pos_x,pos_y,heading,vx,vy,wz}` | `scalar_f_t` | Odometry from the STM32 (retained) |
+| `raccoon/analog/{n}/value` | `scalar_i32_t` | Analog sensor readings |
+| `raccoon/digital/{n}/value` | `scalar_i32_t` | Digital input states |
+| `raccoon/bemf/{n}/value` | `scalar_i32_t` | Motor back-EMF |
+| `raccoon/motor/{n}/power` | `scalar_i32_t` | Current motor power |
+| `raccoon/motor/{n}/position` | `scalar_i32_t` | Motor position |
+| `raccoon/servo/{n}/mode` | `scalar_i8_t` | Servo mode (retained) |
+| `raccoon/servo/{n}/position` | `scalar_f_t` | Servo position (retained) |
+| `raccoon/system/shutdown_status` | `scalar_i32_t` | Shutdown flags (retained) |
+| `raccoon/feature/bemf_enabled` | | BEMF feature flag (retained) |
 
 ### Subscribed (commands)
 
 | Channel | Type | Description |
 |:--------|:-----|:------------|
-| `libstp/motor/{0-3}/power_cmd` | `scalar_i32_t` | Motor power (−100 to 100) |
-| `libstp/motor/{0-3}/stop_cmd` | `scalar_i32_t` | Stop motor |
-| `libstp/servo/{0-3}/position_cmd` | `scalar_i32_t` | Servo position |
-| `libstp/bemf/{0-3}/reset_cmd` | `scalar_i32_t` | Reset BEMF accumulator |
-| `libstp/bemf/{0-3}/scale_cmd` | `scalar_f_t` | BEMF scale factor |
-| `libstp/bemf/{0-3}/offset_cmd` | `scalar_f_t` | BEMF offset |
-| `libstp/bemf/nominal_voltage_cmd` | `scalar_i32_t` | Nominal battery voltage |
-| `libstp/system/dump_request` | `scalar_i32_t` | Request full data dump |
+| `raccoon/motor/{n}/power_cmd` | `scalar_i32_t` | Motor power (−100 to 100) |
+| `raccoon/motor/{n}/mode_cmd` | `scalar_i32_t` | Motor mode |
+| `raccoon/motor/{n}/stop_cmd` | `scalar_i32_t` | Stop motor |
+| `raccoon/motor/{n}/velocity_cmd` | `scalar_i32_t` | Target velocity |
+| `raccoon/motor/{n}/position_cmd` | `vector3f_t` | Move to position (`x` = speed limit, `y` = goal) |
+| `raccoon/motor/{n}/pid_cmd` | `vector3f_t` | PID gains |
+| `raccoon/motor/{n}/position_reset_cmd` | `scalar_i32_t` | Reset the position counter (non-zero value) |
+| `raccoon/chassis/velocity_cmd` | `vector3f_t` | Body-frame velocity (vx, vy, wz) |
+| `raccoon/servo/{n}/position_cmd` | `scalar_f_t` | Servo position |
+| `raccoon/servo/{n}/mode_cmd` | `scalar_i8_t` | Servo mode |
+| `raccoon/servo/{n}/smooth_cmd` | `vector3f_t` | Smooth servo move |
+| `raccoon/kinematics/config_cmd` | `kinematics_config_t` | Kinematics matrices |
+| `raccoon/odometry/reset_cmd` | `scalar_i32_t` | Reset odometry |
+| `raccoon/system/shutdown_cmd` | `scalar_i32_t` | Shut down the Pi |
+
+Per-port commands are sent reliably, see raccoon-transport for details.
 
 ---
 
-## Network setup for LCM
+## Transport
 
-LCM uses UDP multicast. Enable the loopback route for local-only operation:
+The reader publishes and subscribes through `raccoon::Transport`, which uses one shared-memory file per channel under `/dev/shm/` (`raccoon_ring_<channel>`). No network setup is needed. The reader checks the transport contract hash at startup and exits with code 78 if it does not match the installed bundle.
 
-```bash
-sudo systemctl enable --now lcm-loopback-multicast
-# or manually:
-sudo ip route add 239.255.76.67/32 dev lo
-```
-
-For network operation, ensure multicast is enabled and UDP port 7667 is open.
+The package still installs `lcm-loopback-multicast.service`, which `stm32_data_reader.service` depends on.
 
 ---
 
@@ -191,12 +203,12 @@ stm32-data-reader/
 │   ├── Application.cpp
 │   ├── services/            # DataPublisher, CommandSubscriber, DeviceController, MotorWatchdog, SystemMonitor, UartMonitor
 │   ├── hardware/            # Spi, SpiReal, SpiMock
-│   ├── messaging/           # LcmBroker
+│   ├── messaging/           # LcmBroker (wraps raccoon::Transport)
 │   └── core/                # Logger, Result<T>, CmdTrace, version checks
 ├── include/wombat/          # Headers matching src/
 ├── shared/spi/pi_buffer.h   # SPI protocol (shared with STM32 firmware)
 ├── firmware/                # STM32 firmware source
-├── raccoon-transport/       # LCM message definitions (git submodule)
+├── raccoon-transport/       # Messages and channels (git submodule)
 ├── scripts/                 # Tools, e.g. pid_tune.py
 ├── docs/                    # Architecture diagram
 ├── systemd/                 # Service files
