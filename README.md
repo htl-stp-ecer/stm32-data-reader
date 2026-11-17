@@ -191,8 +191,6 @@ Per-port commands are sent reliably, see raccoon-transport for details.
 
 The reader publishes and subscribes through `raccoon::Transport`, which uses one shared-memory file per channel under `/dev/shm/` (`raccoon_ring_<channel>`). No network setup is needed. The reader checks the transport contract hash at startup and exits with code 78 if it does not match the installed bundle.
 
-The package still installs `lcm-loopback-multicast.service`, which `stm32_data_reader.service` depends on.
-
 ---
 
 ## Project structure

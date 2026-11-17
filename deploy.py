@@ -134,7 +134,7 @@ def main() -> None:
     )
 
     print()
-    pi.run("systemctl is-active stm32_data_reader.service lcm-loopback-multicast.service; "
+    pi.run("systemctl is-active stm32_data_reader.service; "
            "/usr/bin/stm32_data_reader --version", check=False)
     print(f"Deployment to {args.host} completed.")
 

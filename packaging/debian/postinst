@@ -32,6 +32,16 @@ case "$1" in
       fi
     done
 
+    # --- The LCM loopback multicast unit is gone ---
+    # Earlier versions installed lcm-loopback-multicast.service (multicast on lo for LCM). The
+    # transport is shared memory now and nothing uses it. dpkg has already removed the unit file
+    # of the old package; drop its enable link and the route it set, if this robot had it.
+    wants=/etc/systemd/system/multi-user.target.wants/lcm-loopback-multicast.service
+    if [ -L "$wants" ] || [ -e "$wants" ]; then
+      rm -f "$wants"
+      ip route del 224.0.0.0/4 dev lo 2>/dev/null || true
+    fi
+
     systemctl daemon-reload || true
 
     # --- Keep raccoon_ring /dev/shm files alive across SSH disconnects ---
@@ -71,8 +81,7 @@ case "$1" in
     fi
 
     # --- Enable + (re)start services ---
-    systemctl enable lcm-loopback-multicast.service stm32_data_reader.service || true
-    systemctl restart lcm-loopback-multicast.service || true
+    systemctl enable stm32_data_reader.service || true
     systemctl restart stm32_data_reader.service || true
     ;;
 

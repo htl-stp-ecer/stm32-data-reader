@@ -1,7 +1,5 @@
 [Unit]
 Description=STM32 Data Reader (raccoon_ring backend)
-Requires=lcm-loopback-multicast.service
-After=lcm-loopback-multicast.service
 
 [Service]
 User=pi

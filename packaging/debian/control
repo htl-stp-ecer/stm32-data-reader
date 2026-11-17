@@ -9,9 +9,8 @@ Recommends: stm32flash
 Homepage: https://github.com/htl-stp-ecer/stm32-data-reader
 Description: STM32 Data Reader (raccoon_ring backend)
  Reads sensor data (IMU, analog, digital) from the STM32 microcontroller over
- SPI and exposes it via the raccoon_ring shared-memory transport / LCM, and
+ SPI and exposes it via the raccoon_ring shared-memory transport, and
  forwards motor/servo commands the other way.
  .
  The package ships the matching STM32 firmware (wombat.bin) plus the flashing
- helpers and installs systemd units for the reader and the LCM loopback
- multicast setup. On a real Pi the firmware is flashed automatically on install.
+ helpers and installs the systemd unit of the reader. On a real Pi the firmware is flashed automatically on install.
