@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-STM32 Data Reader is a C++20 application that runs on a Raspberry Pi, communicating with an STM32 microcontroller over SPI to read sensor data (IMU, analog, digital) and control motors/servos. Data is published and commands received via LCM (Lightweight Communications and Marshalling) multicast messaging.
+STM32 Data Reader is a C++20 application that runs on a Raspberry Pi, communicating with an STM32 microcontroller over SPI to read sensor data (IMU, analog, digital) and control motors/servos. Data is published and commands received through `raccoon::Transport` (shared memory under `/dev/shm`, no network).
 
 ## Build Commands
 
@@ -53,9 +53,9 @@ Only `build.py` and `deploy.py` build and install; CI runs `build.py` too. `depl
 ### Data Flow
 
 ```
-STM32 <--SPI--> Spi --> DeviceController --> DataPublisher --> LCM (multicast)
+STM32 <--SPI--> Spi --> DeviceController --> DataPublisher --> raccoon::Transport (SHM)
                               ^
-LCM (multicast) --> CommandSubscriber ----|
+raccoon::Transport (SHM) --> CommandSubscriber ----|
 ```
 
 ### LCM Message Types
@@ -91,7 +91,6 @@ Located in `wombat::Configuration` struct:
 ## Dependencies
 
 Fetched via CMake FetchContent:
-- **LCM** (v1.5.0) - Multicast messaging
 - **spdlog** (v1.15.3) - Logging
 
 ## Firmware (STM32)
@@ -120,7 +119,6 @@ python3 build.py && python3 deploy.py --host <ip>   # the package flashes the fi
 ## Systemd Services
 
 - `stm32_data_reader.service` - Main application service
-- `lcm-loopback-multicast.service` - Required for LCM multicast on loopback
 
 ## Testing on Hardware (Autonomous)
 

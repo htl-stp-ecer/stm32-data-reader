@@ -4,7 +4,7 @@ set -e
 
 case "$1" in
   remove)
-    systemctl disable stm32_data_reader.service lcm-loopback-multicast.service 2>/dev/null || true
+    systemctl disable stm32_data_reader.service 2>/dev/null || true
     systemctl daemon-reload 2>/dev/null || true
     ;;
   purge)

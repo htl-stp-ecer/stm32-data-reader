@@ -143,8 +143,6 @@ def build_deb(binary: Path, firmware: Path, version: str, output: Path) -> None:
         service.parent.mkdir(parents=True, exist_ok=True)
         service.write_text(unit)
         service.chmod(0o644)
-        put(ROOT_IN_CONTAINER / "systemd/lcm-loopback-multicast.service",
-            "lib/systemd/system/lcm-loopback-multicast.service", 0o644)
 
         # The reader contains nlohmann/json (MIT) through raccoon-transport: ship its notice.
         doc = f"usr/share/doc/{PKG}"

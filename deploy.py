@@ -125,14 +125,16 @@ def main() -> None:
     pi.run("sudo python3 -", stdin=MARK_DEV % {"path": BUNDLE_FILE, "component": COMPONENT})
 
     # A local build is version 0.0, which Debian sorts below every release: allow the downgrade.
+    # --reinstall: a second local build has the same version 0.0, and without it apt says
+    # "already the newest version" and installs nothing.
     print("Installing (this flashes the STM32 firmware)...")
     pi.run(
-        "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades "
+        "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades --reinstall "
         f"{shlex.quote(f'{REMOTE_TMP}/{deb.name}')}"
     )
 
     print()
-    pi.run("systemctl is-active stm32_data_reader.service lcm-loopback-multicast.service; "
+    pi.run("systemctl is-active stm32_data_reader.service; "
            "/usr/bin/stm32_data_reader --version", check=False)
     print(f"Deployment to {args.host} completed.")
 
