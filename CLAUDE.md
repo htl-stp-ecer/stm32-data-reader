@@ -4,15 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-STM32 Data Reader is a C++20 application that runs on a Raspberry Pi, communicating with an STM32 microcontroller over SPI to read sensor data (IMU, analog, digital) and control motors/servos. Data is published and commands received via LCM (Lightweight Communications and Marshalling) multicast messaging.
+STM32 Data Reader is a C++20 application that runs on a Raspberry Pi, communicating with an STM32 microcontroller over SPI to read sensor data (IMU, analog, digital) and control motors/servos. Data is published and commands received through `raccoon::Transport` (shared memory under `/dev/shm`, no network).
 
 ## Build Commands
 
-### Cross-compile for ARM64 (production build):
+### Build for the Pi (cross compiled in Docker, no emulation):
 ```bash
-./build.sh                              # Uses Docker to cross-compile for ARM64
-FORCE_RECONFIGURE=1 ./build.sh          # Force CMake reconfiguration
-CMAKE_BUILD_TYPE=Debug ./build.sh       # Debug build
+python3 build.py                        # reader + firmware -> builds/stm32-data-reader_0.0_arm64.deb
+python3 build.py --version 60           # release build (CI does this)
+python3 build.py --test                 # also run the unit tests (qemu-user in cross mode)
+python3 build.py --mode native          # default on aarch64 (CI ARM runner); on x86 the default is cross
+python3 build.py --skip-firmware        # reuse the firmware of the last build
 ```
 
 ### Local development (mock SPI):
@@ -24,9 +26,9 @@ cmake --build . -j$(nproc)
 
 ### Deploy to Raspberry Pi:
 ```bash
-./deploy.sh                             # Build and deploy to Pi
-RPI_HOST=192.168.1.100 ./deploy.sh      # Override target host
+python3 deploy.py --host 192.168.1.100  # installs builds/*.deb, flashes the firmware, sets the reader to "dev" in the bundle file
 ```
+Only `build.py` and `deploy.py` build and install; CI runs `build.py` too. `deploy.py` is for local builds; releases are installed by `raccoon update`.
 
 ## Architecture
 
@@ -51,9 +53,9 @@ RPI_HOST=192.168.1.100 ./deploy.sh      # Override target host
 ### Data Flow
 
 ```
-STM32 <--SPI--> Spi --> DeviceController --> DataPublisher --> LCM (multicast)
+STM32 <--SPI--> Spi --> DeviceController --> DataPublisher --> raccoon::Transport (SHM)
                               ^
-LCM (multicast) --> CommandSubscriber ----|
+raccoon::Transport (SHM) --> CommandSubscriber ----|
 ```
 
 ### LCM Message Types
@@ -89,7 +91,6 @@ Located in `wombat::Configuration` struct:
 ## Dependencies
 
 Fetched via CMake FetchContent:
-- **LCM** (v1.5.0) - Multicast messaging
 - **spdlog** (v1.15.3) - Logging
 
 ## Firmware (STM32)
@@ -97,11 +98,9 @@ Fetched via CMake FetchContent:
 The STM32 firmware lives in `firmware/` (merged from Firmware-Stp). It shares the SPI protocol header at
 `shared/spi/pi_buffer.h`.
 
-### Firmware build (requires Docker or gcc-arm-none-eabi):
+### Firmware build:
 
-```bash
-cd firmware && bash build.sh              # Builds wombat.bin via Docker
-```
+`python3 build.py` builds the firmware in Docker together with the reader.
 
 ### Firmware build (native, no Docker):
 
@@ -111,23 +110,15 @@ cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=../CMake/GNU-ARM-Toolchain.cmak
 cmake --build . -- -j$(nproc)
 ```
 
-### Combined build (reader + firmware):
+### Combined build and deploy (reader + firmware):
 
 ```bash
-./build.sh                                # Builds both; firmware artifacts in build/
-SKIP_FIRMWARE=1 ./build.sh                # Skip firmware, reader only
-```
-
-### Deploy both to Pi:
-
-```bash
-./deploy.sh                               # Builds both, uploads, flashes firmware, starts reader
+python3 build.py && python3 deploy.py --host <ip>   # the package flashes the firmware when installed
 ```
 
 ## Systemd Services
 
 - `stm32_data_reader.service` - Main application service
-- `lcm-loopback-multicast.service` - Required for LCM multicast on loopback
 
 ## Testing on Hardware (Autonomous)
 
@@ -137,7 +128,7 @@ user doesn't provide the Pi's IP address, ask for it.
 ### Deploy & test workflow:
 
 ```bash
-RPI_HOST=<ip> bash deploy.sh              # Build + deploy reader + firmware
+python3 build.py && python3 deploy.py --host <ip>   # Build + deploy reader + firmware
 ```
 
 ### Running Python test scripts on the Pi:
@@ -166,16 +157,20 @@ from raccoon_transport.types.raccoon import vector3f_t, scalar_i32_t, scalar_f_t
   `Channels.motor_position_reset_command(port)` with `reliable=True`.
 - **Stop motor** (`scalar_i32_t`): Publish to `Channels.motor_stop_command(port)` with `reliable=True`.
 - **Read position**: Subscribe to `Channels.motor_position(port)`, decode as `scalar_i32_t`, field is `.value`.
-- **Read done flag**: Subscribe to `Channels.motor_done(port)`, decode as `scalar_i32_t`, field is `.value`.
 - **Read BEMF**: Subscribe to `Channels.back_emf(port)`, decode as `scalar_i32_t`, field is `.value`.
 
 ### Important notes:
 
 - All per-port motor and servo commands use `reliable=True` delivery, including velocity and power: they are also
   sent as one-shot commands, and a lost one-shot command is never repeated.
-- Only the chassis velocity command (`CHASSIS_VELOCITY_CMD`) is best-effort, because it is streamed continuously.
+- The chassis velocity command (`CHASSIS_VELOCITY_CMD`) is streamed best-effort while driving; only the stop (0, 0, 0)
+  is sent reliable (the reader subscribes it reliable to ACK it).
 - `scalar_i8_t` has field `.dir`, not `.value`. Used for servo mode only.
 - Position reset resets the counter on the STM32 directly (not just a Pi-side offset).
 - Use `time.sleep(0.3-0.5)` after reset before sending new commands.
-- Use timeouts when waiting for done — motors may not finish if blocked or misconfigured.
+- There is no done flag. A client detects "reached" by comparing `Channels.motor_position(port)` with the goal
+  (with a tolerance) and should use a timeout — motors may not arrive if blocked or misconfigured.
+- Position mode (MTP) is sticky: after reaching the goal the firmware keeps holding it (and drives back if pushed
+  away) until another mode is commanded (off, brake, velocity, power).
+- Only absolute position commands exist; relative moves are resolved by the client (`goal = position + delta`).
 - The `test_mtp.py` script in the repo root is a reference for MTP testing.

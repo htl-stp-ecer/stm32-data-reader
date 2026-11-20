@@ -1049,3 +1049,5 @@ dkms.conf
 # Raspberry Pi Pico disassembler file
 *.dis
 build-*
+# build.py output
+builds/

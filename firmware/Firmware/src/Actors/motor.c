@@ -14,11 +14,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MTP_DONE_THRESHOLD 3   // position error deadband for "done" in BEMF units
+#define MTP_DONE_THRESHOLD 3   // position error deadband for "reached" in BEMF units
 // (was 40 — far too coarse for small moves: a
 //  50-tick move only travelled 10 ticks before
-//  latching "done". If the motor hunts/can't
+//  latching. If the motor hunts/can't
 //  settle within this band, raise to ~15.)
+#define MTP_HOLD_RELEASE 8      // while holding, the motor is driven back to the goal once
+// pushed further than this many ticks away (hysteresis
+// so it does not chatter at the threshold edge)
 #define MTP_MIN_VEL 15          // minimum crawl velocity to overcome static friction
 #define MTP_ACCEL_PER_TICK 300  // profile velocity acceleration rate (was 150 —
 // short moves never built up speed in time).
@@ -122,7 +125,8 @@ const volatile Motor motors[MOTOR_COUNT] = {
 static PidController pidControllers[MOTOR_COUNT]; // velocity (inner) loop
 static PidController posPidControllers[MOTOR_COUNT]; // position (outer) loop — unused for MTP, kept for API
 static int32_t profileVel[MOTOR_COUNT]; // trapezoidal profile current velocity
-static int32_t prevGoalPos[MOTOR_COUNT]; // track goal changes for sticky done reset
+static int32_t prevGoalPos[MOTOR_COUNT]; // track goal changes (new MTP command)
+static uint8_t mtpHolding; // bit N set while motor N holds its goal (firmware-internal)
 volatile MotorData motor_data = {0};
 
 void initMotors()
@@ -261,7 +265,7 @@ void update_motor_posPidSettings()
 //   2. read inputs         — ctlMode / target / goalPos from the Rx buffer
 //   3. per-channel dt       — real elapsed time since this motor's last update
 //   4. transition handler   — on a mode change, reset both PID loops, the
-//                            profile velocity, the done flag, and log it
+//                            profile velocity, the hold latch, and log it
 //   5. BEMF-disable guard   — MAV/CHASSIS need BEMF; hold off if disabled
 //   6. dispatch             — call the handler for the current mode
 //
@@ -318,41 +322,50 @@ static void motor_mode_chassis(const uint8_t ch, const int16_t bemf_filtered,
 // MTP (Move To Position): trapezoidal velocity profile → velocity PID → PWM.
 // Cruises at the commanded speed limit, then ramps the velocity down LINEARLY
 // over the last MTP_DECEL_ZONE ticks (from speedLimit down to MTP_MIN_VEL at the
-// done threshold). Acceleration is rate-limited; deceleration follows the ramp
-// instantly. Latches a sticky "done" + active brake once within
-// MTP_DONE_THRESHOLD of the goal.
+// reached threshold). Acceleration is rate-limited; deceleration follows the ramp
+// instantly. Once within MTP_DONE_THRESHOLD of the goal the motor brakes and
+// keeps HOLDING the position (MTP stays active until another mode is commanded):
+// if it is pushed more than MTP_HOLD_RELEASE ticks away it is driven back.
 static void motor_mode_mtp(const uint8_t ch, const int32_t goalPos,
                            const int16_t bemf_filtered, const float pidDt)
 {
-    // Clear done if goal position changed (new MTP command)
+    // Restart the profile if the goal position changed (new MTP command)
     if (goalPos != prevGoalPos[ch])
     {
         prevGoalPos[ch] = goalPos;
-        motor_data.done &= ~(1u << ch);
+        mtpHolding &= ~(1u << ch);
         profileVel[ch] = 0;
         pid_reset(&pidControllers[ch]);
     }
 
-    // Sticky done: once reached, stay done until goal changes or mode changes
-    if (motor_data.done & (1u << ch))
-    {
-        motor_setDirection(ch, SHORT_BREAK);
-        motor_setDutycycle(ch, 0);
-        return;
-    }
-
-    // Trapezoidal profile → velocity target → velocity PID → PWM
     int32_t currentPos = motor_data.position[ch];
     int32_t posError = goalPos - currentPos;
     int32_t absError = posError < 0 ? -posError : posError;
+
+    // Holding: stay braced on the goal until pushed out of the release band.
+    if (mtpHolding & (1u << ch))
+    {
+        if (absError <= MTP_HOLD_RELEASE)
+        {
+            motor_setDirection(ch, SHORT_BREAK);
+            motor_setDutycycle(ch, 0);
+            return;
+        }
+        // Pushed away: drive back with a fresh profile.
+        mtpHolding &= ~(1u << ch);
+        profileVel[ch] = 0;
+        pid_reset(&pidControllers[ch]);
+    }
+
+    // Trapezoidal profile → velocity target → velocity PID → PWM
     int32_t speedLimit = rxBuffer.motorTarget[ch];
     if (speedLimit <= 0) speedLimit = 300;
 
     if (absError <= MTP_DONE_THRESHOLD)
     {
-        // Done — active brake, set sticky flag
+        // Reached — brake and hold the position
         profileVel[ch] = 0;
-        motor_data.done |= (1u << ch);
+        mtpHolding |= (1u << ch);
         motor_setDirection(ch, SHORT_BREAK);
         motor_setDutycycle(ch, 0);
         return;
@@ -403,7 +416,7 @@ static void motor_mode_mtp(const uint8_t ch, const int32_t goalPos,
 
 // On a control-mode transition, reset all per-channel control state so the new
 // mode starts clean: both PID loops, the trapezoidal profile velocity, and the
-// done flag. Logs the transition for debugging.
+// hold latch. Logs the transition for debugging.
 static void motor_on_mode_change(const uint8_t ch, const uint8_t prevMode,
                                  const uint8_t newMode)
 {
@@ -413,8 +426,7 @@ static void motor_on_mode_change(const uint8_t ch, const uint8_t prevMode,
     pid_reset(&pidControllers[ch]);
     pid_reset(&posPidControllers[ch]);
     profileVel[ch] = 0;
-    // Clear done flag on mode change
-    motor_data.done &= ~(1u << ch);
+    mtpHolding &= ~(1u << ch);
 }
 
 void update_motor(const uint8_t channel, const int16_t bemf_filtered)

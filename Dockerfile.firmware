@@ -1,0 +1,12 @@
+# STM32 firmware (wombat.bin). arm-none-eabi-gcc is a cross compiler by nature and runs
+# natively on x86_64, so there is no emulation here either. build.py uses this image.
+FROM ubuntu:24.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ENV TZ=Europe/Vienna
+
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        make cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*

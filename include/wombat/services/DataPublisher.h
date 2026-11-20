@@ -29,7 +29,6 @@ namespace wombat
         Result<void> publishSensorData(const SensorData& data);
         Result<void> publishMotorState(PortId port, const MotorState& state);
         Result<void> publishMotorPosition(PortId port, int32_t position);
-        Result<void> publishMotorDone(PortId port, bool done);
         Result<void> publishServoState(PortId port, const ServoState& state);
         // Bus servo: done (0 running / 1 reached / 2 stalled), feedback and health channels.
         Result<void> publishBusServo(PortId port, const BusServoFeedback& feedback, int32_t done);

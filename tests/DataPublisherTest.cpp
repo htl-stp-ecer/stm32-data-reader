@@ -109,7 +109,7 @@ TEST_F(DataPublisherTest, PublishHeadingWithSubscription)
 
 TEST_F(DataPublisherTest, PublishMotorStateSucceeds)
 {
-    MotorState state{MotorControlMode::Pwm, 200, 0, 50, 1000, false};
+    MotorState state{MotorControlMode::Pwm, 200, 0, 50, 1000};
 
     auto result = publisher_->publishMotorState(0, state);
     EXPECT_TRUE(result.isSuccess());
@@ -134,7 +134,7 @@ TEST_F(DataPublisherTest, PublishMotorStateWithSubscription)
                                                   receivedPower = true;
                                               });
 
-    MotorState state{MotorControlMode::Pwm, 200, 0, 50, 1000, false};
+    MotorState state{MotorControlMode::Pwm, 200, 0, 50, 1000};
     publisher_->publishMotorState(0, state);
     drainMessages(receivedPower);
 
@@ -154,7 +154,7 @@ TEST_F(DataPublisherTest, PublishMotorStateNegativeTarget)
                                                   receivedPower = true;
                                               });
 
-    MotorState state{MotorControlMode::Pwm, -150, 0, 0, 0, false};
+    MotorState state{MotorControlMode::Pwm, -150, 0, 0, 0};
     publisher_->publishMotorState(1, state);
     drainMessages(receivedPower);
 
@@ -186,18 +186,6 @@ TEST_F(DataPublisherTest, PublishMotorPositionSucceeds)
 TEST_F(DataPublisherTest, PublishMotorPositionInvalidPort)
 {
     auto result = publisher_->publishMotorPosition(MAX_MOTOR_PORTS, 5000);
-    EXPECT_TRUE(result.isFailure());
-}
-
-TEST_F(DataPublisherTest, PublishMotorDoneSucceeds)
-{
-    auto result = publisher_->publishMotorDone(0, true);
-    EXPECT_TRUE(result.isSuccess());
-}
-
-TEST_F(DataPublisherTest, PublishMotorDoneInvalidPort)
-{
-    auto result = publisher_->publishMotorDone(MAX_MOTOR_PORTS, true);
     EXPECT_TRUE(result.isFailure());
 }
 

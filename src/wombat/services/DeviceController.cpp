@@ -291,15 +291,6 @@ namespace wombat
         return spi_->getMotorPosition(port);
     }
 
-    Result<uint8_t> DeviceController::getMotorDone() const
-    {
-        if (!isInitialized_)
-        {
-            return Result<uint8_t>::failure("Device controller not initialized");
-        }
-        return spi_->getMotorDone();
-    }
-
     bool DeviceController::isBusServo(const PortId port) const
     {
         const auto state = spi_->getServoState(port);

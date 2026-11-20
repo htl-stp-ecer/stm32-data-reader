@@ -1,6 +1,0 @@
-services:
-  build-wombat-firmware:
-    build: .
-    volumes:
-      - .:/home/dev/Wombat-Firmware:rw
-      - ../shared:/home/dev/shared:ro

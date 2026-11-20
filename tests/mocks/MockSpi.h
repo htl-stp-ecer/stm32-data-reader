@@ -34,8 +34,6 @@ namespace wombat::test
         );
         MOCK_METHOD(Result<int32_t>, getMotorPosition, (PortId port), (override)
         );
-        MOCK_METHOD(Result<uint8_t>, getMotorDone, (), (override)
-        );
         MOCK_METHOD(Result<MotorState>, getMotorState, (PortId port), (
 
         
