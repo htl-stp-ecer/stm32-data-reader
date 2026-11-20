@@ -30,6 +30,8 @@ namespace wombat
         Result<void> publishMotorState(PortId port, const MotorState& state);
         Result<void> publishMotorPosition(PortId port, int32_t position);
         Result<void> publishServoState(PortId port, const ServoState& state);
+        // Bus servo: done (0 running / 1 reached / 2 stalled), feedback and health channels.
+        Result<void> publishBusServo(PortId port, const BusServoFeedback& feedback, int32_t done);
         Result<void> publishShutdownStatus(uint8_t shutdownFlags);
         // Publishes the BEMF-enabled state as retained scalar_i32_t (1 = enabled, 0 = disabled).
         Result<void> publishBemfEnabled(bool enabled);
@@ -83,6 +85,9 @@ namespace wombat
         PublishGate<raccoon::scalar_f_t>   odomVxGate_;
         PublishGate<raccoon::scalar_f_t>   odomVyGate_;
         PublishGate<raccoon::scalar_f_t>   odomWzGate_;
+        // Bus servos: feedback at the servo poll rate, health slowly.
+        std::array<PublishGate<raccoon::vector3f_t>, MAX_SERVO_PORTS> busFeedbackGates_;
+        std::array<PublishGate<raccoon::vector3f_t>, MAX_SERVO_PORTS> busHealthGates_;
 
         // Gate check: returns true (and updates last-{value,time}) if
         // the sample should be published, false if it should be
