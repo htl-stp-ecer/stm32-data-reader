@@ -1,0 +1,16 @@
+name: Add to taskboard
+
+# Puts new issues and PRs on the org taskboard. Logic lives in htl-stp-ecer/.github.
+
+on:
+  issues:
+    types: [opened, reopened, transferred]
+  pull_request_target: # not pull_request: PRs from forks get no secrets there. Nothing from the PR is checked out or run.
+    types: [opened, reopened]
+
+permissions: {}
+
+jobs:
+  add:
+    uses: htl-stp-ecer/.github/.github/workflows/add-to-taskboard.yml@main
+    secrets: inherit
