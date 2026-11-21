@@ -27,6 +27,7 @@
 #include "Communication/communication_with_pi.h"
 
 #include "Actors/servo.h"
+#include "Actors/bus_servo.h"
 #include "Actors/motor.h"
 #include "Hardware/timer.h"
 
@@ -106,6 +107,7 @@ int main(void)
     initPiCommunication();
     initMotors();
     setupImu();
+    bus_servo_init();
 
     uint32_t last_heartbeat = HAL_GetTick();
     uint32_t heartbeat_count = 0;
@@ -117,6 +119,7 @@ int main(void)
         // CCR writes are shadowed (OCxPE=1), so the duty cycle the servo sees still
         // updates only at the start of each 20 ms PWM period regardless of call rate.
         update_servo_cmd();
+        bus_servo_update(current_time);
 
         if (current_time - last_heartbeat >= HEARTBEAT_INTERVAL)
         {

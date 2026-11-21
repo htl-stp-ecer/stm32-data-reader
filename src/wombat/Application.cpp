@@ -567,6 +567,14 @@ namespace wombat
                     logger_->warn(
                         "Failed to publish servo " + std::to_string(port) + " state: " + publishResult.error());
                 }
+
+                if (servoStateResult.value().mode == ServoMode::Bus)
+                {
+                    const auto feedback = deviceController_->getBusServoFeedback(port);
+                    const auto done = deviceController_->getBusServoDone(port);
+                    if (feedback.isSuccess() && done.isSuccess())
+                        dataPublisher_->publishBusServo(port, feedback.value(), done.value());
+                }
             }
         }
 
