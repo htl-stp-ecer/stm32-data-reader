@@ -99,7 +99,8 @@ namespace wombat
             return Result<void>::success();
         }
 
-        // Enable STM32 shutdown flag to disable motors and servos at firmware level
+        // Enable the STM32 shutdown flag: motors are stopped at firmware level. Servos
+        // keep their last position (see setShutdown).
         spi_->setShutdown(true);
 
         auto result = spi_->shutdown();

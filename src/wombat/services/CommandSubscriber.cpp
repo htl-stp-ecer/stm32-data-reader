@@ -1,5 +1,6 @@
 #include "wombat/services/CommandSubscriber.h"
 #include "wombat/core/CmdTrace.h"
+#include "wombat/core/ShutdownFlags.h"
 #include <raccoon/orientation_matrix_t.hpp>
 #include <chrono>
 
@@ -607,10 +608,10 @@ namespace wombat
             logger_->info("Watchdog-triggered shutdown cleared by user — watchdog re-armed");
         }
 
-        // Publish shutdown status so subscribers (like the UI) can react.
-        // Bitmask: bit 0 = servo shutdown, bit 1 = motor shutdown, bit 2 = source watchdog.
-        // User-initiated commands always clear the source bit.
-        const uint8_t shutdownFlags = enabled ? 0x03 : 0x00;
+        // Publish the latch state so subscribers (like the UI) can react. The latch
+        // stops the motors only (see shutdown_flags); a user-initiated command
+        // never sets the watchdog source bit.
+        const uint8_t shutdownFlags = enabled ? shutdown_flags::kUserLatch : shutdown_flags::kClear;
         dataPublisher_->publishShutdownStatus(shutdownFlags);
 
         logger_->info("Shutdown " + std::string(enabled ? "enabled" : "disabled"));

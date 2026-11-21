@@ -1,6 +1,7 @@
 #include "wombat/services/MotorWatchdog.h"
 #include "wombat/services/DataPublisher.h"
 #include "wombat/services/DeviceController.h"
+#include "wombat/core/ShutdownFlags.h"
 
 #include <cstdio>
 
@@ -8,15 +9,11 @@ namespace wombat
 {
     namespace
     {
-        // Bitmask published on Channels::SHUTDOWN_STATUS.
-        //   bit 0 (0x01): servo shutdown active
-        //   bit 1 (0x02): motor shutdown active
-        //   bit 2 (0x04): source = watchdog (else: user-initiated)
-        constexpr uint8_t kShutdownClear = 0x00;
-        // Motor + watchdog source. The servo bit is intentionally NOT set: a
-        // watchdog fire stops the motors but leaves the servos holding their
+        // Latch state published on Channels::SHUTDOWN_STATUS (see shutdown_flags):
+        // a watchdog fire stops the motors and leaves the servos holding their
         // last position (see DeviceController::setShutdown).
-        constexpr uint8_t kShutdownByWatchdog = 0x06;
+        constexpr uint8_t kShutdownClear = shutdown_flags::kClear;
+        constexpr uint8_t kShutdownByWatchdog = shutdown_flags::kWatchdogLatch;
     } // namespace
 
     MotorWatchdog::MotorWatchdog(Duration timeout, int recoverFeeds)
