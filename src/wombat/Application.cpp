@@ -426,7 +426,7 @@ namespace wombat
                 logger_->warn(
                     "Slow control loop",
                     "One loop took " + std::to_string(total) + " ms (warning at " + std::to_string(loopWarnMs)
-                    + " ms).\nSlowest part: " + slowest->first + ", " + std::to_string(slowest->second) + " ms.");
+                    + " ms). Slowest part: " + slowest->first + ", " + std::to_string(slowest->second) + " ms.");
             }
         }
 

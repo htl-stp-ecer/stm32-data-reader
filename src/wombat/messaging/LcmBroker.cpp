@@ -118,7 +118,7 @@ namespace wombat
                         dedupStr = ", dedup=" + std::to_string(stats.publishes_deduplicated);
                     }
                     const std::string subscriberStats = formatChannelStatsReport();
-                    logger_->info("LCM processMessages: avg=" + std::to_string(avgMsgsPerCall).substr(0, 5)
+                    logger_->debug("LCM processMessages: avg=" + std::to_string(avgMsgsPerCall).substr(0, 5)
                         + " msgs/call, rate=" + std::to_string(hz).substr(0, 5) + "Hz"
                         + ", total calls=" + std::to_string(processCallCount_)
                         + ", total msgs=" + std::to_string(totalMessagesProcessed_ + messagesProcessed)
@@ -231,7 +231,7 @@ namespace wombat
                 ++latencyAlertConsecutiveCount_;
                 const std::string content =
                     "Messages reach the reader late: 99% arrive within "
-                    + std::to_string(latency.p99_us / 1000) + " ms (limit 20 ms).\n"
+                    + std::to_string(latency.p99_us / 1000) + " ms (limit 20 ms). "
                     + "Average " + std::to_string(latency.avg_us / 1000) + " ms, worst "
                     + std::to_string(latency.max_us / 1000) + " ms, over "
                     + std::to_string(latency.count) + " messages.";

@@ -88,7 +88,7 @@ namespace wombat
         static uint32_t imuLogCounter = 0;
         if (++imuLogCounter % 500 == 0)
         {
-            logger_->info("SPI rx gyro=[" + std::to_string(d.gyro.x) + ","
+            logger_->debug("SPI rx gyro=[" + std::to_string(d.gyro.x) + ","
                 + std::to_string(d.gyro.y) + "," + std::to_string(d.gyro.z)
                 + "] accel=[" + std::to_string(d.accelerometer.x) + ","
                 + std::to_string(d.accelerometer.y) + "," + std::to_string(d.accelerometer.z)
@@ -128,7 +128,7 @@ namespace wombat
         static uint32_t bemfLogCounter = 0;
         if (++bemfLogCounter % 200 == 0) // ~every 200 SPI reads
         {
-            logger_->info("SPI rx bemf=["
+            logger_->debug("SPI rx bemf=["
                 + std::to_string(rx->motor.bemf[0]) + ","
                 + std::to_string(rx->motor.bemf[1]) + ","
                 + std::to_string(rx->motor.bemf[2]) + ","
