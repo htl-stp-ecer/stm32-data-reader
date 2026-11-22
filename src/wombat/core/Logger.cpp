@@ -35,12 +35,12 @@ namespace wombat
 
         void warn(const std::string& message) override
         {
-            warn(kDefaultTitle, message);
+            spdlog::warn(message);
         }
 
         void error(const std::string& message) override
         {
-            error(kDefaultTitle, message);
+            spdlog::error(message);
         }
 
         void warn(const std::string& title, const std::string& content) override
@@ -77,8 +77,6 @@ namespace wombat
         };
         LastMessage lastWarn_;
         LastMessage lastError_;
-
-        static inline const std::string kDefaultTitle{"STM32 reader"};
 
         void publishToBus(const std::string& channel, const std::string& title, const std::string& content,
                           LastMessage& last)

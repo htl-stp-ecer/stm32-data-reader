@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
             // Logger might not be available yet if initialization failed
             auto logger = app.getLogger();
             if (logger) {
-                logger->error("Failed to initialize application: " + initResult.error());
+                logger->error("Reader problem", "Failed to initialize application: " + initResult.error());
             }
             return EXIT_FAILURE;
         }
@@ -85,7 +85,7 @@ int main(int argc, char* argv[]) {
         if (runResult.isFailure()) {
             auto logger = app.getLogger();
             if (logger) {
-                logger->error("Application run failed: " + runResult.error());
+                logger->error("Reader problem", "Application run failed: " + runResult.error());
             }
             return EXIT_FAILURE;
         }
@@ -98,7 +98,7 @@ int main(int argc, char* argv[]) {
             wombat::Configuration config{};
             applyEnvOverrides(config);
             auto logger = wombat::Logger::create(config.logging);
-            logger->error("Unhandled exception: " + std::string(e.what()));
+            logger->error("Reader problem", "Unhandled exception: " + std::string(e.what()));
         } catch (...) {
             // Last resort fallback - logger creation failed
         }
@@ -109,7 +109,7 @@ int main(int argc, char* argv[]) {
             wombat::Configuration config{};
             applyEnvOverrides(config);
             auto logger = wombat::Logger::create(config.logging);
-            logger->error("Unknown unhandled exception");
+            logger->error("Reader problem", "Unknown unhandled exception");
         } catch (...) {
             // Last resort fallback - logger creation failed
         }

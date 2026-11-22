@@ -143,7 +143,7 @@ namespace wombat
         auto sensorResult = spi_->readSensorData();
         if (sensorResult.isFailure())
         {
-            logger_->error("Failed to read sensor data: " + sensorResult.error());
+            logger_->error("Reader problem", "Failed to read sensor data: " + sensorResult.error());
             return Result<void>::failure(sensorResult.error());
         }
 
@@ -182,7 +182,7 @@ namespace wombat
         auto result = spi_->setMotorState(port, state);
         if (result.isFailure())
         {
-            logger_->error("Failed to set motor " + std::to_string(port) + " state: " + result.error());
+            logger_->warn("Command failed", "Failed to set motor " + std::to_string(port) + " state: " + result.error());
             motorStates_[port] = previousState;
             return result;
         }
@@ -252,7 +252,7 @@ namespace wombat
                 auto brakeResult = setMotorBrake(port);
                 if (brakeResult.isFailure())
                 {
-                    logger_->error("Failed to brake motor " + std::to_string(port) +
+                    logger_->warn("Command failed", "Failed to brake motor " + std::to_string(port) +
                         " on zero chassis velocity: " + brakeResult.error());
                     return brakeResult;
                 }
@@ -272,7 +272,7 @@ namespace wombat
             auto modeResult = setMotorState(port, MotorState{.controlMode = MotorControlMode::Chassis});
             if (modeResult.isFailure())
             {
-                logger_->error("Failed to set motor " + std::to_string(port) +
+                logger_->warn("Command failed", "Failed to set motor " + std::to_string(port) +
                     " to chassis mode: " + modeResult.error());
                 return modeResult;
             }
@@ -283,7 +283,7 @@ namespace wombat
         auto result = spi_->setChassisVelocity(vx, vy, wz);
         if (result.isFailure())
         {
-            logger_->error("Failed to set chassis velocity: " + result.error());
+            logger_->warn("Command failed", "Failed to set chassis velocity: " + result.error());
             return result;
         }
 
@@ -318,7 +318,7 @@ namespace wombat
         auto seqResult = spi_->setBusServoCommand(port, command);
         if (seqResult.isFailure())
         {
-            logger_->error("Failed to send bus servo " + std::to_string(port) + " command: " + seqResult.error());
+            logger_->warn("Command failed", "Failed to send bus servo " + std::to_string(port) + " command: " + seqResult.error());
             return Result<void>::failure(seqResult.error());
         }
         busCommandSeq_[port] = seqResult.value();
@@ -391,7 +391,7 @@ namespace wombat
         auto result = spi_->setServoState(port, state);
         if (result.isFailure())
         {
-            logger_->error("Failed to set servo " + std::to_string(port) + " command: " + result.error());
+            logger_->warn("Command failed", "Failed to set servo " + std::to_string(port) + " command: " + result.error());
             return result;
         }
 
@@ -495,7 +495,7 @@ namespace wombat
         auto result = spi_->setServoState(port, state);
         if (result.isFailure())
         {
-            logger_->error("Failed to set servo " + std::to_string(port) + " mode: " + result.error());
+            logger_->warn("Command failed", "Failed to set servo " + std::to_string(port) + " mode: " + result.error());
             return result;
         }
 
@@ -519,7 +519,7 @@ namespace wombat
         auto result = spi_->resetMotorPosition(port);
         if (result.isFailure())
         {
-            logger_->error("Failed to reset position for motor " + std::to_string(port) + ": " + result.error());
+            logger_->warn("Command failed", "Failed to reset position for motor " + std::to_string(port) + ": " + result.error());
             return result;
         }
 
@@ -543,7 +543,7 @@ namespace wombat
         auto result = spi_->setMotorPid(port, kp, ki, kd);
         if (result.isFailure())
         {
-            logger_->error("Failed to set motor PID for port " + std::to_string(port) + ": " + result.error());
+            logger_->warn("Command failed", "Failed to set motor PID for port " + std::to_string(port) + ": " + result.error());
             return result;
         }
 
@@ -644,7 +644,7 @@ namespace wombat
         auto result = spi_->setShutdown(enabled);
         if (result.isFailure())
         {
-            logger_->error("Failed to set shutdown: " + result.error());
+            logger_->warn("Command failed", "Failed to set shutdown: " + result.error());
             return result;
         }
 
@@ -704,7 +704,7 @@ namespace wombat
         auto result = spi_->setFeatureFlags(featureFlags_);
         if (result.isFailure())
         {
-            logger_->error("Failed to push feature flags to STM32: " + result.error());
+            logger_->warn("Command failed", "Failed to push feature flags to STM32: " + result.error());
             return result;
         }
 

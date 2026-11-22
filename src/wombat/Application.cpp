@@ -84,7 +84,7 @@ namespace wombat
             auto result = processMainLoop();
             if (result.isFailure())
             {
-                logger_->error("Main loop error: " + result.error());
+                logger_->error("Reader problem", "Main loop error: " + result.error());
                 fatalShutdown_ = true;
                 shouldShutdown_ = true;
             }
@@ -320,7 +320,7 @@ namespace wombat
             }
             catch (const std::runtime_error& ex)
             {
-                logger_->error(std::string("SPI guard rejected command: ") + ex.what());
+                logger_->warn("Command rejected", std::string("SPI guard rejected command: ") + ex.what());
                 // Recovery: force all motors to OFF so the rejected command can't
                 // get re-driven on the next transfer. Caller (raccoon-lib) gets the
                 // motors back at OFF and can re-issue a valid command.
@@ -346,7 +346,7 @@ namespace wombat
         auto deviceResult = deviceController_->processUpdate();
         if (deviceResult.isFailure())
         {
-            logger_->error("Device controller update failed: " + deviceResult.error());
+            logger_->error("Reader problem", "Device controller update failed: " + deviceResult.error());
             return deviceResult;
         }
         const auto tDevice = std::chrono::steady_clock::now();
@@ -459,7 +459,8 @@ namespace wombat
         constexpr auto kTimeout = std::chrono::seconds(10);
         if (now - lastStm32Activity_ > kTimeout)
         {
-            logger_->error("STM32 health check failed: updateTime has not changed for >10s — shutting down");
+            logger_->error("STM32 not responding",
+                           "The STM32 has not updated its data for more than 10 s. The reader shuts down.");
             fatalShutdown_ = true;
             shouldShutdown_ = true;
         }

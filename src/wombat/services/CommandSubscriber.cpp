@@ -268,7 +268,7 @@ namespace wombat
 
         if (result.isFailure())
         {
-            logger_->error("Failed to set motor command: " + result.error());
+            logger_->warn("Command failed", "Failed to set motor command: " + result.error());
             return;
         }
     }
@@ -305,7 +305,7 @@ namespace wombat
 
         if (result.isFailure())
         {
-            logger_->error("Failed to set motor mode: " + result.error());
+            logger_->warn("Command failed", "Failed to set motor mode: " + result.error());
             return;
         }
 
@@ -337,7 +337,7 @@ namespace wombat
 
         if (result.isFailure())
         {
-            logger_->error("Failed to stop motor: " + result.error());
+            logger_->warn("Command failed", "Failed to stop motor: " + result.error());
             return;
         }
 
@@ -363,7 +363,7 @@ namespace wombat
 
         if (result.isFailure())
         {
-            logger_->error("Failed to set motor velocity: " + result.error());
+            logger_->warn("Command failed", "Failed to set motor velocity: " + result.error());
             return;
         }
     }
@@ -389,7 +389,7 @@ namespace wombat
 
         if (result.isFailure())
         {
-            logger_->error("Failed to set motor position: " + result.error());
+            logger_->warn("Command failed", "Failed to set motor position: " + result.error());
             return;
         }
     }
@@ -413,7 +413,7 @@ namespace wombat
         auto result = deviceController_->setServoCommand(port, degrees);
         if (result.isFailure())
         {
-            logger_->error("Failed to set servo command: " + result.error());
+            logger_->warn("Command failed", "Failed to set servo command: " + result.error());
             return;
         }
 
@@ -440,7 +440,7 @@ namespace wombat
         auto result = deviceController_->startSmoothServo(port, targetAngle, speed, easingType);
         if (result.isFailure())
         {
-            logger_->error("Failed to start smooth servo on port " + std::to_string(port) + ": " + result.error());
+            logger_->warn("Command failed", "Failed to start smooth servo on port " + std::to_string(port) + ": " + result.error());
             return;
         }
 
@@ -462,7 +462,7 @@ namespace wombat
         auto result = deviceController_->setServoVelocity(port, command.value);
         if (result.isFailure())
         {
-            logger_->error("Failed to set servo velocity: " + result.error());
+            logger_->warn("Command failed", "Failed to set servo velocity: " + result.error());
             return;
         }
 
@@ -489,7 +489,7 @@ namespace wombat
         auto result = deviceController_->setServoMode(port, mode);
         if (result.isFailure())
         {
-            logger_->error("Failed to set servo mode: " + result.error());
+            logger_->warn("Command failed", "Failed to set servo mode: " + result.error());
             return;
         }
 
@@ -521,7 +521,7 @@ namespace wombat
         const auto result = deviceController_->resetMotorPosition(port);
         if (result.isFailure())
         {
-            logger_->error("Failed to reset position for motor " + std::to_string(port) + ": " + result.error());
+            logger_->warn("Command failed", "Failed to reset position for motor " + std::to_string(port) + ": " + result.error());
             return;
         }
 
@@ -547,7 +547,7 @@ namespace wombat
 
         if (result.isFailure())
         {
-            logger_->error("Failed to set motor PID: " + result.error());
+            logger_->warn("Command failed", "Failed to set motor PID: " + result.error());
             return;
         }
     }
@@ -570,7 +570,7 @@ namespace wombat
         const auto result = deviceController_->setChassisVelocity(command.x, command.y, command.z);
         if (result.isFailure())
         {
-            logger_->error("Failed to set chassis velocity: " + result.error());
+            logger_->warn("Command failed", "Failed to set chassis velocity: " + result.error());
             return;
         }
     }
@@ -592,7 +592,7 @@ namespace wombat
         const auto result = deviceController_->setChassisVelocity(0.0f, 0.0f, 0.0f);
         if (result.isFailure())
         {
-            logger_->error("Failed to stop the chassis: " + result.error());
+            logger_->warn("Command failed", "Failed to stop the chassis: " + result.error());
         }
     }
 
@@ -611,7 +611,7 @@ namespace wombat
         const auto result = deviceController_->setShutdown(enabled);
         if (result.isFailure())
         {
-            logger_->error("Failed to set shutdown: " + result.error());
+            logger_->warn("Command failed", "Failed to set shutdown: " + result.error());
             return;
         }
 
@@ -666,7 +666,7 @@ namespace wombat
         auto result = deviceController_->sendKinematicsConfig(inv_matrix, ticks_to_rad, fwd_matrix, bemf_offset);
         if (result.isFailure())
         {
-            logger_->error("Failed to send kinematics config: " + result.error());
+            logger_->warn("Command failed", "Failed to send kinematics config: " + result.error());
             return;
         }
 
@@ -687,7 +687,7 @@ namespace wombat
         auto result = deviceController_->resetOdometry();
         if (result.isFailure())
         {
-            logger_->error("Failed to reset odometry: " + result.error());
+            logger_->warn("Command failed", "Failed to reset odometry: " + result.error());
             return;
         }
 
@@ -719,7 +719,7 @@ namespace wombat
         const auto result = deviceController_->setBemfEnabled(enabled);
         if (result.isFailure())
         {
-            logger_->error("Failed to set BEMF enabled state: " + result.error());
+            logger_->warn("Command failed", "Failed to set BEMF enabled state: " + result.error());
             return;
         }
 

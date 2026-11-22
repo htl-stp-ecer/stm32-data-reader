@@ -20,8 +20,10 @@ namespace wombat
         virtual void error(const std::string& message) = 0;
         virtual void debug(const std::string& message) = 0;
 
+        // warn(message) and error(message) write to the journal only.
+        //
         // A message for the user (a dialog in the UI): a short title and the text below it. The journal
-        // gets one line, "title: content". The overloads above show the text under the title "STM32 reader".
+        // gets one line, "title: content", and the text goes to messages/warn or messages/error.
         virtual void warn(const std::string& title, const std::string& content)
         {
             warn(title + ": " + content);

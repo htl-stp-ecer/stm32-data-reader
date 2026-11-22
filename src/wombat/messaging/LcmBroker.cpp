@@ -236,8 +236,8 @@ namespace wombat
 
                 if (!latencyAlertActive_ || latencyAlertConsecutiveCount_ % 10 == 1)
                 {
-                    // To the journal and to messages/error.
-                    logger_->error("Commands arrive slowly", content);
+                    // To the journal and to messages/warn.
+                    logger_->warn("Commands arrive slowly", content);
                 }
 
                 latencyAlertActive_ = true;
