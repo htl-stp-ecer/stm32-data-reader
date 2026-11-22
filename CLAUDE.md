@@ -58,9 +58,9 @@ STM32 <--SPI--> Spi --> DeviceController --> DataPublisher --> raccoon::Transpor
 raccoon::Transport (SHM) --> CommandSubscriber ----|
 ```
 
-### LCM Message Types
+### Message Types
 
-Defined in `lcm-messages/types/*.lcm`, auto-generated to `raccoon::*` C++ headers:
+Defined in raccoon-transport (`messages/`) as `raccoon::*` C++ structs:
 - `vector3f_t` - 3D vectors (gyro, accel, mag)
 - `quaternion_t` - Orientation quaternion
 - `scalar_f_t`, `scalar_i32_t`, `scalar_i8_t` - Scalar values
@@ -68,10 +68,10 @@ Defined in `lcm-messages/types/*.lcm`, auto-generated to `raccoon::*` C++ header
 
 ### Channel Naming Convention
 
-All channels follow pattern `libstp/<device>/<property>` defined in `wombat::Channels` namespace:
-- Sensor data: `libstp/gyro/value`, `libstp/accel/value`, `libstp/imu/quaternion`
-- Motor control: `libstp/motor/{port}/power_cmd`, `libstp/bemf/{port}/value`
-- System: `libstp/system/dump_request`, `libstp/errors`
+Channels are listed in the channel table of raccoon-transport (`channels.yml`) and follow the pattern `<root>/<device>/<kind>/<property>`; `include/wombat/core/Channels.h` gives the reader short names for them:
+- Sensor data: `hardware/imu/state/gyro`, `hardware/imu/state/quaternion`
+- Motor control: `hardware/motor/{port}/cmd/power`, `hardware/motor/{port}/state/bemf`
+- Messages: `messages/error`, `messages/warn`
 
 ### SPI Protocol
 
@@ -140,35 +140,37 @@ ssh pi@<ip> "python3 /home/pi/test_script.py"  # Run it
 
 ### Raccoon transport Python library (on the Pi):
 
-The raccoon-transport Python package is installed system-wide on the Pi. Use it to send LCM commands and read sensor
+The raccoon-transport Python package is installed system-wide on the Pi. Use it to send commands and read sensor
 data. Key imports:
 
 ```python
-from raccoon_transport import Transport
-from raccoon_transport.channels import Channels
+import raccoon_transport as rt
+from raccoon_transport import channels
 from raccoon_transport.types.raccoon import vector3f_t, scalar_i32_t, scalar_f_t
+
+transport = rt.get_transport()
 ```
 
 ### Motor command examples (Python, runs on Pi):
 
 - **Position command** (`vector3f_t`): `x` = speed limit, `y` = goal position. Publish to
-  `Channels.motor_position_command(port)` with `reliable=True`.
+  `channels.hardware.motor.cmd.position(port)`.
 - **Position reset** (`scalar_i32_t`): `value` must be non-zero (e.g. `1`) to trigger. Publish to
-  `Channels.motor_position_reset_command(port)` with `reliable=True`.
-- **Stop motor** (`scalar_i32_t`): Publish to `Channels.motor_stop_command(port)` with `reliable=True`.
-- **Read position**: Subscribe to `Channels.motor_position(port)`, decode as `scalar_i32_t`, field is `.value`.
-- **Read BEMF**: Subscribe to `Channels.back_emf(port)`, decode as `scalar_i32_t`, field is `.value`.
+  `channels.hardware.motor.cmd.reset_position(port)`.
+- **Stop motor** (`scalar_i32_t`): Publish to `channels.hardware.motor.cmd.stop(port)`.
+- **Read position**: Subscribe to `channels.hardware.motor.state.position(port)`, decode as `scalar_i32_t`, field is `.value`.
+- **Read BEMF**: Subscribe to `channels.hardware.motor.state.bemf(port)`, decode as `scalar_i32_t`, field is `.value`.
 
 ### Important notes:
 
-- All per-port motor and servo commands use `reliable=True` delivery, including velocity and power: they are also
-  sent as one-shot commands, and a lost one-shot command is never repeated.
-- The chassis velocity command (`CHASSIS_VELOCITY_CMD`) is streamed best-effort while driving; only the stop (0, 0, 0)
-  is sent reliable (the reader subscribes it reliable to ACK it).
+- All per-port motor and servo commands are reliable channels, including velocity and power: they are also sent as
+  one-shot commands, and a lost one-shot command is never repeated.
+- The chassis velocity command (`hardware/chassis/cmd/velocity`) is a stream; the stop is its own reliable channel
+  `hardware/chassis/cmd/stop`.
 - `scalar_i8_t` has field `.dir`, not `.value`. Used for servo mode only.
 - Position reset resets the counter on the STM32 directly (not just a Pi-side offset).
 - Use `time.sleep(0.3-0.5)` after reset before sending new commands.
-- There is no done flag. A client detects "reached" by comparing `Channels.motor_position(port)` with the goal
+- There is no done flag. A client detects "reached" by comparing `channels.hardware.motor.state.position(port)` with the goal
   (with a tolerance) and should use a timeout — motors may not arrive if blocked or misconfigured.
 - Position mode (MTP) is sticky: after reaching the goal the firmware keeps holding it (and drives back if pushed
   away) until another mode is commanded (off, brake, velocity, power).

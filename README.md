@@ -137,59 +137,59 @@ cmake --build . -- -j$(nproc)
 
 ## Channels
 
-Channel names come from [raccoon-transport](https://github.com/htl-stp-ecer/raccoon-transport) (`cpp/include/raccoon/Channels.h`). `{n}` is the port number.
+Channel names and their message types come from the channel table of [raccoon-transport](https://github.com/htl-stp-ecer/raccoon-transport) (`channels.yml`). `{n}` is the port number. A channel is retained when a new subscriber gets its latest frame, and reliable when the sender repeats a frame until the receiver acknowledges it.
 
 ### Published
 
 | Channel | Type | Description |
 |:--------|:-----|:------------|
-| `raccoon/gyro/value` | `vector3f_t` | Gyroscope (rad/s) |
-| `raccoon/accel/value` | `vector3f_t` | Accelerometer (m/s²) |
-| `raccoon/linear_accel/value` | `vector3f_t` | Linear acceleration |
-| `raccoon/mag/value` | `vector3f_t` | Magnetometer |
-| `raccoon/imu/quaternion` | `quaternion_t` | Orientation quaternion |
-| `raccoon/imu/heading` | `scalar_f_t` | Heading (retained) |
-| `raccoon/imu/temp/value` | `scalar_f_t` | IMU temperature (°C) |
-| `raccoon/cpu/temp/value` | `scalar_f_t` | CPU temperature (°C) |
-| `raccoon/battery/voltage` | `scalar_f_t` | Battery voltage |
-| `raccoon/{gyro,accel,mag}/accuracy`, `raccoon/imu/quaternion_accuracy` | `scalar_i8_t` | Calibration status (0–3) |
-| `raccoon/odometry/{pos_x,pos_y,heading,vx,vy,wz}` | `scalar_f_t` | Odometry from the STM32 (retained) |
-| `raccoon/analog/{n}/value` | `scalar_i32_t` | Analog sensor readings |
-| `raccoon/digital/{n}/value` | `scalar_i32_t` | Digital input states |
-| `raccoon/bemf/{n}/value` | `scalar_i32_t` | Motor back-EMF |
-| `raccoon/motor/{n}/power` | `scalar_i32_t` | Current motor power |
-| `raccoon/motor/{n}/position` | `scalar_i32_t` | Motor position |
-| `raccoon/servo/{n}/mode` | `scalar_i8_t` | Servo mode (retained) |
-| `raccoon/servo/{n}/position` | `scalar_f_t` | Servo position (retained) |
-| `raccoon/system/shutdown_status` | `scalar_i32_t` | Shutdown flags (retained) |
-| `raccoon/feature/bemf_enabled` | | BEMF feature flag (retained) |
+| `hardware/imu/state/gyro` | `vector3f_t` | Gyroscope (rad/s) |
+| `hardware/imu/state/accel` | `vector3f_t` | Accelerometer (m/s²) |
+| `hardware/imu/state/linear_accel`, `accel_velocity`, `mag` | `vector3f_t` | Linear acceleration, velocity from acceleration, magnetometer |
+| `hardware/imu/state/quaternion` | `quaternion_t` | Orientation quaternion |
+| `hardware/imu/state/heading` | `scalar_f_t` | Heading |
+| `hardware/imu/state/temperature` | `scalar_f_t` | IMU temperature (°C) |
+| `hardware/imu/state/{gyro,accel,mag,quaternion}_accuracy` | `scalar_i8_t` | Calibration status (0–3) |
+| `system/state/cpu_temperature` | `scalar_f_t` | CPU temperature (°C) |
+| `hardware/battery/state/voltage` | `scalar_f_t` | Battery voltage |
+| `hardware/odometry/state/{pos_x,pos_y,heading,vx,vy,wz}` | `scalar_f_t` | Odometry from the STM32 |
+| `hardware/analog/{n}/state/value` | `scalar_i32_t` | Analog sensor readings |
+| `hardware/digital/{n}/state/value` | `scalar_i32_t` | Digital input states |
+| `hardware/motor/{n}/state/power` | `scalar_i32_t` | Current motor power |
+| `hardware/motor/{n}/state/position` | `scalar_i32_t` | Motor position |
+| `hardware/motor/{n}/state/bemf` | `scalar_i32_t` | Motor back-EMF |
+| `hardware/servo/{n}/state/{mode,position,feedback,health,done}` | | Servo state |
+| `hardware/latch/state/flags` | `scalar_i32_t` | Flags of the motor latch (see below) |
+| `hardware/feature/state/bemf_active` | `scalar_i32_t` | Whether back-EMF control is active |
+| `messages/error`, `messages/warn` | `string_t` | Errors and warnings of the reader (the same text at most once per second) |
 
 ### Subscribed (commands)
 
 | Channel | Type | Description |
 |:--------|:-----|:------------|
-| `raccoon/motor/{n}/power_cmd` | `scalar_i32_t` | Motor power (−100 to 100) |
-| `raccoon/motor/{n}/mode_cmd` | `scalar_i32_t` | Motor mode |
-| `raccoon/motor/{n}/stop_cmd` | `scalar_i32_t` | Stop motor |
-| `raccoon/motor/{n}/velocity_cmd` | `scalar_i32_t` | Target velocity |
-| `raccoon/motor/{n}/position_cmd` | `vector3f_t` | Move to position (`x` = speed limit, `y` = goal) |
-| `raccoon/motor/{n}/pid_cmd` | `vector3f_t` | PID gains |
-| `raccoon/motor/{n}/position_reset_cmd` | `scalar_i32_t` | Reset the position counter (non-zero value) |
-| `raccoon/chassis/velocity_cmd` | `vector3f_t` | Body-frame velocity (vx, vy, wz) |
-| `raccoon/servo/{n}/position_cmd` | `scalar_f_t` | Servo position |
-| `raccoon/servo/{n}/mode_cmd` | `scalar_i8_t` | Servo mode |
-| `raccoon/servo/{n}/smooth_cmd` | `vector3f_t` | Smooth servo move |
-| `raccoon/kinematics/config_cmd` | `kinematics_config_t` | Kinematics matrices |
-| `raccoon/odometry/reset_cmd` | `scalar_i32_t` | Reset odometry |
-| `raccoon/system/shutdown_cmd` | `scalar_i32_t` | Shut down the Pi |
+| `hardware/motor/{n}/cmd/power` | `scalar_i32_t` | Motor power (−100 to 100) |
+| `hardware/motor/{n}/cmd/mode` | `scalar_i32_t` | Motor mode |
+| `hardware/motor/{n}/cmd/stop` | `scalar_i32_t` | Stop motor |
+| `hardware/motor/{n}/cmd/velocity` | `scalar_i32_t` | Target velocity |
+| `hardware/motor/{n}/cmd/position` | `vector3f_t` | Move to position (`x` = speed limit, `y` = goal) |
+| `hardware/motor/{n}/cmd/pid` | `vector3f_t` | PID gains |
+| `hardware/motor/{n}/cmd/reset_position` | `scalar_i32_t` | Reset the position counter (non-zero value) |
+| `hardware/chassis/cmd/velocity` | `vector3f_t` | Body-frame velocity (vx, vy, wz), a stream |
+| `hardware/chassis/cmd/stop` | `scalar_i32_t` | Stop the chassis (reliable) |
+| `hardware/servo/{n}/cmd/{position,mode,smooth,velocity}` | | Servo commands |
+| `hardware/kinematics/cmd/config` | `kinematics_config_t` | Kinematics matrices |
+| `hardware/odometry/cmd/reset` | `scalar_i32_t` | Reset odometry |
+| `hardware/latch/cmd/engaged` | `scalar_i32_t` | Engage (non-zero) or release (0) the motor latch |
+| `hardware/feature/cmd/bemf_active` | `scalar_i32_t` | Switch back-EMF control on or off |
+| `hardware/watchdog/cmd/heartbeat` | `scalar_i32_t` | Heartbeat of the program, feeds the motor watchdog |
 
-Per-port commands are sent reliably, see raccoon-transport for details.
+The commands of the motors and servos, the chassis stop, the latch and the kinematics are reliable.
 
 ---
 
 ## Transport
 
-The reader publishes and subscribes through `raccoon::Transport`, which uses one shared-memory file per channel under `/dev/shm/` (`raccoon_ring_<channel>`). No network setup is needed. The reader checks the transport contract hash at startup and exits with code 78 if it does not match the installed bundle.
+The reader publishes and subscribes through `raccoon::Transport`, which uses one shared-memory file per channel under `/dev/shm/raccoon-rings/`. No network setup is needed. The reader checks the transport contract hash at startup and exits with code 78 if it does not match the installed bundle.
 
 ---
 

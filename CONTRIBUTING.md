@@ -30,28 +30,17 @@ python3 build.py     # requires only Docker; cross compiled, add --test to run t
 
 ---
 
-## Adding a new LCM channel
+## Adding a new channel
 
-### 1. Define the message type (if needed)
+### 1. Add the channel to the channel table
 
-Add a `.lcm` file in `lcm-messages/types/`:
+A channel is an entry in `channels.yml` of raccoon-transport (name, message type and the ring properties). A new message type is added to raccoon-transport as well. See its CONTRIBUTING.md; after the change run `python3 scripts/channels.py --write` and `python3 scripts/contract.py --write` there.
 
-```
-package raccoon;
-struct my_value_t {
-    float value;
-}
-```
-
-Re-run the LCM generator to produce the C++ headers.
-
-### 2. Add the channel constant
+### 2. Give the channel a name in the reader
 
 ```cpp
-// include/wombat/Channels.hpp
-namespace wombat::Channels {
-    constexpr auto my_sensor = "libstp/my_sensor/value";
-}
+// include/wombat/core/Channels.h
+inline const std::string MY_SENSOR{table::hardware::my_device::state::MY_SENSOR};
 ```
 
 ### 3. Publish in DataPublisher
@@ -127,21 +116,19 @@ cmake --build . -- -j$(nproc)
 ```bash
 python3 build.py && python3 deploy.py --host <your-pi-ip>   # build + deploy reader + firmware
 
-# Monitor LCM traffic on the Pi
-lcm-spy
+# Show the rings on the Pi
+ls -l /dev/shm/raccoon-rings/
 ```
 
 Use the `raccoon-transport` Python package on the Pi to send test commands:
 
 ```python
-from raccoon_transport import Transport
-from raccoon_transport.channels import Channels
+import raccoon_transport as rt
+from raccoon_transport import channels
 from raccoon_transport.types.raccoon import scalar_i32_t
 
-t = Transport()
-msg = scalar_i32_t()
-msg.value = 50
-t.publish(Channels.motor_power_command(0), msg.encode())
+transport = rt.get_transport()
+transport.publish(channels.hardware.motor.cmd.power(0), scalar_i32_t(timestamp=0, value=50))
 ```
 
-Motor commands that change state (position, stop, reset) use `reliable=True`. Continuous commands (power) do not.
+The commands of the motors and servos are reliable channels: the sender repeats a frame until the reader acknowledges it.
