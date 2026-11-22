@@ -87,7 +87,7 @@ void odometry_configure(const volatile KinematicsConfig* cfg)
     last_update_us = now;
     last_bemf_conv = bemfConvCount;
 
-    float heading_deg = -(imu.heading - heading_baseline);
+    float heading_deg = -(imuFusedHeading - heading_baseline);
     prev_heading_rad = heading_deg * (M_PI / 180.0f);
     prev_body_vx = 0.0f;
     prev_body_vy = 0.0f;
@@ -124,7 +124,7 @@ void odometry_reset(void)
 {
     pos_x = 0.0f;
     pos_y = 0.0f;
-    heading_baseline = imu.heading;
+    heading_baseline = imuFusedHeading;
 
     last_vx = 0.0f;
     last_vy = 0.0f;
@@ -217,7 +217,7 @@ void odometry_update(void)
     // ========================================================================
     // Step 2: IMU heading — always the authority for heading and wz
     // ========================================================================
-    float heading_deg = -(imu.heading - heading_baseline);
+    float heading_deg = -(imuFusedHeading - heading_baseline);
     float heading_rad = heading_deg * (M_PI / 180.0f);
     float imu_wz = (heading_rad - prev_heading_rad) / dt;
 
@@ -372,7 +372,7 @@ void odometry_write_to_spi_buffer(volatile OdometryData* out)
 {
     out->pos_x = pos_x;
     out->pos_y = pos_y;
-    out->heading = -(imu.heading - heading_baseline) * (M_PI / 180.0f);
+    out->heading = -(imuFusedHeading - heading_baseline) * (M_PI / 180.0f);
     out->vx = last_vx;
     out->vy = last_vy;
     out->wz = last_wz;
