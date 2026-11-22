@@ -2,7 +2,7 @@
 // Created by tobias on 9/14/25.
 //
 #include "wombat/core/Logger.h"
-#include <raccoon/Channels.h>
+#include "wombat/core/Channels.h"
 #include "wombat/messaging/LcmBroker.h"
 #include <raccoon/string_t.hpp>
 #include <spdlog/spdlog.h>
@@ -13,7 +13,6 @@
 
 namespace wombat
 {
-    namespace Channels = raccoon::Channels;
 
     class SpdlogLogger final : public Logger
     {
@@ -37,13 +36,13 @@ namespace wombat
         void warn(const std::string& message) override
         {
             spdlog::warn(message);
-            publishErrorToLcm("[WARN] " + message);
+            publishToBus(Channels::WARN_MESSAGES, message, lastWarn_);
         }
 
         void error(const std::string& message) override
         {
             spdlog::error(message);
-            publishErrorToLcm(message);
+            publishToBus(Channels::ERROR_MESSAGES, message, lastError_);
         }
 
         void debug(const std::string& message) override
@@ -59,18 +58,35 @@ namespace wombat
     private:
         std::shared_ptr<LcmBroker> lcmBroker_;
 
-        void publishErrorToLcm(const std::string& message)
+        // The same text is sent at most once per second per level, so that a fault that logs
+        // in every loop cannot flood the channel (the journal still gets every line).
+        struct LastMessage
+        {
+            std::string text;
+            std::chrono::steady_clock::time_point at{};
+        };
+        LastMessage lastWarn_;
+        LastMessage lastError_;
+
+        void publishToBus(const std::string& channel, const std::string& message, LastMessage& last)
         {
             if (!lcmBroker_)
             {
                 return; // No broker available
             }
+            const auto now = std::chrono::steady_clock::now();
+            if (message == last.text && now - last.at < std::chrono::seconds(1))
+            {
+                return;
+            }
+            last.text = message;
+            last.at = now;
 
-            raccoon::string_t errorMsg;
-            errorMsg.timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
+            raccoon::string_t msg;
+            msg.timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count();
-            errorMsg.value = message;
-            lcmBroker_->publishRetained(Channels::ERROR_MESSAGES, errorMsg);
+            msg.value = message;
+            lcmBroker_->publishForce(channel, msg);
         }
 
         // Install an *asynchronous* default logger exactly once. The reader runs

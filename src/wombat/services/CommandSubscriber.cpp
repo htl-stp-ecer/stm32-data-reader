@@ -24,8 +24,7 @@ namespace wombat
         PortId maxPorts,
         std::function<std::string(PortId)> channelFn,
         std::function<void(PortId, const MsgT &)> handler,
-        const std::string& description,
-        const raccoon::SubscribeOptions& options)
+        const std::string& description)
     {
         for (PortId i = 0; i < maxPorts; ++i)
         {
@@ -33,8 +32,7 @@ namespace wombat
             logger_->debug("Subscribing to " + description + " channel: " + channel);
             auto result = broker_->subscribe<MsgT>(
                 channel,
-                [handler, i](const MsgT& cmd) { handler(i, cmd); },
-                options
+                [handler, i](const MsgT& cmd) { handler(i, cmd); }
             );
             if (result.isFailure())
             {
@@ -51,8 +49,6 @@ namespace wombat
             return Result<void>::success();
         }
 
-        static const raccoon::SubscribeOptions reliableOpts{.reliable = true};
-
         // Motor commands (per-port). power and velocity used to be plain
         // ("continuous control loops"), but they are also issued as discrete
         // one-shot commands (e.g. the cone-pusher lower: a single
@@ -64,51 +60,51 @@ namespace wombat
         auto r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorPowerCommand,
             [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorPowerCommand(p, cmd); },
-            "motor power command", reliableOpts);
+            "motor power command");
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorModeCommand,
             [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorModeCommand(p, cmd); },
-            "motor mode command", reliableOpts);
+            "motor mode command");
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorStopCommand,
             [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorStopCommand(p, cmd); },
-            "motor stop command", reliableOpts);
+            "motor stop command");
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorVelocityCommand,
             [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorVelocityCommand(p, cmd); },
-            "motor velocity command", reliableOpts);
+            "motor velocity command");
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<raccoon::vector3f_t>(
             MAX_MOTOR_PORTS, Channels::motorPositionCommand,
             [this](PortId p, const raccoon::vector3f_t& cmd) { onMotorPositionCommand(p, cmd); },
-            "motor position command", reliableOpts);
+            "motor position command");
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<raccoon::vector3f_t>(
             MAX_MOTOR_PORTS, Channels::motorPidCommand,
             [this](PortId p, const raccoon::vector3f_t& cmd) { onMotorPidCommand(p, cmd); },
-            "motor PID command", reliableOpts);
+            "motor PID command");
         if (r.isFailure()) return r;
 
         // Motor position reset (per-port) — one-shot, reliable
         r = subscribeForPorts<raccoon::scalar_i32_t>(
             MAX_MOTOR_PORTS, Channels::motorPositionResetCommand,
             [this](PortId p, const raccoon::scalar_i32_t& cmd) { onMotorPositionResetCommand(p, cmd); },
-            "motor position reset command", reliableOpts);
+            "motor position reset command");
         if (r.isFailure()) return r;
 
         // Servo commands (per-port) — set-and-forget, reliable
         r = subscribeForPorts<raccoon::scalar_f_t>(
             MAX_SERVO_PORTS, Channels::servoPositionCommand,
             [this](PortId p, const raccoon::scalar_f_t& cmd) { onServoPositionCommand(p, cmd); },
-            "servo position command", reliableOpts);
+            "servo position command");
         if (r.isFailure()) return r;
 
         // Subscribe to the dedicated COMMAND channel — the formerly
@@ -120,13 +116,13 @@ namespace wombat
         r = subscribeForPorts<raccoon::scalar_i8_t>(
             MAX_SERVO_PORTS, Channels::servoModeCommand,
             [this](PortId p, const raccoon::scalar_i8_t& cmd) { onServoModeCommand(p, cmd); },
-            "servo mode command", reliableOpts);
+            "servo mode command");
         if (r.isFailure()) return r;
 
         r = subscribeForPorts<raccoon::vector3f_t>(
             MAX_SERVO_PORTS, Channels::servoSmoothPositionCommand,
             [this](PortId p, const raccoon::vector3f_t& cmd) { onServoSmoothCommand(p, cmd); },
-            "servo smooth command", reliableOpts);
+            "servo smooth command");
         if (r.isFailure()) return r;
 
         // Bus servo continuous rotation — usually set once and held, so reliable
@@ -134,31 +130,37 @@ namespace wombat
         r = subscribeForPorts<raccoon::scalar_f_t>(
             MAX_SERVO_PORTS, Channels::servoVelocityCommand,
             [this](PortId p, const raccoon::scalar_f_t& cmd) { onServoVelocityCommand(p, cmd); },
-            "servo velocity command", reliableOpts);
+            "servo velocity command");
         if (r.isFailure()) return r;
 
-        // Chassis velocity command (single GLOBAL channel, not port-indexed).
-        // Streamed best-effort while driving, but raccoon-lib sends the stop
-        // (0, 0, 0) reliable, as a single frame from Drive::hardStop. Reliable
-        // here so this side ACKs it.
+        // Chassis velocity command (single GLOBAL channel, not port-indexed): a stream, the
+        // next frame replaces a lost one. The stop is its own channel, reliable in the
+        // channel table, so that a single stop frame cannot be lost.
         logger_->debug("Subscribing to chassis velocity channel: " + std::string(Channels::CHASSIS_VELOCITY_CMD));
         auto chassisResult = broker_->subscribe<raccoon::vector3f_t>(
             Channels::CHASSIS_VELOCITY_CMD,
-            [this](const raccoon::vector3f_t& cmd) { onChassisVelocityCommand(cmd); },
-            reliableOpts
+            [this](const raccoon::vector3f_t& cmd) { onChassisVelocityCommand(cmd); }
         );
         if (chassisResult.isFailure())
         {
             return Result<void>::failure("Failed to subscribe to chassis velocity command: " + chassisResult.error());
         }
 
+        logger_->debug("Subscribing to chassis stop channel: " + std::string(Channels::CHASSIS_STOP_CMD));
+        auto chassisStopResult = broker_->subscribe<raccoon::scalar_i32_t>(
+            Channels::CHASSIS_STOP_CMD,
+            [this](const raccoon::scalar_i32_t& cmd) { onChassisStopCommand(cmd); }
+        );
+        if (chassisStopResult.isFailure())
+        {
+            return Result<void>::failure("Failed to subscribe to chassis stop command: " + chassisStopResult.error());
+        }
+
         // System commands (single channels)
         logger_->debug("Subscribing to shutdown command channel: " + std::string(Channels::SHUTDOWN_CMD));
         auto shutdownResult = broker_->subscribe<raccoon::scalar_i32_t>(
             Channels::SHUTDOWN_CMD,
-            [this](const raccoon::scalar_i32_t& cmd) { onShutdownCommand(cmd); },
-            reliableOpts
-        );
+            [this](const raccoon::scalar_i32_t& cmd) { onShutdownCommand(cmd); });
         if (shutdownResult.isFailure())
         {
             return Result<void>::failure("Failed to subscribe to shutdown command: " + shutdownResult.error());
@@ -168,9 +170,7 @@ namespace wombat
         logger_->debug("Subscribing to kinematics config channel: " + std::string(Channels::KINEMATICS_CONFIG_CMD));
         auto kinResult = broker_->subscribe<raccoon::kinematics_config_t>(
             Channels::KINEMATICS_CONFIG_CMD,
-            [this](const raccoon::kinematics_config_t& cmd) { onKinematicsConfigCommand(cmd); },
-            reliableOpts
-        );
+            [this](const raccoon::kinematics_config_t& cmd) { onKinematicsConfigCommand(cmd); });
         if (kinResult.isFailure())
         {
             return Result<void>::failure("Failed to subscribe to kinematics config: " + kinResult.error());
@@ -180,9 +180,7 @@ namespace wombat
         logger_->debug("Subscribing to odometry reset channel: " + std::string(Channels::ODOM_RESET_CMD));
         auto odomResetResult = broker_->subscribe<raccoon::scalar_i32_t>(
             Channels::ODOM_RESET_CMD,
-            [this](const raccoon::scalar_i32_t& cmd) { onOdometryResetCommand(cmd); },
-            reliableOpts
-        );
+            [this](const raccoon::scalar_i32_t& cmd) { onOdometryResetCommand(cmd); });
         if (odomResetResult.isFailure())
         {
             return Result<void>::failure("Failed to subscribe to odometry reset: " + odomResetResult.error());
@@ -192,9 +190,7 @@ namespace wombat
         logger_->debug("Subscribing to BEMF enabled command channel: " + std::string(Channels::BEMF_ENABLED_CMD));
         auto bemfEnabledResult = broker_->subscribe<raccoon::scalar_i32_t>(
             Channels::BEMF_ENABLED_CMD,
-            [this](const raccoon::scalar_i32_t& cmd) { onBemfEnabledCommand(cmd); },
-            reliableOpts
-        );
+            [this](const raccoon::scalar_i32_t& cmd) { onBemfEnabledCommand(cmd); });
         if (bemfEnabledResult.isFailure())
         {
             return Result<void>::failure("Failed to subscribe to BEMF enabled command: " + bemfEnabledResult.error());
@@ -578,6 +574,27 @@ namespace wombat
         {
             logger_->error("Failed to set chassis velocity: " + result.error());
             return;
+        }
+    }
+
+    void CommandSubscriber::onChassisStopCommand(const raccoon::scalar_i32_t& command)
+    {
+        if (!isInitialized_)
+        {
+            logger_->warn("Received chassis stop command while not initialized");
+            return;
+        }
+
+        if (!isTimestampNewer(Channels::CHASSIS_STOP_CMD, command.timestamp))
+            return;
+
+        CmdTrace::instance().record("recv", "chassis_stop", Channels::CHASSIS_STOP_CMD, -1,
+                                    0.0, command.timestamp);
+
+        const auto result = deviceController_->setChassisVelocity(0.0f, 0.0f, 0.0f);
+        if (result.isFailure())
+        {
+            logger_->error("Failed to stop the chassis: " + result.error());
         }
     }
 

@@ -5,7 +5,7 @@
 #pragma once
 
 #include "wombat/core/DeviceTypes.h"
-#include <raccoon/Channels.h>
+#include "wombat/core/Channels.h"
 #include <raccoon/vector3f_t.hpp>
 #include <raccoon/quaternion_t.hpp>
 #include <raccoon/scalar_f_t.hpp>
@@ -18,7 +18,6 @@
 
 namespace wombat
 {
-    namespace Channels = raccoon::Channels;
 
     class DataPublisher
     {

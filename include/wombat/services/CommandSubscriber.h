@@ -4,7 +4,7 @@
 #pragma once
 
 #include "wombat/core/DeviceTypes.h"
-#include <raccoon/Channels.h>
+#include "wombat/core/Channels.h"
 #include <raccoon/Concepts.h>
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
@@ -26,7 +26,6 @@
 
 namespace wombat
 {
-    namespace Channels = raccoon::Channels;
     using raccoon::TransportMessage;
 
     class CommandSubscriber
@@ -60,6 +59,7 @@ namespace wombat
         void onMotorPositionResetCommand(PortId port, const raccoon::scalar_i32_t& command);
         void onMotorPidCommand(PortId port, const raccoon::vector3f_t& command);
         void onChassisVelocityCommand(const raccoon::vector3f_t& command);
+        void onChassisStopCommand(const raccoon::scalar_i32_t& command);
         void onShutdownCommand(const raccoon::scalar_i32_t& command);
         void onHeartbeatCommand(const raccoon::scalar_i32_t& command);
         void onKinematicsConfigCommand(const raccoon::kinematics_config_t& command);
@@ -73,8 +73,7 @@ namespace wombat
             PortId maxPorts,
             std::function<std::string(PortId)> channelFn,
             std::function<void(PortId, const MsgT &)> handler,
-            const std::string& description,
-            const raccoon::SubscribeOptions& options = {});
+            const std::string& description);
 
         bool isInitialized_{false};
         std::unordered_map<std::string, int64_t> latestTimestamps_;

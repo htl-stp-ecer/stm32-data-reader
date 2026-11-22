@@ -199,7 +199,7 @@ namespace wombat
         {
             const auto msg = toLcmScalarF(data.heading);
             if (gateAllows(headingGate_, msg, now)) {
-                const auto r = broker_->publishRetained(Channels::HEADING, msg);
+                const auto r = broker_->publish(Channels::HEADING, msg);
                 if (r.isFailure()) logger_->warn("Failed to publish heading data: " + r.error());
             }
         }
@@ -223,7 +223,7 @@ namespace wombat
         {
             const float rounded = std::round(data.batteryVoltage * 1000.0f) / 1000.0f;
             const auto msg = toLcmScalarF(rounded);
-            const auto r = broker_->publishRetained(Channels::BATTERY_VOLTAGE, msg);
+            const auto r = broker_->publish(Channels::BATTERY_VOLTAGE, msg);
             if (r.isFailure()) logger_->warn("Failed to publish battery voltage data: " + r.error());
         }
 
@@ -250,7 +250,7 @@ namespace wombat
         const auto publishOdomGated = [&](auto& gate, const std::string& channel, float value) {
             const auto msg = toLcmScalarF(value);
             if (gateAllows(gate, msg, now)) {
-                broker_->publishRetained(channel, msg);
+                broker_->publish(channel, msg);
             }
         };
         publishOdomGated(odomPosXGate_,    Channels::ODOM_POS_X,    data.odometry.pos_x);
@@ -272,7 +272,7 @@ namespace wombat
             return Result<void>::failure("Invalid motor port: " + std::to_string(port));
         }
 
-        auto powerResult = broker_->publishRetained(
+        auto powerResult = broker_->publish(
             Channels::motorPower(port),
             toLcmScalarI32(state.target)
         );
@@ -281,7 +281,7 @@ namespace wombat
             logger_->warn("Failed to publish motor power: " + powerResult.error());
         }
 
-        auto bemfResult = broker_->publishRetained(
+        auto bemfResult = broker_->publish(
             Channels::backEmf(port),
             toLcmScalarI32(state.backEmf)
         );
@@ -290,7 +290,7 @@ namespace wombat
             logger_->warn("Failed to publish back EMF: " + bemfResult.error());
         }
 
-        auto posResult = broker_->publishRetained(
+        auto posResult = broker_->publish(
             Channels::motorPosition(port),
             toLcmScalarI32(state.position)
         );
@@ -328,7 +328,7 @@ namespace wombat
             return Result<void>::failure("Invalid servo port: " + std::to_string(port));
         }
 
-        auto modeResult = broker_->publishRetained(
+        auto modeResult = broker_->publish(
             Channels::servoMode(port),
             toLcmScalarI8(static_cast<uint8_t>(state.mode))
         );
@@ -337,7 +337,7 @@ namespace wombat
             logger_->warn("Failed to publish servo mode: " + modeResult.error());
         }
 
-        auto positionResult = broker_->publishRetained(
+        auto positionResult = broker_->publish(
             Channels::servoPosition(port),
             toLcmScalarF(state.position)
         );
@@ -356,7 +356,7 @@ namespace wombat
             return Result<void>::failure("Invalid servo port: " + std::to_string(port));
         }
 
-        auto doneResult = broker_->publishRetained(Channels::servoDone(port), toLcmScalarI32(done));
+        auto doneResult = broker_->publish(Channels::servoDone(port), toLcmScalarI32(done));
         if (doneResult.isFailure())
         {
             logger_->warn("Failed to publish servo done: " + doneResult.error());
@@ -370,7 +370,7 @@ namespace wombat
         });
         if (gateAllows(busFeedbackGates_[port], feedbackMsg, now))
         {
-            auto r = broker_->publishRetained(Channels::servoFeedback(port), feedbackMsg);
+            auto r = broker_->publish(Channels::servoFeedback(port), feedbackMsg);
             if (r.isFailure())
                 logger_->warn("Failed to publish servo feedback: " + r.error());
         }
@@ -382,7 +382,7 @@ namespace wombat
         });
         if (gateAllows(busHealthGates_[port], healthMsg, now))
         {
-            auto r = broker_->publishRetained(Channels::servoHealth(port), healthMsg);
+            auto r = broker_->publish(Channels::servoHealth(port), healthMsg);
             if (r.isFailure())
                 logger_->warn("Failed to publish servo health: " + r.error());
         }
@@ -462,7 +462,7 @@ namespace wombat
     {
         auto message = toLcmScalarI32(static_cast<int32_t>(shutdownFlags));
 
-        auto result = broker_->publishRetained(Channels::SHUTDOWN_STATUS, message);
+        auto result = broker_->publish(Channels::SHUTDOWN_STATUS, message);
         if (result.isFailure())
         {
             return Result<void>::failure("Failed to publish shutdown status: " + result.error());
@@ -479,7 +479,7 @@ namespace wombat
     {
         auto message = toLcmScalarI32(enabled ? 1 : 0);
 
-        auto result = broker_->publishRetained(Channels::BEMF_ENABLED, message);
+        auto result = broker_->publish(Channels::BEMF_ENABLED, message);
         if (result.isFailure())
         {
             return Result<void>::failure("Failed to publish BEMF enabled status: " + result.error());

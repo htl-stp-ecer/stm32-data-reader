@@ -29,11 +29,7 @@ namespace wombat
         Result<void> publishForce(const std::string& channel, const T& message);
 
         template <TransportMessage T>
-        Result<void> publishRetained(const std::string& channel, const T& message);
-
-        template <TransportMessage T>
-        Result<void> subscribe(const std::string& channel, std::function<void(const T &)> handler,
-                               const raccoon::SubscribeOptions& options = {});
+        Result<void> subscribe(const std::string& channel, std::function<void(const T &)> handler);
 
     private:
         class Impl;

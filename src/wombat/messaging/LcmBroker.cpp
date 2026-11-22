@@ -8,7 +8,7 @@
 #include <raccoon/scalar_i32_t.hpp>
 #include <raccoon/scalar_i8_t.hpp>
 #include <raccoon/string_t.hpp>
-#include <raccoon/Channels.h>
+#include "wombat/core/Channels.h"
 #include <raccoon/orientation_matrix_t.hpp>
 #include <raccoon/kinematics_config_t.hpp>
 #include <algorithm>
@@ -74,7 +74,7 @@ namespace wombat
                 // latency. Was 5 ms back when the iceoryx2 backend made
                 // each spin call ~hundreds of us; rrb costs ~hundreds
                 // of nanoseconds per channel.
-                const int result = transport_->spinOnce(1);
+                const int result = transport_->spin_once(1);
                 if (result < 0)
                 {
                     return Result<void>::failure("Failed to process LCM messages");
@@ -100,22 +100,22 @@ namespace wombat
                 if (processCallCount_ % 100 == 0)
                 {
                     const double avgMsgsPerCall = static_cast<double>(intervalMessagesProcessed_) / 100.0;
-                    const auto stats = transport_->getAndResetStats();
+                    const auto stats = transport_->get_and_reset_stats();
                     std::string latencyStr = "no msgs";
                     if (stats.latency.count > 0)
                     {
-                        latencyStr = "min=" + std::to_string(stats.latency.minUs / 1000) + "ms"
-                            + " avg=" + std::to_string(stats.latency.avgUs / 1000) + "ms"
-                            + " p99=" + std::to_string(stats.latency.p99Us / 1000) + "ms"
-                            + " max=" + std::to_string(stats.latency.maxUs / 1000) + "ms"
+                        latencyStr = "min=" + std::to_string(stats.latency.min_us / 1000) + "ms"
+                            + " avg=" + std::to_string(stats.latency.avg_us / 1000) + "ms"
+                            + " p99=" + std::to_string(stats.latency.p99_us / 1000) + "ms"
+                            + " max=" + std::to_string(stats.latency.max_us / 1000) + "ms"
                             + " (n=" + std::to_string(stats.latency.count) + ")";
 
                         handleLatencyAlert(stats.latency);
                     }
                     std::string dedupStr;
-                    if (stats.publishesDeduplicated > 0)
+                    if (stats.publishes_deduplicated > 0)
                     {
-                        dedupStr = ", dedup=" + std::to_string(stats.publishesDeduplicated);
+                        dedupStr = ", dedup=" + std::to_string(stats.publishes_deduplicated);
                     }
                     const std::string subscriberStats = formatChannelStatsReport();
                     logger_->info("LCM processMessages: avg=" + std::to_string(avgMsgsPerCall).substr(0, 5)
@@ -155,14 +155,15 @@ namespace wombat
             raccoon::PublishOptions options = extraOptions;
             options.deduplicate = true;
 
-            if (!transport_->publish(channel, message, options))
+            const auto published = transport_->publish(channel, message, options);
+            if (published != raccoon::PublishResult::Ok)
             {
-                return Result<void>::failure("Failed to publish message on channel: " + channel);
+                return Result<void>::failure("Failed to publish message on channel: " + channel
+                    + " (" + raccoon::to_string(published) + ")");
             }
 
             logger_->debug("Published " + std::string(typeid(MessageType).name())
-                + " on channel: " + channel
-                + (options.retained ? " (retained, dedup)" : " (dedup)"));
+                + " on channel: " + channel + " (dedup)");
             return Result<void>::success();
         }
 
@@ -175,21 +176,21 @@ namespace wombat
                 return Result<void>::failure("Transport not initialized");
             }
 
-            if (!transport_->publish(channel, message, options))
+            const auto published = transport_->publish(channel, message, options);
+            if (published != raccoon::PublishResult::Ok)
             {
-                return Result<void>::failure("Failed to publish message on channel: " + channel);
+                return Result<void>::failure("Failed to publish message on channel: " + channel
+                    + " (" + raccoon::to_string(published) + ")");
             }
 
             logger_->debug("Published " + std::string(typeid(MessageType).name())
-                + " on channel: " + channel
-                + (options.retained ? " (forced, retained)" : " (forced)"));
+                + " on channel: " + channel + " (forced)");
             return Result<void>::success();
         }
 
         template <TransportMessage T>
         Result<void> subscribe(const std::string& channel,
-                               std::function<void(const T &)> handler,
-                               const raccoon::SubscribeOptions& options = {})
+                               std::function<void(const T &)> handler)
         {
             if (!transport_)
             {
@@ -212,7 +213,11 @@ namespace wombat
                 stats.totalMaxUs = std::max(stats.totalMaxUs, elapsedUs);
             };
 
-            transport_->subscribe<T>(channel, std::move(instrumentedHandler), options);
+            if (transport_->subscribe<T>(channel, std::move(instrumentedHandler)) == 0)
+            {
+                return Result<void>::failure("Cannot subscribe to " + channel
+                    + " (not in the channel table, or not of type " + T::type_name + ")");
+            }
 
             logger_->debug("Subscribed to " + std::string(typeid(T).name()) + " channel: " + channel);
             return Result<void>::success();
@@ -221,15 +226,15 @@ namespace wombat
     private:
         void handleLatencyAlert(const raccoon::TransportStats::Latency& latency)
         {
-            if (latency.p99Us > kLatencyAlertThresholdUs)
+            if (latency.p99_us > kLatencyAlertThresholdUs)
             {
                 ++latencyAlertConsecutiveCount_;
                 const std::string message =
                     "stm32_data_reader inbound LCM latency p99="
-                    + std::to_string(latency.p99Us / 1000)
+                    + std::to_string(latency.p99_us / 1000)
                     + "ms exceeds 20ms"
-                    + " (avg=" + std::to_string(latency.avgUs / 1000)
-                    + "ms, max=" + std::to_string(latency.maxUs / 1000)
+                    + " (avg=" + std::to_string(latency.avg_us / 1000)
+                    + "ms, max=" + std::to_string(latency.max_us / 1000)
                     + "ms, n=" + std::to_string(latency.count) + ")";
 
                 if (!latencyAlertActive_ || latencyAlertConsecutiveCount_ % 10 == 1)
@@ -240,7 +245,7 @@ namespace wombat
                         std::chrono::system_clock::now().time_since_epoch()).count();
                     errorMsg.value = message;
                     const auto publishResult = publishForce<raccoon::string_t>(
-                        raccoon::Channels::ERROR_MESSAGES, errorMsg);
+                        wombat::Channels::ERROR_MESSAGES, errorMsg);
                     if (publishResult.isFailure())
                     {
                         logger_->error("Failed to publish latency alert to raccoon/errors: "
@@ -255,7 +260,7 @@ namespace wombat
             if (latencyAlertActive_)
             {
                 logger_->info("stm32_data_reader inbound LCM latency recovered: p99="
-                    + std::to_string(latency.p99Us / 1000) + "ms");
+                    + std::to_string(latency.p99_us / 1000) + "ms");
             }
             latencyAlertActive_ = false;
             latencyAlertConsecutiveCount_ = 0;
@@ -437,82 +442,46 @@ namespace wombat
         return impl_->publishForce(ch, m);
     }
 
-    // Explicit template instantiations — publishRetained (change-detected + retained flag)
-    static const raccoon::PublishOptions retainedOpts{.retained = true};
-
     template <>
-    Result<void> LcmBroker::publishRetained<raccoon::scalar_i8_t>(const std::string& ch, const raccoon::scalar_i8_t& m)
+    Result<void> LcmBroker::publishForce<raccoon::string_t>(const std::string& ch, const raccoon::string_t& m)
     {
-        return impl_->publishIfChanged(ch, m, retainedOpts);
-    }
-
-    template <>
-    Result<void> LcmBroker::publishRetained<raccoon::scalar_i32_t>(const std::string& ch,
-                                                                   const raccoon::scalar_i32_t& m)
-    {
-        return impl_->publishIfChanged(ch, m, retainedOpts);
-    }
-
-    template <>
-    Result<void> LcmBroker::publishRetained<raccoon::scalar_f_t>(const std::string& ch,
-                                                                 const raccoon::scalar_f_t& m)
-    {
-        return impl_->publishIfChanged(ch, m, retainedOpts);
-    }
-
-    template <>
-    Result<void> LcmBroker::publishRetained<raccoon::vector3f_t>(const std::string& ch,
-                                                                 const raccoon::vector3f_t& m)
-    {
-        return impl_->publishIfChanged(ch, m, retainedOpts);
-    }
-
-    template <>
-    Result<void> LcmBroker::publishRetained<raccoon::string_t>(const std::string& ch,
-                                                               const raccoon::string_t& m)
-    {
-        return impl_->publishIfChanged(ch, m, retainedOpts);
+        return impl_->publishForce(ch, m);
     }
 
     // Explicit template instantiations — subscribe
     template <>
     Result<void> LcmBroker::subscribe<raccoon::vector3f_t>(const std::string& ch,
-                                                           std::function<void(const raccoon::vector3f_t &)> h,
-                                                           const raccoon::SubscribeOptions& opts)
+                                                           std::function<void(const raccoon::vector3f_t &)> h)
     {
-        return impl_->subscribe<raccoon::vector3f_t>(ch, std::move(h), opts);
+        return impl_->subscribe<raccoon::vector3f_t>(ch, std::move(h));
     }
 
     template <>
     Result<void> LcmBroker::subscribe<raccoon::quaternion_t>(const std::string& ch,
-                                                             std::function<void(const raccoon::quaternion_t &)> h,
-                                                             const raccoon::SubscribeOptions& opts)
+                                                             std::function<void(const raccoon::quaternion_t &)> h)
     {
-        return impl_->subscribe<raccoon::quaternion_t>(ch, std::move(h), opts);
+        return impl_->subscribe<raccoon::quaternion_t>(ch, std::move(h));
     }
 
     template <>
     Result<void> LcmBroker::subscribe<raccoon::scalar_i32_t>(const std::string& ch,
-                                                             std::function<void(const raccoon::scalar_i32_t &)> h,
-                                                             const raccoon::SubscribeOptions& opts)
+                                                             std::function<void(const raccoon::scalar_i32_t &)> h)
     {
-        return impl_->subscribe<raccoon::scalar_i32_t>(ch, std::move(h), opts);
+        return impl_->subscribe<raccoon::scalar_i32_t>(ch, std::move(h));
     }
 
     template <>
     Result<void> LcmBroker::subscribe<raccoon::scalar_f_t>(const std::string& ch,
-                                                           std::function<void(const raccoon::scalar_f_t &)> h,
-                                                           const raccoon::SubscribeOptions& opts)
+                                                           std::function<void(const raccoon::scalar_f_t &)> h)
     {
-        return impl_->subscribe<raccoon::scalar_f_t>(ch, std::move(h), opts);
+        return impl_->subscribe<raccoon::scalar_f_t>(ch, std::move(h));
     }
 
     template <>
     Result<void> LcmBroker::subscribe<raccoon::scalar_i8_t>(const std::string& ch,
-                                                            std::function<void(const raccoon::scalar_i8_t &)> h,
-                                                            const raccoon::SubscribeOptions& opts)
+                                                            std::function<void(const raccoon::scalar_i8_t &)> h)
     {
-        return impl_->subscribe<raccoon::scalar_i8_t>(ch, std::move(h), opts);
+        return impl_->subscribe<raccoon::scalar_i8_t>(ch, std::move(h));
     }
 
     template <>
@@ -521,19 +490,16 @@ namespace wombat
                                                                      const raccoon::orientation_matrix_t&)
     >
     h
-    ,
-    const raccoon::SubscribeOptions& opts
     )
     {
-        return impl_->subscribe<raccoon::orientation_matrix_t>(ch, std::move(h), opts);
+        return impl_->subscribe<raccoon::orientation_matrix_t>(ch, std::move(h));
     }
 
     template <>
     Result<void> LcmBroker::subscribe<raccoon::kinematics_config_t>(const std::string& ch,
                                                                     std::function<void(
-const raccoon::kinematics_config_t &)> h,
-                                                                    const raccoon::SubscribeOptions& opts)
+const raccoon::kinematics_config_t &)> h)
     {
-        return impl_->subscribe<raccoon::kinematics_config_t>(ch, std::move(h), opts);
+        return impl_->subscribe<raccoon::kinematics_config_t>(ch, std::move(h));
     }
 } // namespace wombat

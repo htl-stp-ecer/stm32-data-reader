@@ -12,7 +12,7 @@
 #include "mocks/MockLogger.h"
 #include "mocks/MockSpi.h"
 
-#include <raccoon/Channels.h>
+#include "wombat/core/Channels.h"
 #include <raccoon/raccoon_ring.h>
 #include <raccoon/scalar_i32_t.hpp>
 
@@ -32,10 +32,10 @@ using ::testing::Return;
 
 namespace
 {
-    void removeRing(const char* channel)
+    void removeRing(const std::string& channel)
     {
         char path[512]{};
-        if (rrb_channel_to_path(channel, path, sizeof(path)) == 0) (void)::unlink(path);
+        if (rrb_channel_to_path(channel.c_str(), path, sizeof(path)) == 0) (void)::unlink(path);
     }
 
     int64_t nowUs()
@@ -51,8 +51,8 @@ protected:
     void SetUp() override
     {
         // Rings outlive processes; frames from an earlier run must not be replayed.
-        removeRing(raccoon::Channels::SHUTDOWN_CMD);
-        removeRing(raccoon::Channels::SHUTDOWN_STATUS);
+        removeRing(wombat::Channels::SHUTDOWN_CMD);
+        removeRing(wombat::Channels::SHUTDOWN_STATUS);
 
         logger_ = std::make_shared<MockLogger>();
         broker_ = std::make_shared<LcmBroker>(logger_);
@@ -76,7 +76,7 @@ protected:
         ASSERT_TRUE(subscriber_->initialize().isSuccess());
 
         ASSERT_TRUE(broker_->subscribe<raccoon::scalar_i32_t>(
-            raccoon::Channels::SHUTDOWN_STATUS,
+            wombat::Channels::SHUTDOWN_STATUS,
             [this](const raccoon::scalar_i32_t& status) {
                 lastStatus_ = status.value;
                 ++statusCount_;
@@ -96,7 +96,7 @@ protected:
         raccoon::scalar_i32_t cmd{};
         cmd.timestamp = nowUs();
         cmd.value = enabled ? 1 : 0;
-        EXPECT_TRUE(broker_->publish(raccoon::Channels::SHUTDOWN_CMD, cmd).isSuccess());
+        EXPECT_TRUE(broker_->publish(wombat::Channels::SHUTDOWN_CMD, cmd).isSuccess());
         for (int i = 0; i < 100 && statusCount_.load() == before; ++i)
         {
             broker_->processMessages();

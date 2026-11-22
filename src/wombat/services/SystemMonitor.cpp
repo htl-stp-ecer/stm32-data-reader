@@ -1,12 +1,11 @@
 #include "wombat/services/SystemMonitor.h"
-#include <raccoon/Channels.h>
+#include "wombat/core/Channels.h"
 #include "wombat/messaging/LcmConversions.h"
 #include <fstream>
 #include <string>
 
 namespace wombat
 {
-    namespace Channels = raccoon::Channels;
 
     SystemMonitor::SystemMonitor(std::shared_ptr<LcmBroker> broker, std::shared_ptr<Logger> logger)
         : broker_{std::move(broker)}, logger_{std::move(logger)}
