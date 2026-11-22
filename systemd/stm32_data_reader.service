@@ -16,9 +16,8 @@ WorkingDirectory=/home/pi/stm32_data_reader
 Environment=WOMBAT_CMD_TRACE=/home/pi/stm32_data_reader/cmd_trace.jsonl
 
 # raccoon::Transport uses the in-tree raccoon_ring SHM library
-# (one /dev/shm/raccoon_ring_<channel> file per channel). Restarts
-# are safe in-place: rrb_writer_create re-initialises the existing
-# header and subscribers detect the producer_seq reset and resync.
+# (one /dev/shm/raccoon-rings/<channel> file per channel). A restart
+# attaches to the existing files, the subscribers keep running.
 #
 # We deliberately do NOT add a /dev/shm wipe in ExecStartPre — the
 # previous version of this unit did, and that was directly responsible
@@ -41,7 +40,7 @@ NoNewPrivileges=true
 # All sandboxing options that build a private mount namespace MUST stay off.
 # ProtectSystem=, ProtectHome=, and PrivateTmp= each clone /proc/self/ns/mnt
 # for the service. systemd then makes /dev/shm an MS_SLAVE bind underneath
-# that clone, so any /dev/shm/raccoon_ring_* file the reader creates is
+# that clone, so any /dev/shm/raccoon-rings/ file the reader creates is
 # invisible to every other process on the host (libstp probe sees an empty
 # /dev/shm and times out waiting for IMU heading / BEMF / battery). Verified
 # on 2026-06-02: dropping ProtectSystem+ProtectHome turned a 100 % probe-fail

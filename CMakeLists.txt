@@ -27,7 +27,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
-# ---------- Google Test (before LCM to avoid gtest target conflict) ----------
+# ---------- Google Test (before raccoon-transport to avoid a gtest target conflict) ----------
 FetchContent_Declare(
         googletest
         GIT_REPOSITORY https://github.com/google/googletest.git
@@ -36,7 +36,7 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-# ---------- raccoon-transport (brings LCM + message types) ----------
+# ---------- raccoon-transport (the shared-memory transport and the message types) ----------
 FetchContent_Declare(
         raccoon_transport
         SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/raccoon-transport

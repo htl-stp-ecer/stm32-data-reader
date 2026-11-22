@@ -43,7 +43,7 @@ namespace wombat
         {
             transport_ = std::make_unique<raccoon::Transport>(raccoon::Transport::create());
 
-            logger_->info("LCM message broker initialized successfully (via raccoon::Transport)");
+            logger_->info("Transport broker initialized successfully (raccoon::Transport)");
             return Result<void>::success();
         }
 
@@ -54,7 +54,7 @@ namespace wombat
                 transport_->stop();
                 transport_.reset();
             }
-            logger_->info("LCM message broker shut down");
+            logger_->info("Transport broker shut down");
             return Result<void>::success();
         }
 
@@ -71,13 +71,11 @@ namespace wombat
             {
                 // 1 ms spin slice — rrb_reader_recv is a cheap atomic
                 // load, so polling at 1 ms gives ~1 ms p50 inbound
-                // latency. Was 5 ms back when the iceoryx2 backend made
-                // each spin call ~hundreds of us; rrb costs ~hundreds
-                // of nanoseconds per channel.
+                // latency. rrb costs ~hundreds of nanoseconds per channel.
                 const int result = transport_->spin_once(1);
                 if (result < 0)
                 {
-                    return Result<void>::failure("Failed to process LCM messages");
+                    return Result<void>::failure("Failed to process transport messages");
                 }
                 if (result == 0)
                 {
@@ -118,7 +116,7 @@ namespace wombat
                         dedupStr = ", dedup=" + std::to_string(stats.publishes_deduplicated);
                     }
                     const std::string subscriberStats = formatChannelStatsReport();
-                    logger_->debug("LCM processMessages: avg=" + std::to_string(avgMsgsPerCall).substr(0, 5)
+                    logger_->debug("Transport processMessages: avg=" + std::to_string(avgMsgsPerCall).substr(0, 5)
                         + " msgs/call, rate=" + std::to_string(hz).substr(0, 5) + "Hz"
                         + ", total calls=" + std::to_string(processCallCount_)
                         + ", total msgs=" + std::to_string(totalMessagesProcessed_ + messagesProcessed)
@@ -126,7 +124,7 @@ namespace wombat
                         + dedupStr);
                     if (!subscriberStats.empty())
                     {
-                        logger_->info("LCM subscriber stats: " + subscriberStats);
+                        logger_->info("Transport subscriber stats: " + subscriberStats);
                     }
                     intervalMessagesProcessed_ = 0;
                 }
@@ -248,7 +246,7 @@ namespace wombat
 
             if (latencyAlertActive_)
             {
-                logger_->info("stm32_data_reader inbound LCM latency recovered: p99="
+                logger_->info("stm32_data_reader inbound transport latency recovered: p99="
                     + std::to_string(latency.p99_us / 1000) + "ms");
             }
             latencyAlertActive_ = false;

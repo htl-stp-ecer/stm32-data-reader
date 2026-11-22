@@ -194,7 +194,7 @@ namespace wombat
         std::string tagged = "[STM32] " + line;
 
         // Route error/warning lines through appropriate log levels
-        // so they get published to the LCM error channel
+        // so they get published on messages/error
         if (line.find("[ERROR]") != std::string::npos
             || line.find("Error") != std::string::npos
             || line.find("FAULT") != std::string::npos)

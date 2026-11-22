@@ -18,6 +18,7 @@ import sys
 import time
 
 try:
+    from raccoon_transport import Transport, channels
     from raccoon_transport.types.raccoon import scalar_f_t, scalar_i8_t, vector3f_t, scalar_i32_t
 except ImportError:
     print("ERROR: raccoon_transport not installed.")
@@ -25,22 +26,25 @@ except ImportError:
 
 
 def open_transport():
-    # The pure-Python raccoon_transport.Transport is an in-process queue; on
-    # the Pi the shared-memory transport the reader uses comes from raccoon.
-    try:
-        import raccoon
-        return raccoon.get_transport()
-    except ImportError:
-        from raccoon_transport import Transport
-        return Transport()
+    return Transport()
+
 
 SERVO_MODE_BUS = 3
 
+SERVO = channels.hardware.servo
+
 
 def ch(port: int, name: str) -> str:
-    # Spelled out so the script also runs against an older installed
-    # raccoon_transport that lacks the bus servo channel helpers.
-    return f"raccoon/servo/{port}/{name}"
+    """The channel of the channel table for a servo command or state, by its short name."""
+    return {
+        "done": SERVO.state.done,
+        "feedback": SERVO.state.feedback,
+        "health": SERVO.state.health,
+        "mode_cmd": SERVO.cmd.mode,
+        "position_cmd": SERVO.cmd.position,
+        "smooth_cmd": SERVO.cmd.smooth,
+        "velocity_cmd": SERVO.cmd.velocity,
+    }[name](port)
 
 
 def now_us() -> int:
@@ -75,10 +79,7 @@ class BusServo:
         self.health = (m.x, m.y, m.z)
 
     def _pump(self, timeout_ms: int):
-        if hasattr(self.t, "spin_once"):
-            self.t.spin_once(timeout_ms=timeout_ms)
-        else:
-            time.sleep(timeout_ms / 1000.0)  # shared transport delivers on its own thread
+        time.sleep(timeout_ms / 1000.0)  # the transport delivers on its own thread
 
     def spin(self, seconds: float):
         end = time.monotonic() + seconds
@@ -88,23 +89,17 @@ class BusServo:
     def _send(self, name, msg):
         msg.timestamp = now_us()
         self.done_seen_running = False
-        # The shared-memory transport does not drop messages; only the
-        # fallback LCM-style transport needs reliable delivery.
-        if hasattr(self.t, "spin_once"):
-            self.t.publish(ch(self.port, name), msg, reliable=True)
-        else:
-            self.t.publish(ch(self.port, name), msg)
+        # The servo command channels are reliable in the channel table: the transport repeats a
+        # command until the reader has acknowledged it.
+        self.t.publish(ch(self.port, name), msg)
 
     def clear_shutdown(self):
-        # A finished raccoon program leaves the reader in shutdown (motors and
-        # servos off at firmware level); a new program clears it first.
+        # A finished raccoon program leaves the motors latched off; a new program releases the
+        # latch first (value 0 on hardware/latch/cmd/engaged).
         m = scalar_i32_t()
         m.value = 0
         m.timestamp = now_us()
-        if hasattr(self.t, "spin_once"):
-            self.t.publish("raccoon/system/shutdown_cmd", m, reliable=True)
-        else:
-            self.t.publish("raccoon/system/shutdown_cmd", m)
+        self.t.publish(channels.hardware.latch.cmd.ENGAGED, m)
 
     def set_bus_mode(self):
         m = scalar_i8_t()
@@ -166,7 +161,7 @@ def main():
     args = parser.parse_args()
 
     t = open_transport()
-    servo = BusServo(t, args.port)
+    servo = BusServo(t, args.port)  # the transport is closed when the process ends
     # Give the reader time to discover this new publisher before the first
     # command; messages sent right after opening the transport can be missed.
     servo.spin(1.0)
@@ -222,10 +217,4 @@ def main():
 
 
 if __name__ == "__main__":
-    code = main()
-    try:
-        import raccoon
-        raccoon.shutdown_transport()
-    except ImportError:
-        pass
-    sys.exit(code)
+    sys.exit(main())

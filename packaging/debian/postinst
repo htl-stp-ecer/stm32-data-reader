@@ -46,7 +46,7 @@ case "$1" in
 
     # --- Keep raccoon_ring /dev/shm files alive across SSH disconnects ---
     # Without linger the user@<uid>.service teardown on the last SSH logout
-    # wipes /dev/shm/raccoon_ring_* and kills every subscriber.
+    # wipes /dev/shm/raccoon-rings/ and kills every subscriber.
     if id "$RUNTIME_USER" >/dev/null 2>&1; then
       loginctl enable-linger "$RUNTIME_USER" 2>/dev/null || true
     fi

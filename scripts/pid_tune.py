@@ -30,8 +30,7 @@ import time
 from datetime import datetime
 
 try:
-    from raccoon_transport import Transport
-    from raccoon_transport.channels import Channels
+    from raccoon_transport import Transport, channels
     from raccoon_transport.types.raccoon import vector3f_t, scalar_i32_t
 except ImportError:
     print("ERROR: raccoon_transport not installed.")
@@ -53,7 +52,7 @@ def _send_pid(transport: Transport, port: int, kp: float, ki: float, kd: float):
     msg.x = float(kp)
     msg.y = float(ki)
     msg.z = float(kd)
-    transport.publish(Channels.motor_pid_command(port), msg, reliable=True)
+    transport.publish(channels.hardware.motor.cmd.pid(port), msg)
     print(f"  Motor {port}: Kp={kp}  Ki={ki}  Kd={kd}")
 
 
@@ -61,21 +60,19 @@ def _stop_motor(transport: Transport, port: int):
     msg = scalar_i32_t()
     msg.timestamp = _now_us()
     msg.value = 0  # MOT_MODE_OFF
-    transport.publish(Channels.motor_stop_command(port), msg, reliable=True)
+    transport.publish(channels.hardware.motor.cmd.stop(port), msg)
 
 
 def _reset_position(transport: Transport, port: int):
     msg = scalar_i32_t()
     msg.timestamp = _now_us()
     msg.value = 1
-    transport.publish(Channels.motor_position_reset_command(port), msg, reliable=True)
+    transport.publish(channels.hardware.motor.cmd.reset_position(port), msg)
 
 
 def _spin_reliable_ms(transport: Transport, ms: int):
-    """Pump the transport event loop for ~ms milliseconds (handles ACKs etc.)."""
-    deadline = time.monotonic() + ms / 1000.0
-    while time.monotonic() < deadline:
-        transport.spin_once(timeout_ms=20)
+    """Wait ~ms milliseconds. The transport delivers and acknowledges on its own thread."""
+    time.sleep(ms / 1000.0)
 
 
 # ---------------------------------------------------------------------------
@@ -94,7 +91,7 @@ def cmd_set_pid(args):
         _spin_reliable_ms(transport, 400)
         print("Done.")
     finally:
-        transport.close()
+        transport.shutdown()
 
 
 def cmd_tune(args):
@@ -136,7 +133,7 @@ def cmd_tune(args):
         _spin_reliable_ms(transport, 400)
 
         # Subscribe to BEMF
-        transport.subscribe(Channels.back_emf(port), on_bemf)
+        transport.subscribe(channels.hardware.motor.state.bemf(port), on_bemf)
         _spin_reliable_ms(transport, 100)
 
         # --- Step response ---
@@ -152,8 +149,8 @@ def cmd_tune(args):
         try:
             while time.monotonic() < end_time:
                 vel_msg.timestamp = _now_us()
-                transport.publish(Channels.motor_velocity_command(port), vel_msg)
-                transport.spin_once(timeout_ms=20)
+                transport.publish(channels.hardware.motor.cmd.velocity(port), vel_msg)
+                time.sleep(0.02)
         except KeyboardInterrupt:
             print("\nAborted early.")
 
@@ -164,7 +161,7 @@ def cmd_tune(args):
         _spin_reliable_ms(transport, 600)
 
     finally:
-        transport.close()
+        transport.shutdown()
 
     # --- Save CSV ---
     if not samples:

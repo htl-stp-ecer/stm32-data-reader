@@ -27,7 +27,7 @@ protected:
         broker_->shutdown();
     }
 
-    // Drain LCM messages with retries to handle loopback delivery latency
+    // Drain the transport messages with retries to handle the delivery latency
     void drainMessages(const std::atomic<bool>& flag, int maxRetries = 20)
     {
         for (int i = 0; i < maxRetries && !flag.load(); ++i)

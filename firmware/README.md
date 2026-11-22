@@ -32,7 +32,7 @@ communication with a Raspberry Pi companion over SPI.
 
 ```mermaid
 graph TD
-    Pi["<b>Raspberry Pi</b><br/>stm32-data-reader service<br/>C++ · LCM pub/sub"]
+    Pi["<b>Raspberry Pi</b><br/>stm32-data-reader service<br/>C++ · transport pub/sub"]
     SPI["SPI2 full-duplex · 20 MHz<br/>/dev/spidev0.0"]
     STM["<b>STM32F427VIT6</b><br/>This firmware · 180 MHz · Bare-metal"]
 
@@ -484,39 +484,41 @@ Servo 6V enable: PE10
 
 ## Companion: STM32 Data Reader
 
-The Pi-side service lives at a separate repository. It:
+The Pi-side service is the reader in `src/` of this repository. It:
 
 1. Opens `/dev/spidev0.0` at 20 MHz
 2. Performs full-duplex SPI transfers at ~1 kHz
 3. Validates `transferVersion` on every read
-4. Publishes all sensor data to LCM multicast channels (prefix `libstp/`)
-5. Subscribes to LCM command channels and writes them to the SPI TX buffer
+4. Publishes all sensor data on the transport (the channels of the channel table in raccoon-transport)
+5. Subscribes to the command channels and writes them to the SPI TX buffer
 
 Both the firmware `pi_buffer_struct.h` and the reader's `pi_buffer.h` must be kept in sync. Any field change requires
 bumping `TRANSFER_VERSION` on both sides.
 
-### Key LCM Channels
+### Key transport channels
 
 **Published (sensor data):**
 
-- `libstp/gyro/value`, `libstp/accel/value`, `libstp/mag/value` - IMU vectors
-- `libstp/imu/quaternion` - orientation quaternion
-- `libstp/linear_accel/value` - gravity-subtracted acceleration
-- `libstp/motor/{0-3}/value` - motor BEMF (speed proxy)
-- `libstp/motor/{0-3}/position` - accumulated BEMF ticks
-- `libstp/analog/{0-5}/value` - analog port readings
-- `libstp/digital/{0-10}/value` - digital port states
-- `libstp/battery/voltage` - battery voltage
+- `hardware/imu/state/gyro`, `hardware/imu/state/accel`, `hardware/imu/state/mag` - IMU vectors
+- `hardware/imu/state/quaternion` - orientation quaternion
+- `hardware/imu/state/linear_accel` - gravity-subtracted acceleration
+- `hardware/motor/{0-3}/state/bemf` - motor BEMF (speed proxy)
+- `hardware/motor/{0-3}/state/position` - accumulated BEMF ticks
+- `hardware/analog/{0-5}/state/value` - analog port readings
+- `hardware/digital/{0-10}/state/value` - digital port states
+- `hardware/battery/state/voltage` - battery voltage
 
 **Subscribed (commands):**
 
-- `libstp/motor/{0-3}/power_cmd` - direct PWM (-100 to +100)
-- `libstp/motor/{0-3}/velocity_cmd` - velocity PID setpoint
-- `libstp/motor/{0-3}/position_cmd` - position command (velocity + goal)
-- `libstp/motor/{0-3}/pid_cmd` - runtime PID gain tuning
-- `libstp/servo/{0-3}/position_cmd` - servo position
-- `libstp/servo/{0-3}/mode` - servo enable/disable
-- `libstp/system/shutdown_cmd` - shutdown motors/servos
+- `hardware/motor/{0-3}/cmd/power` - direct PWM (-100 to +100)
+- `hardware/motor/{0-3}/cmd/velocity` - velocity PID setpoint
+- `hardware/motor/{0-3}/cmd/position` - position command (velocity + goal)
+- `hardware/motor/{0-3}/cmd/pid` - runtime PID gain tuning
+- `hardware/servo/{0-3}/cmd/position` - servo position
+- `hardware/servo/{0-3}/cmd/mode` - servo enable/disable
+- `hardware/latch/cmd/engaged` - latch the motors off (shutdown) or release them
+
+The full list with the message type of every channel is the channel table, `channels.yml` in raccoon-transport.
 
 ---
 
@@ -528,7 +530,7 @@ bumping `TRANSFER_VERSION` on both sides.
    `pi_buffer.h`
 4. **Write the driver** in `Firmware/src/Sensors/` or `Firmware/src/Actors/`
 5. **Hook it into the main loop** or an ISR callback in `timer.c` / `stm32f4xx_it.c`
-6. **Update the Pi reader** to publish/subscribe the new data on LCM
+6. **Update the Pi reader** to publish/subscribe the new data on the transport (add the channel to `channels.yml` in raccoon-transport first)
 
 ### Checklist for buffer struct changes
 

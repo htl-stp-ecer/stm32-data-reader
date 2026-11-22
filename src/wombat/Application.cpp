@@ -77,7 +77,7 @@ namespace wombat
             return Result<void>::failure("Application not initialized");
         }
 
-        logger_->info("Starting Wombat-Pi LCM interface...");
+        logger_->info("Starting the Wombat-Pi bridge...");
 
         while (!shouldShutdown_.load())
         {
@@ -138,7 +138,7 @@ namespace wombat
         // Create message broker
         messageBroker_ = std::make_shared<LcmBroker>(logger_);
 
-        // Connect logger to LCM broker for error message publishing
+        // Connect the logger to the broker so that errors and warnings reach the UI (messages/error, messages/warn)
         logger_->setLcmBroker(messageBroker_);
 
         // Create SPI hardware

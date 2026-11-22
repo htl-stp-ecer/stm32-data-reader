@@ -107,12 +107,10 @@ namespace wombat
             "servo position command");
         if (r.isFailure()) return r;
 
-        // Subscribe to the dedicated COMMAND channel — the formerly
-        // shared `servoMode` channel was both reader-published (state)
-        // and reader-subscribed (commands), creating a self-loopback
-        // that pinned inbound LCM latency at ~5 ms floor. Now state
-        // stays on `servoMode` (DataPublisher::publishServoState),
-        // commands come in on `servoModeCommand`.
+        // Subscribe to the dedicated COMMAND channel. State and commands must not share
+        // a channel: the reader would receive its own state again (a self-loopback that
+        // pins the inbound latency at a ~5 ms floor). State goes out on `servoMode`
+        // (DataPublisher::publishServoState), commands come in on `servoModeCommand`.
         r = subscribeForPorts<raccoon::scalar_i8_t>(
             MAX_SERVO_PORTS, Channels::servoModeCommand,
             [this](PortId p, const raccoon::scalar_i8_t& cmd) { onServoModeCommand(p, cmd); },

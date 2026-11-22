@@ -41,11 +41,11 @@ Only `build.py` and `deploy.py` build and install; CI runs `build.py` too. `depl
 
 **Services Layer:**
 - `DeviceController` - Coordinates SPI communication and maintains device state (motors, servos, sensors)
-- `DataPublisher` - Publishes sensor data to LCM channels with change detection to reduce traffic
-- `CommandSubscriber` - Subscribes to LCM command channels and routes to DeviceController
+- `DataPublisher` - Publishes sensor data to the transport channels with change detection to reduce traffic
+- `CommandSubscriber` - Subscribes to the transport command channels and routes to DeviceController
 
 **Infrastructure:**
-- `LcmBroker` - Typed publish/subscribe wrapper around LCM with PIMPL pattern
+- `LcmBroker` - Typed publish/subscribe wrapper around `raccoon::Transport` with PIMPL pattern
 - `Spi` / `SpiMock` - Hardware abstraction for SPI communication (toggled via `USE_SPI_MOCK`)
 - `Logger` - spdlog-based logging wrapper
 - `Result<T>` - Error handling monad (success/failure pattern)

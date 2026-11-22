@@ -49,26 +49,26 @@
   <rect x="612" y="50" rx="8" width="150" height="80" fill="#1d4ed8"/>
   <text x="687" y="80" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">DataPublisher</text>
   <text x="687" y="98" text-anchor="middle" fill="#bfdbfe" font-size="10">change detection</text>
-  <text x="687" y="114" text-anchor="middle" fill="#bfdbfe" font-size="10">publish to LCM</text>
+  <text x="687" y="114" text-anchor="middle" fill="#bfdbfe" font-size="10">publish to the transport</text>
 
-  <!-- DataPublisher → LCM -->
+  <!-- DataPublisher → transport -->
   <line x1="762" y1="82" x2="800" y2="82" stroke="#1d4ed8" stroke-width="2"/>
   <polygon points="796,77 806,82 796,87" fill="#1d4ed8"/>
 
-  <!-- ════════════ LCM BUS (centre) ════════════ -->
+  <!-- ════════════ TRANSPORT (centre) ════════════ -->
   <rect x="806" y="50" rx="6" width="36" height="240" fill="#d97706"/>
-  <text x="824" y="178" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" transform="rotate(-90,824,178)">LCM  multicast  bus</text>
+  <text x="824" y="178" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" transform="rotate(-90,824,178)">transport  (shared  memory)</text>
 
   <!-- ════════════ COMMAND LANE (bottom) ════════════ -->
 
-  <!-- LCM → CommandSubscriber -->
+  <!-- transport → CommandSubscriber -->
   <line x1="806" y1="250" x2="762" y2="250" stroke="#7c3aed" stroke-width="2"/>
   <polygon points="766,245 756,250 766,255" fill="#7c3aed"/>
 
   <!-- CommandSubscriber -->
   <rect x="612" y="210" rx="8" width="150" height="80" fill="#7c3aed"/>
   <text x="687" y="240" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">CommandSubscriber</text>
-  <text x="687" y="258" text-anchor="middle" fill="#e9d5ff" font-size="10">subscribe to LCM</text>
+  <text x="687" y="258" text-anchor="middle" fill="#e9d5ff" font-size="10">subscribe to the transport</text>
   <text x="687" y="274" text-anchor="middle" fill="#e9d5ff" font-size="10">route to controller</text>
 
   <!-- CommandSubscriber → DeviceController -->
