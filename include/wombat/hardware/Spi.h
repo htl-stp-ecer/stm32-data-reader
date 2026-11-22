@@ -24,6 +24,12 @@ void spi_close(void);
 /* Reset the STM32 coprocessor via the reset script */
 void spi_reset_stm32(void);
 
+/* Called just before the STM32 is flashed again (its transfer version does not match the reader's).
+ * Flashing takes about a minute during which nothing is read or written; the reader uses this to tell the
+ * user first. Called on the thread that runs spi_update(). */
+typedef void (*SpiReflashNotify)(void* user);
+void spi_set_reflash_notify(SpiReflashNotify notify, void* user);
+
 /* One-shot raw SPI transfer that returns the transferVersion byte received
  * from the STM32.  Does NOT trigger auto-reflash.  Call after spi_init(). */
 uint8_t spi_probe_version(void);

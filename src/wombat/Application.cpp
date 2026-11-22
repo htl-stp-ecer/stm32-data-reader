@@ -21,6 +21,21 @@ extern "C" {
 
 namespace wombat
 {
+#ifndef USE_SPI_MOCK
+    namespace
+    {
+        // Flashing the firmware blocks the reader for about a minute: tell the user before it starts.
+        void notifyFirmwareReflash(void* user)
+        {
+            static_cast<Logger*>(user)->warn(
+                "Updating the STM32 firmware",
+                "The firmware of the STM32 does not match the reader and is being flashed again. "
+                "For about a minute the robot does not react and no sensor values arrive. "
+                "Then everything works again, you do not have to do anything.");
+        }
+    }
+#endif
+
     // Global pointer for signal handling
     static Application* g_application = nullptr;
 
@@ -205,6 +220,8 @@ namespace wombat
         }
 
 #ifndef USE_SPI_MOCK
+        spi_set_reflash_notify(&notifyFirmwareReflash, logger_.get());
+
         // 5. Probe the protocol version actually running on the STM32
         {
             const uint8_t stm32Version = spi_probe_version();

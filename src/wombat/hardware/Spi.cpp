@@ -67,6 +67,15 @@ static SpiCtx ctx = {
 
 static bool allowUpdates = false;
 
+static SpiReflashNotify reflashNotify = NULL;
+static void* reflashNotifyUser = NULL;
+
+void spi_set_reflash_notify(SpiReflashNotify notify, void* user)
+{
+    reflashNotify = notify;
+    reflashNotifyUser = user;
+}
+
 static void reset_stm(void)
 {
     int rc = system("bash ~/flashFiles/reset_coprocessor.sh");
@@ -81,6 +90,8 @@ static void reset_stm(void)
 static void reflash_stm(void)
 {
     fprintf(stderr, "[spi] version mismatch – reflashing firmware …\n");
+    if (reflashNotify)
+        reflashNotify(reflashNotifyUser);
     int rc = system("bash ~/flashFiles/flash_wombat.sh");
     if (rc != 0)
     {
