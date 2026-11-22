@@ -6,6 +6,7 @@
 #include "wombat/core/DeviceTypes.h"
 #include "wombat/core/Result.h"
 #include "wombat/core/Logger.h"
+#include "wombat/core/ImuHealthCheck.h"
 #include "wombat/hardware/ISpi.h"
 #include <memory>
 #include <array>
@@ -84,6 +85,7 @@ namespace wombat
 
         std::unique_ptr<ISpi> spi_;
         std::shared_ptr<Logger> logger_;
+        ImuHealthCheck imuHealth_;
 
         std::array<MotorState, MAX_MOTOR_PORTS> motorStates_{};
 

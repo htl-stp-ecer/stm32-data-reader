@@ -148,6 +148,14 @@ namespace wombat
         }
 
         lastSensorData_ = sensorResult.value();
+        if (imuHealth_.observe(lastSensorData_))
+        {
+            // Goes to the journal and, as an error, to messages/error (the UI shows it).
+            logger_->error(
+                "IMU FAULT: the IMU has delivered only zeros since the reader started (the self-test of the "
+                "STM32 failed or the chip does not answer). Gyro, accelerometer, orientation and heading "
+                "cannot be used. Check the IMU board and its connection.");
+        }
         return Result<void>::success();
     }
 

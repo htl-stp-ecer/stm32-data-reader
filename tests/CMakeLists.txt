@@ -6,6 +6,7 @@ add_executable(wombat_tests
         DataPublisherTest.cpp
         ComponentVersionCheckTest.cpp
         ShutdownStatusTest.cpp
+        ImuHealthCheckTest.cpp
         ${CMAKE_SOURCE_DIR}/${TEST_SPI_SOURCE}
 )
 
