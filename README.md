@@ -161,7 +161,7 @@ Channel names and their message types come from the channel table of [raccoon-tr
 | `hardware/servo/{n}/state/{mode,position,feedback,health,done}` | | Servo state |
 | `hardware/latch/state/flags` | `scalar_i32_t` | Flags of the motor latch (see below) |
 | `hardware/feature/state/bemf_active` | `scalar_i32_t` | Whether back-EMF control is active |
-| `messages/error`, `messages/warn` | `string_t` | Errors and warnings of the reader (the same text at most once per second) |
+| `messages/error`, `messages/warn` | `message_t` | Errors and warnings of the reader (the same text at most once per second) |
 
 ### Subscribed (commands)
 

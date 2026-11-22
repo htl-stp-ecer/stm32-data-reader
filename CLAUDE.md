@@ -64,7 +64,7 @@ Defined in raccoon-transport (`messages/`) as `raccoon::*` C++ structs:
 - `vector3f_t` - 3D vectors (gyro, accel, mag)
 - `quaternion_t` - Orientation quaternion
 - `scalar_f_t`, `scalar_i32_t`, `scalar_i8_t` - Scalar values
-- `string_t` - Error messages
+- `message_t` - Messages for the user: a title and a text (`messages/error`, `messages/warn`)
 
 ### Channel Naming Convention
 
