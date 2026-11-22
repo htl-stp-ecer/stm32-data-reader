@@ -412,13 +412,21 @@ namespace wombat
             const long total = ms(loopNow, tPublish);
             if (total >= loopWarnMs)
             {
+                const std::pair<const char*, long> parts[] = {
+                    {"incoming commands", ms(loopNow, tMessages)},
+                    {"watchdog", ms(tMessages, tWatchdog)},
+                    {"SPI exchange", ms(tWatchdog, tDevice)},
+                    {"CPU, UART and health checks", ms(tDevice, tAux)},
+                    {"publishing sensor data", ms(tAux, tPublish)},
+                };
+                const auto* slowest = &parts[0];
+                for (const auto& part : parts)
+                    if (part.second > slowest->second)
+                        slowest = &part;
                 logger_->warn(
-                    "SLOW LOOP " + std::to_string(total) + "ms: messages=" +
-                    std::to_string(ms(loopNow, tMessages)) + " watchdog=" +
-                    std::to_string(ms(tMessages, tWatchdog)) + " deviceUpdate=" +
-                    std::to_string(ms(tWatchdog, tDevice)) + " aux(cpu/uart/health)=" +
-                    std::to_string(ms(tDevice, tAux)) + " publish=" +
-                    std::to_string(ms(tAux, tPublish)) + "ms");
+                    "Slow control loop",
+                    "One loop took " + std::to_string(total) + " ms (warning at " + std::to_string(loopWarnMs)
+                    + " ms).\nSlowest part: " + slowest->first + ", " + std::to_string(slowest->second) + " ms.");
             }
         }
 

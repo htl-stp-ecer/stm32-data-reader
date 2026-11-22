@@ -7,7 +7,7 @@
 #include <raccoon/scalar_f_t.hpp>
 #include <raccoon/scalar_i32_t.hpp>
 #include <raccoon/scalar_i8_t.hpp>
-#include <raccoon/string_t.hpp>
+#include <raccoon/message_t.hpp>
 #include "wombat/core/Channels.h"
 #include <raccoon/orientation_matrix_t.hpp>
 #include <raccoon/kinematics_config_t.hpp>
@@ -229,28 +229,17 @@ namespace wombat
             if (latency.p99_us > kLatencyAlertThresholdUs)
             {
                 ++latencyAlertConsecutiveCount_;
-                const std::string message =
-                    "stm32_data_reader inbound LCM latency p99="
-                    + std::to_string(latency.p99_us / 1000)
-                    + "ms exceeds 20ms"
-                    + " (avg=" + std::to_string(latency.avg_us / 1000)
-                    + "ms, max=" + std::to_string(latency.max_us / 1000)
-                    + "ms, n=" + std::to_string(latency.count) + ")";
+                const std::string content =
+                    "Messages reach the reader late: 99% arrive within "
+                    + std::to_string(latency.p99_us / 1000) + " ms (limit 20 ms).\n"
+                    + "Average " + std::to_string(latency.avg_us / 1000) + " ms, worst "
+                    + std::to_string(latency.max_us / 1000) + " ms, over "
+                    + std::to_string(latency.count) + " messages.";
 
                 if (!latencyAlertActive_ || latencyAlertConsecutiveCount_ % 10 == 1)
                 {
-                    logger_->error(message);
-                    raccoon::string_t errorMsg{};
-                    errorMsg.timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::system_clock::now().time_since_epoch()).count();
-                    errorMsg.value = message;
-                    const auto publishResult = publishForce<raccoon::string_t>(
-                        wombat::Channels::ERROR_MESSAGES, errorMsg);
-                    if (publishResult.isFailure())
-                    {
-                        logger_->error("Failed to publish latency alert to raccoon/errors: "
-                            + publishResult.error());
-                    }
+                    // To the journal and to messages/error.
+                    logger_->error("Commands arrive slowly", content);
                 }
 
                 latencyAlertActive_ = true;
@@ -418,7 +407,7 @@ namespace wombat
     }
 
     template <>
-    Result<void> LcmBroker::publish<raccoon::string_t>(const std::string& ch, const raccoon::string_t& m)
+    Result<void> LcmBroker::publish<raccoon::message_t>(const std::string& ch, const raccoon::message_t& m)
     {
         return impl_->publishIfChanged(ch, m);
     }
@@ -443,7 +432,7 @@ namespace wombat
     }
 
     template <>
-    Result<void> LcmBroker::publishForce<raccoon::string_t>(const std::string& ch, const raccoon::string_t& m)
+    Result<void> LcmBroker::publishForce<raccoon::message_t>(const std::string& ch, const raccoon::message_t& m)
     {
         return impl_->publishForce(ch, m);
     }

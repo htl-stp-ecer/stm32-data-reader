@@ -4,7 +4,7 @@
 #include "wombat/core/Logger.h"
 #include "wombat/core/Channels.h"
 #include "wombat/messaging/LcmBroker.h"
-#include <raccoon/string_t.hpp>
+#include <raccoon/message_t.hpp>
 #include <spdlog/spdlog.h>
 #include <spdlog/async.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -35,14 +35,24 @@ namespace wombat
 
         void warn(const std::string& message) override
         {
-            spdlog::warn(message);
-            publishToBus(Channels::WARN_MESSAGES, message, lastWarn_);
+            warn(kDefaultTitle, message);
         }
 
         void error(const std::string& message) override
         {
-            spdlog::error(message);
-            publishToBus(Channels::ERROR_MESSAGES, message, lastError_);
+            error(kDefaultTitle, message);
+        }
+
+        void warn(const std::string& title, const std::string& content) override
+        {
+            spdlog::warn(title + ": " + content);
+            publishToBus(Channels::WARN_MESSAGES, title, content, lastWarn_);
+        }
+
+        void error(const std::string& title, const std::string& content) override
+        {
+            spdlog::error(title + ": " + content);
+            publishToBus(Channels::ERROR_MESSAGES, title, content, lastError_);
         }
 
         void debug(const std::string& message) override
@@ -68,8 +78,12 @@ namespace wombat
         LastMessage lastWarn_;
         LastMessage lastError_;
 
-        void publishToBus(const std::string& channel, const std::string& message, LastMessage& last)
+        static inline const std::string kDefaultTitle{"STM32 reader"};
+
+        void publishToBus(const std::string& channel, const std::string& title, const std::string& content,
+                          LastMessage& last)
         {
+            const std::string message = title + "\n" + content;
             if (!lcmBroker_)
             {
                 return; // No broker available
@@ -82,10 +96,11 @@ namespace wombat
             last.text = message;
             last.at = now;
 
-            raccoon::string_t msg;
+            raccoon::message_t msg;
             msg.timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count();
-            msg.value = message;
+            msg.title = title;
+            msg.content = content;
             lcmBroker_->publishForce(channel, msg);
         }
 

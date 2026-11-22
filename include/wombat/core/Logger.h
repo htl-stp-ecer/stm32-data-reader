@@ -20,6 +20,18 @@ namespace wombat
         virtual void error(const std::string& message) = 0;
         virtual void debug(const std::string& message) = 0;
 
+        // A message for the user (a dialog in the UI): a short title and the text below it. The journal
+        // gets one line, "title: content". The overloads above show the text under the title "STM32 reader".
+        virtual void warn(const std::string& title, const std::string& content)
+        {
+            warn(title + ": " + content);
+        }
+
+        virtual void error(const std::string& title, const std::string& content)
+        {
+            error(title + ": " + content);
+        }
+
         static std::unique_ptr<Logger> create(const Configuration::Logging& config);
         static std::unique_ptr<Logger> create(const Configuration::Logging& config,
                                               std::shared_ptr<LcmBroker> lcmBroker);
