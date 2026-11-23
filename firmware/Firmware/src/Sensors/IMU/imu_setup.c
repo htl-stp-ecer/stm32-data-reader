@@ -16,7 +16,6 @@
 
 #include <stdio.h>
 
-#define DEFAULT_MPU_HZ   (50)
 #define COMPASS_READ_MS  (100)
 
 void setupImu(void)
@@ -87,5 +86,10 @@ void setupImu(void)
     printf("[IMU] step: dmp_set_fifo_rate / mpu_set_dmp_state\r\n");
     dmp_set_fifo_rate(DEFAULT_MPU_HZ);
     mpu_set_dmp_state(1);
+
+    // Load the reboot-persisted gyro temperature model before motion. Safe to do
+    // here (may erase-compact its flash log) — the robot is stationary at setup.
+    heading_fusion_load_persisted();
+
     printf("[IMU] step: setupImu done\r\n");
 }

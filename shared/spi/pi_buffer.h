@@ -93,8 +93,8 @@ typedef struct __attribute__ ((packed))
     SensorData compass;
     SensorData linearAccel;
     SensorData accelVelocity;
-    QuaternionData dmpQuat; /* DMP 6-axis quaternion (gyro+accel only) */
-    float heading; /* MPL heading (mag-corrected when calibrated) */
+    QuaternionData dmpQuat; /* DMP tilt with gyro-fused yaw correction */
+    float heading; /* Clockwise degrees around gravity from startup, [0, 360) */
     float temperature;
 }
 
