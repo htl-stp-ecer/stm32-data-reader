@@ -87,9 +87,5 @@ void setupImu(void)
     dmp_set_fifo_rate(DEFAULT_MPU_HZ);
     mpu_set_dmp_state(1);
 
-    // Load the reboot-persisted gyro temperature model before motion. Safe to do
-    // here (may erase-compact its flash log) — the robot is stationary at setup.
-    heading_fusion_load_persisted();
-
     printf("[IMU] step: setupImu done\r\n");
 }

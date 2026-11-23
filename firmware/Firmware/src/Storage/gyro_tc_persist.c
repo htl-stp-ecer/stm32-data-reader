@@ -1,11 +1,12 @@
 // ============================================================================
 // Reboot-persistent gyro bias-vs-temperature model — append-log flash storage.
 //
-// Layout: sector 13 (Bank 2, 16 KiB) as a log of 256 fixed 64-byte slots. Each
-// save PROGRAMS one record into the next erased slot (0xFF -> data); we never
-// erase during runtime, so the main loop never stalls the way the old MPL-cal
-// persistence did. The sector is erased only at boot, and only when the log is
-// full or corrupt (before any motion). On boot we scan for the newest valid
+// Layout: sector 13 (16 KiB) as a log of 256 fixed 64-byte slots. Each save
+// PROGRAMS one record into the next erased slot (0xFF -> data); we never erase
+// during runtime, because on the single-bank flash an erase halts instruction
+// fetch and would stall the main loop. The sector is erased only at boot, and
+// only when the log is full or corrupt (before the SPI link, motors and IMU
+// start). On boot we scan for the newest valid
 // record and load it; the write cursor points at the first free slot after it.
 //
 // Record (44 of the 64 bytes used, word-aligned), as 11 little-endian u32 words:
@@ -160,7 +161,7 @@ int gyro_tc_persist_load(gyro_tc_state_t* st)
 
     if (need_compact)
     {
-        // Safe here: setup runs before any motion. Erase once, then re-seed with
+        // Safe here: this runs before anything depends on the main loop. Erase once, then re-seed with
         // the loaded state (if any) so the model survives the compaction.
         printf("[gtc] log needs compaction — erasing sector %u\r\n",
                (unsigned)GTC_FLASH_SECTOR);

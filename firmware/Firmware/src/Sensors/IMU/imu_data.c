@@ -69,8 +69,9 @@
                                     // warm drive. (Measured on this robot: tempco is
                                     // ~0, so the model correctly stays dormant.)
 // Persistence: save the model to flash only on a material change, rate-limited
-// (flash program is sub-ms but we keep it rare — see gyro_tc_persist.c).
-#define TC_SAVE_MIN_MS     60000u   // >=1 min between flash saves
+// (a flash program briefly halts instruction fetch, so we keep it rare — see
+// gyro_tc_persist.c).
+#define TC_SAVE_MIN_MS     300000u  // >=5 min between flash saves
 #define TC_SAVE_DSLOPE     0.003f   // dps/degC: min slope change worth saving
 volatile float imuFusedHeading = 0.0f;   // deg, imu.heading/CW frame, continuous
 static float hf_bias = 0.0f;             // estimated yaw-rate bias (deg/s)
@@ -95,8 +96,9 @@ static inv_time_t tc_last_save_ms = 0;
 static uint8_t tc_saved_once = 0;
 
 // Load any reboot-persisted temperature model so the fusion is pre-trained on
-// the cold-boot warmup instead of starting empty each boot. Call once at setup,
-// before motion (the persistence layer may erase-compact its flash log here).
+// the cold-boot warmup instead of starting empty each boot. Call once at boot,
+// before anything depends on the main loop (the persistence layer may
+// erase-compact its flash log here, which halts the CPU).
 void heading_fusion_load_persisted(void)
 {
     gyro_tc_state_t st;

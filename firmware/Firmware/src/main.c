@@ -38,6 +38,7 @@
 #include "Hardware/timerInit.h"
 #include "Hardware/gpio.h"
 #include "Sensors/IMU/imu.h"
+#include "Sensors/IMU/imu_internal.h"
 #include "Sensors/odometry.h"
 #include "Storage/flash_cal.h"
 #include "Utillity/utillity.h"
@@ -99,10 +100,15 @@ int main(void)
 
     printf("[stp] Booted, firmware ready\r\n");
 
-    /* DB1M (bit 30 of OPTCR) must be 1 for dual-bank RWW on 2MB STM32F427.
-     * If 0, cal flash erase will stall Bank-1 code fetch — reprogram option byte. */
+    /* DB1M (bit 30 of OPTCR) is 0 on the Raccoon boards: the flash runs as one
+     * bank, so any flash erase halts instruction fetch until it finishes. */
     uint32_t optcr = FLASH->OPTCR;
     printf("[stp] FLASH->OPTCR=0x%08lX  DB1M=%lu\r\n", optcr, (optcr >> 30) & 1u);
+
+    /* Load the persisted gyro temperature model. This may erase its flash sector,
+     * which halts the CPU, so it runs here: before the SPI link, the motors and
+     * the IMU are started and nothing is waiting on the main loop yet. */
+    heading_fusion_load_persisted();
 
     initPiCommunication();
     initMotors();

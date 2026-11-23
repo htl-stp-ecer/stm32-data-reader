@@ -12,18 +12,19 @@
  * warmup ramp. If the model started empty every boot, it would never be trained
  * in time to compensate the very warmup it exists for. So we persist it.
  *
- * IMPORTANT — no flash erase during operation. The old MPL-cal persistence was
- * disabled because per-save sector erases blocked the main loop (froze PWM). We
- * avoid that: the model is stored in an APPEND LOG (sector 13, Bank 2). Runtime
- * saves only PROGRAM one small record into a free slot (0xFF -> data, sub-ms,
- * RWW-safe since code runs from Bank 1). The sector is only ERASED at boot, and
- * only when the log is full or corrupt — i.e. before any motion. See the .c.
+ * IMPORTANT — no flash erase during operation. The flash runs as a single bank
+ * (DB1M=0), so an erase halts instruction fetch until it is done and would
+ * freeze the main loop (PWM, SPI link, IMU). The model is therefore stored in an
+ * APPEND LOG (sector 13). Runtime saves only PROGRAM one small record into a
+ * free slot (0xFF -> data), which halts fetch for well under a millisecond. The
+ * sector is only ERASED at boot, and only when the log is full or corrupt,
+ * before the SPI link, motors and IMU start. See the .c.
  *
  * The instantaneous bias is NOT persisted (ZUPT re-learns it every boot in
  * seconds); only the slow-to-learn temperature SLOPE and its fit accumulators.
  */
 
-#define GTC_FLASH_SECTOR   13            /* Bank 2, 16 KiB, RWW-safe */
+#define GTC_FLASH_SECTOR   13            /* 16 KiB, erased at boot only */
 #define GTC_FLASH_ADDR     0x08104000U
 #define GTC_FLASH_SIZE     0x4000U       /* 16 KiB */
 #define GTC_SLOT_SIZE      64U           /* one padded record per slot */
@@ -47,7 +48,8 @@ typedef struct
 /**
  * @brief Load the newest valid model record from flash into @p st.
  * Scans the append log for the last uncorrupted record. If the log is full or
- * corrupt it erases+compacts the sector ONCE (safe at boot, pre-motion). Sets up
+ * corrupt it erases+compacts the sector ONCE (call it before the SPI link, motors
+ * and IMU start, because the erase halts the CPU). Sets up
  * the internal write cursor for subsequent appends. Call once at setup.
  * @return 1 if a valid model was loaded (st populated), 0 otherwise (st unchanged).
  */
