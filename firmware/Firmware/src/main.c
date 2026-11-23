@@ -104,6 +104,9 @@ int main(void)
      * bank, so any flash erase halts instruction fetch until it finishes. */
     uint32_t optcr = FLASH->OPTCR;
     printf("[stp] FLASH->OPTCR=0x%08lX  DB1M=%lu\r\n", optcr, (optcr >> 30) & 1u);
+    printf("[stp] flash mode: %s\r\n", ((optcr >> 30) & 1u)
+           ? "dual-bank (an erase of one bank does not halt code running from the other)"
+           : "single-bank (any flash erase halts the CPU until it is done)");
 
     /* Load the persisted gyro temperature model. This may erase its flash sector,
      * which halts the CPU, so it runs here: before the SPI link, the motors and
