@@ -114,7 +114,7 @@ cmake -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=../CMake/GNU-ARM-Toolchain.cmak
 cmake --build . -- -j$(nproc)
 ```
 
-`python3 build.py` builds reader and firmware together (the firmware in `Dockerfile.firmware`). `python3 deploy.py --host <pi>` installs the package, which flashes the firmware to the STM32.
+`python3 build.py` builds reader and firmware together (the firmware in `Dockerfile.firmware`). `python3 deploy.py --host <pi>` installs the package, which flashes the firmware to the STM32. When the firmware has to be flashed again, the reader first sends a warning (`messages/warn`) to the UI: the flash blocks for about a minute, during which the robot does not react. The firmware's boot log shows whether the flash runs single-bank or dual-bank (the `DB1M` option bit).
 
 ---
 
