@@ -3,6 +3,26 @@
 #include "wombat/core/ShutdownFlags.h"
 #include <raccoon/orientation_matrix_t.hpp>
 #include <chrono>
+#include <cmath>
+#include <cstdint>
+#include <limits>
+
+namespace
+{
+    // A float -> int32 cast is undefined behaviour for values outside the int32
+    // range, so clamp first. Returns false if the value had to be clamped.
+    // NaN must be rejected by the caller. Floats above 2^24 also lose precision.
+    bool clampToInt32(const float value, int32_t& out)
+    {
+        constexpr int32_t kMin = std::numeric_limits<int32_t>::min();
+        constexpr int32_t kMax = std::numeric_limits<int32_t>::max();
+        // static_cast<float>(kMax) rounds up to 2^31, which is already out of range.
+        if (value >= static_cast<float>(kMax)) { out = kMax; return false; }
+        if (value < static_cast<float>(kMin)) { out = kMin; return false; }
+        out = static_cast<int32_t>(value);
+        return true;
+    }
+}
 
 namespace wombat
 {
@@ -382,8 +402,21 @@ namespace wombat
         CmdTrace::instance().record("recv", "motor_pos", Channels::motorPositionCommand(port), port,
                                     command.x, command.timestamp);
 
-        const int32_t velocity = static_cast<int32_t>(command.x);
-        const int32_t goalPosition = static_cast<int32_t>(command.y);
+        if (std::isnan(command.x) || std::isnan(command.y))
+        {
+            logger_->error("Dropping motor position command for motor " + std::to_string(port) +
+                           ": velocity or goal is NaN");
+            return;
+        }
+
+        int32_t velocity;
+        int32_t goalPosition;
+        if (!clampToInt32(command.x, velocity))
+            logger_->error("Motor " + std::to_string(port) + " position command: velocity " +
+                           std::to_string(command.x) + " too large, clamped to " + std::to_string(velocity));
+        if (!clampToInt32(command.y, goalPosition))
+            logger_->error("Motor " + std::to_string(port) + " position command: goal " +
+                           std::to_string(command.y) + " too large, clamped to " + std::to_string(goalPosition));
 
         const auto result = deviceController_->setMotorPosition(port, velocity, goalPosition);
 
