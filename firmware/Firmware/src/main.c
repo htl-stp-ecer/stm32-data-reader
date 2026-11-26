@@ -35,6 +35,7 @@
 #include "Hardware/dma.h"
 #include "Communication/spi.h"
 #include "Communication/usart.h"
+#include "Communication/uart_log.h"
 #include "Hardware/timerInit.h"
 #include "Hardware/gpio.h"
 #include "Sensors/IMU/imu.h"
@@ -284,6 +285,7 @@ void Error_Handler(void)
 {
     /* USER CODE BEGIN Error_Handler_Debug */
     /* User can add his own implementation to report the HAL error return state */
+    uart_log_flush(); // send what is still buffered
     __disable_irq();
     while (1)
     {

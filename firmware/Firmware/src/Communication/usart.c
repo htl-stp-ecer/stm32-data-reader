@@ -28,7 +28,9 @@ void MX_USART3_UART_Init(void)
 {
     /* USER CODE END USART3_Init 1 */
     uart_pi.Instance = USART3;
-    uart_pi.Init.BaudRate = 115200;
+    // 1 Mbaud: exact with the 45 MHz APB1 clock (USARTDIV 2.8125) and the Pi's 48 MHz
+    // UART clock. Must match Configuration::Uart::baudRate in the reader.
+    uart_pi.Init.BaudRate = 1000000;
     uart_pi.Init.WordLength = UART_WORDLENGTH_8B;
     uart_pi.Init.StopBits = UART_STOPBITS_1;
     uart_pi.Init.Parity = UART_PARITY_NONE;
@@ -39,12 +41,6 @@ void MX_USART3_UART_Init(void)
     {
         Error_Handler();
     }
-}
-
-int __io_putchar(int ch)
-{
-    HAL_UART_Transmit(&uart_pi, (uint8_t*)&ch, 1, HAL_MAX_DELAY);
-    return ch;
 }
 
 void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)

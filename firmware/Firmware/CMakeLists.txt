@@ -69,6 +69,7 @@ set(additional_compiler_flags
         -Wall
         -gdwarf-2
         -fmessage-length=0
+        -fno-builtin-printf # keep printf calls on our non-blocking printf (uart_log.c)
         -mcpu=cortex-m4
         -mthumb
         -mfloat-abi=hard
