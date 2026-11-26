@@ -11,6 +11,7 @@
 #include "Hardware/timerInit.h"
 #include "Actors/pid.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -330,7 +331,8 @@ static void motor_mode_mtp(const uint8_t ch, const int32_t goalPos,
                            const int16_t bemf_filtered, const float pidDt)
 {
     // Restart the profile if the goal position changed (new MTP command)
-    if (goalPos != prevGoalPos[ch])
+    const uint8_t newGoal = goalPos != prevGoalPos[ch];
+    if (newGoal)
     {
         prevGoalPos[ch] = goalPos;
         mtpHolding &= ~(1u << ch);
@@ -339,7 +341,20 @@ static void motor_mode_mtp(const uint8_t ch, const int32_t goalPos,
     }
 
     int32_t currentPos = motor_data.position[ch];
-    int32_t posError = goalPos - currentPos;
+    // goalPos - currentPos can overflow int32 for extreme goals: compute it in
+    // 64 bit and clamp back to 32 bit. The lower bound is -INT32_MAX rather than
+    // INT32_MIN so -posError below stays defined.
+    const int64_t diff = (int64_t)goalPos - (int64_t)currentPos;
+    int32_t posError;
+    if (diff > INT32_MAX) posError = INT32_MAX;
+    else if (diff < -INT32_MAX) posError = -INT32_MAX;
+    else posError = (int32_t)diff;
+    // Log once per goal (this runs every control cycle).
+    if (newGoal && posError != diff)
+    {
+        printf("[stp] [ERROR] mot%d mtp goal=%ld pos=%ld: error too large, clamped\r\n",
+               ch, (long)goalPos, (long)currentPos);
+    }
     int32_t absError = posError < 0 ? -posError : posError;
 
     // Holding: stay braced on the goal until pushed out of the release band.
