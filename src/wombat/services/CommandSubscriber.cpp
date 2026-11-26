@@ -648,13 +648,11 @@ namespace wombat
             return;
         }
 
-        // When the user clears a shutdown via the UI, drop any latched
-        // watchdog state so it can re-arm and trigger again if needed.
         if (!enabled && watchdog_.hasFired())
         {
-            watchdog_.resetAfterManualClear();
-            logger_->info("Watchdog-triggered shutdown cleared by user — watchdog re-armed");
+            logger_->info("Watchdog-triggered shutdown cleared by command");
         }
+        watchdog_.onLatchCommand(enabled);
 
         // Publish the latch state so subscribers (like the UI) can react. The latch
         // stops the motors only (see shutdown_flags); a user-initiated command

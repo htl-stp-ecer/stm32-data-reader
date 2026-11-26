@@ -71,7 +71,7 @@ protected:
         controller_ = std::make_shared<DeviceController>(std::move(spi), logger_);
         ASSERT_TRUE(controller_->initialize().isSuccess());
         publisher_ = std::make_shared<DataPublisher>(broker_, logger_);
-        watchdog_ = std::make_unique<MotorWatchdog>();
+        watchdog_ = std::make_unique<MotorWatchdog>(kTimeout);
         subscriber_ = std::make_unique<CommandSubscriber>(broker_, controller_, publisher_, logger_, *watchdog_);
         ASSERT_TRUE(subscriber_->initialize().isSuccess());
 
@@ -107,6 +107,21 @@ protected:
         return lastStatus_.load();
     }
 
+    // One main-loop tick of the watchdog, including delivery of what it publishes.
+    void tickWatchdog()
+    {
+        watchdog_->update(*controller_, *publisher_);
+        for (int i = 0; i < 10; ++i)
+        {
+            broker_->processMessages();
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+    }
+
+    static void missHeartbeats() { std::this_thread::sleep_for(kTimeout * 3); }
+
+    static constexpr MotorWatchdog::Duration kTimeout{100};
+
     std::shared_ptr<MockLogger> logger_;
     std::shared_ptr<LcmBroker> broker_;
     NiceMock<MockSpi>* spi_ = nullptr;
@@ -134,6 +149,53 @@ TEST_F(ShutdownStatusTest, ReleaseClearsTheStatus)
 {
     waitForStatus(true);
     EXPECT_EQ(waitForStatus(false), shutdown_flags::kClear);
+}
+
+TEST_F(ShutdownStatusTest, MissingHeartbeatLatchesWithWatchdogSource)
+{
+    watchdog_->feed();
+    missHeartbeats();
+    tickWatchdog();
+
+    EXPECT_EQ(lastStatus_.load(), shutdown_flags::kWatchdogLatch);
+}
+
+TEST_F(ShutdownStatusTest, WatchdogKeepsTheStatusOfACommandedLatch)
+{
+    watchdog_->feed();
+    waitForStatus(true);
+    missHeartbeats();
+    tickWatchdog();
+
+    EXPECT_FALSE(watchdog_->hasFired());
+    EXPECT_EQ(lastStatus_.load(), shutdown_flags::kUserLatch);
+}
+
+TEST_F(ShutdownStatusTest, HeartbeatsDoNotReleaseACommandedLatch)
+{
+    watchdog_->feed();
+    missHeartbeats();
+    tickWatchdog();
+    waitForStatus(true);
+    for (int i = 0; i < 5; ++i) watchdog_->feed();
+    tickWatchdog();
+
+    EXPECT_EQ(lastStatus_.load(), shutdown_flags::kUserLatch);
+}
+
+TEST_F(ShutdownStatusTest, ReleaseLeavesTheWatchdogDormantUntilTheNextHeartbeat)
+{
+    watchdog_->feed();
+    waitForStatus(true);
+    missHeartbeats();
+    waitForStatus(false);
+    tickWatchdog();
+    EXPECT_EQ(lastStatus_.load(), shutdown_flags::kClear);
+
+    watchdog_->feed();
+    missHeartbeats();
+    tickWatchdog();
+    EXPECT_EQ(lastStatus_.load(), shutdown_flags::kWatchdogLatch);
 }
 
 TEST(ShutdownFlagsTest, WatchdogLatchIsMotorPlusSource)

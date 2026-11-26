@@ -23,6 +23,11 @@ namespace wombat
      * arrive in succession (each within `timeout_`), shutdown is cleared. A
      * gap longer than `timeout_` during recovery resets the counter, so a
      * single late heartbeat cannot unlatch a still-broken sender.
+     *
+     * While the latch is engaged by command, the motors are already off: the
+     * watchdog does not fire and heartbeats do not release the latch. The
+     * reported latch state therefore keeps the command as its source, e.g.
+     * when a program latches the motors and exits.
      */
     class MotorWatchdog
     {
@@ -44,10 +49,11 @@ namespace wombat
 
         bool hasFired() const { return fired_; }
 
-        /// Drop fired state without touching hardware. Use when the UI manually
-        /// clears a watchdog-triggered shutdown, so the watchdog can re-arm
-        /// and fire again if heartbeats stay missing.
-        void resetAfterManualClear();
+        /// Called by CommandSubscriber after a latch command was applied.
+        /// Engaging takes the latch over from the watchdog. Releasing a latch
+        /// (from either source) makes the watchdog dormant; the next heartbeat
+        /// arms it. Does not touch hardware.
+        void onLatchCommand(bool engaged);
 
     private:
         const Duration timeout_;
@@ -55,6 +61,7 @@ namespace wombat
         TimePoint lastFeed_{};
         bool armed_{false};
         bool fired_{false};
+        bool latchedByCommand_{false};
         int recoveryCount_{0};
     };
 } // namespace wombat

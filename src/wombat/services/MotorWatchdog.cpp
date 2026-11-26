@@ -38,19 +38,22 @@ namespace wombat
         armed_ = true;
     }
 
-    void MotorWatchdog::resetAfterManualClear()
+    void MotorWatchdog::onLatchCommand(bool engaged)
     {
+        // Releasing drops back to the boot-like dormant state: no program may be
+        // running, and the last heartbeat may be long past. feed() re-arms.
+        // A release without a latch leaves a running watchdog armed.
+        if (!engaged && (fired_ || latchedByCommand_))
+            armed_ = false;
+
+        latchedByCommand_ = engaged;
         fired_ = false;
         recoveryCount_ = 0;
-        // Drop back to boot-like dormant state: the user cleared the shutdown
-        // explicitly, presumably because no program is running. The watchdog
-        // re-arms automatically on the next heartbeat via feed().
-        armed_ = false;
     }
 
     void MotorWatchdog::update(DeviceController& controller, DataPublisher& publisher)
     {
-        if (!armed_)
+        if (!armed_ || latchedByCommand_)
             return;
 
         const auto elapsed = std::chrono::duration_cast<Duration>(Clock::now() - lastFeed_);

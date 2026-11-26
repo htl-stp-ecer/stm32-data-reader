@@ -185,6 +185,8 @@ Channel names and their message types come from the channel table of [raccoon-tr
 
 The commands of the motors and servos, the chassis stop, the latch and the kinematics are reliable.
 
+The motor watchdog engages the latch when the heartbeat stops for 500 ms, and releases it after three heartbeats in a row. While the latch is engaged by `hardware/latch/cmd/engaged`, the watchdog neither fires nor releases it. `hardware/latch/state/flags` reports which of the two engaged the latch.
+
 ---
 
 ## Transport
