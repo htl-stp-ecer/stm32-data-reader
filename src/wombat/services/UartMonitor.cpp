@@ -11,7 +11,7 @@
 namespace wombat
 {
     static constexpr size_t MAX_LINE_BUFFER = 4096;
-    static constexpr size_t READ_BUFFER_SIZE = 256;
+    static constexpr size_t READ_BUFFER_SIZE = 4096; // 1 Mbaud is ~500 bytes per 5 ms main loop
     static constexpr std::string_view HEARTBEAT_MARKER = "[stp] hb #";
 
     UartMonitor::UartMonitor(std::shared_ptr<Logger> logger, const Configuration::Uart& config)
@@ -70,6 +70,8 @@ namespace wombat
         case 230400: baud = B230400;
             break;
         case 460800: baud = B460800;
+            break;
+        case 1000000: baud = B1000000;
             break;
         default:
             logger_->warn("Unsupported baud rate " + std::to_string(config_.baudRate) + ", defaulting to 115200");

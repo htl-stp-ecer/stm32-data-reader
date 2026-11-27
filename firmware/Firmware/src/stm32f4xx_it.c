@@ -20,6 +20,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "../include/stm32f4xx_it.h"
+#include "Communication/uart_log.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -302,7 +303,7 @@ void USART3_IRQHandler(void)
     /* USER CODE BEGIN USART3_IRQn 0 */
 
     /* USER CODE END USART3_IRQn 0 */
-    HAL_UART_IRQHandler(&uart_pi);
+    uart_log_irq_handler(); // TX only, RX is unused
     /* USER CODE BEGIN USART3_IRQn 1 */
 
     /* USER CODE END USART3_IRQn 1 */

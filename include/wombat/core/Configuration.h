@@ -33,7 +33,7 @@ namespace wombat
         struct Uart
         {
             std::string devicePath{"/dev/ttyAMA0"};
-            uint32_t baudRate{115200};
+            uint32_t baudRate{1000000}; // must match the firmware (usart.c)
             bool enabled{true};
         } uart;
 
