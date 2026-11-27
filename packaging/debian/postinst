@@ -68,6 +68,10 @@ case "$1" in
     fi
 
     # --- Flash STM32 firmware (best effort, only with hardware present) ---
+    # A failed flash does not fail the installation. It leaves this file behind
+    # (deploy.py reads it).
+    FLASH_FAILED=/run/stm32-data-reader-flash-failed
+    rm -f "$FLASH_FAILED"
     if [ -e /dev/ttyAMA0 ] && command -v stm32flash >/dev/null 2>&1 \
        && command -v pinctrl >/dev/null 2>&1; then
       # A running reader loses the STM32 while it is flashed, takes that for wrong
@@ -76,6 +80,7 @@ case "$1" in
       systemctl stop stm32_data_reader.service || true
       echo "Flashing STM32 firmware..."
       if ! ( cd "$FIRMWARE_DIR" && bash ./flash_wombat.sh ); then
+        touch "$FLASH_FAILED"
         echo "WARNING: firmware flash failed — flash later with" >&2
         echo "         sudo bash $FIRMWARE_DIR/flash_wombat.sh" >&2
       fi

@@ -12,7 +12,8 @@ stm32-data-reader is set to "dev" in the Pi's /etc/raccoon-bundle.json: a deploy
 custom build.
 
 The package flashes the STM32 firmware when it is installed (postinst, if the hardware is there),
-so every deploy flashes it again and restarts the reader.
+so every deploy flashes it again and restarts the reader. If flashing fails, the script exits
+with an error.
 """
 
 from __future__ import annotations
@@ -27,6 +28,8 @@ from pathlib import Path
 COMPONENT = "stm32-data-reader"
 BUNDLE_FILE = "/etc/raccoon-bundle.json"
 REMOTE_TMP = "/tmp/stm32-data-reader-install"
+# Written by the postinst of the package if flashing the STM32 failed.
+FLASH_FAILED = "/run/stm32-data-reader-flash-failed"
 
 # Runs on the Pi as root: set this component's version to "dev" in the bundle file and
 # leave everything else in it as it is.
@@ -136,6 +139,9 @@ def main() -> None:
     print()
     pi.run("systemctl is-active stm32_data_reader.service; "
            "/usr/bin/stm32_data_reader --version", check=False)
+    if pi.run(f"test -e {FLASH_FAILED}", check=False) == 0:
+        fail("the package is installed, but flashing the STM32 firmware failed (see the output above). "
+             "Run the deploy again.")
     print(f"Deployment to {args.host} completed.")
 
 

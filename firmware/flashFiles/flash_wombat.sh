@@ -39,6 +39,7 @@ echo "Flashing firmware..."
 CMD="${STM32FLASH} -v -e 8 -w ${BINFILE} ${DEV}"
 echo $CMD
 eval $CMD
+FLASH_RESULT=$?
 
 # Set BOOT0 low to run the program after reset
 echo "Setting BOOT0 low..."
@@ -48,5 +49,11 @@ sleep 1
 
 # Reset co-processor again
 bash ./reset_coprocessor.sh
+
+# The STM32 is reset in either case; the exit code tells the caller whether it was programmed.
+if [ ${FLASH_RESULT} -ne 0 ]; then
+    echo "Flashing failed (stm32flash exit code ${FLASH_RESULT})." >&2
+    exit 1
+fi
 
 echo "Flashing process completed."
