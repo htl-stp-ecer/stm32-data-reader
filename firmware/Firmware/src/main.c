@@ -38,7 +38,6 @@
 #include "Hardware/timerInit.h"
 #include "Hardware/gpio.h"
 #include "Sensors/IMU/imu.h"
-#include "Sensors/IMU/imu_internal.h"
 #include "Sensors/odometry.h"
 #include "Storage/flash_cal.h"
 #include "Utillity/utillity.h"
@@ -107,11 +106,6 @@ int main(void)
     printf("[stp] flash mode: %s\r\n", ((optcr >> 30) & 1u)
            ? "dual-bank (an erase of one bank does not halt code running from the other)"
            : "single-bank (any flash erase halts the CPU until it is done)");
-
-    /* Load the persisted gyro temperature model. This may erase its flash sector,
-     * which halts the CPU, so it runs here: before the SPI link, the motors and
-     * the IMU are started and nothing is waiting on the main loop yet. */
-    heading_fusion_load_persisted();
 
     initPiCommunication();
     initMotors();

@@ -2,13 +2,13 @@
 #define IMU
 #include "spi/pi_buffer.h"
 
-// DMP FIFO output rate. Heading fusion samples the raw sensors separately.
+// DMP FIFO output rate.
 #define DEFAULT_MPU_HZ   (50)
 
 extern ImuData imu;
 
-// Continuous clockwise heading in degrees relative to startup. The raw gyro
-// rate around gravity is integrated after correcting for the estimated bias.
+// Continuous clockwise heading in degrees relative to startup: the rotation of the
+// DMP quaternion about world vertical (gravity), summed over all DMP samples.
 extern volatile float imuFusedHeading;
 
 void setupImu();
