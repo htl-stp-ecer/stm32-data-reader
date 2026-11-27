@@ -70,6 +70,10 @@ case "$1" in
     # --- Flash STM32 firmware (best effort, only with hardware present) ---
     if [ -e /dev/ttyAMA0 ] && command -v stm32flash >/dev/null 2>&1 \
        && command -v pinctrl >/dev/null 2>&1; then
+      # A running reader loses the STM32 while it is flashed, takes that for wrong
+      # firmware and flashes or resets it itself, which breaks the flash running here.
+      # It is started again below.
+      systemctl stop stm32_data_reader.service || true
       echo "Flashing STM32 firmware..."
       if ! ( cd "$FIRMWARE_DIR" && bash ./flash_wombat.sh ); then
         echo "WARNING: firmware flash failed — flash later with" >&2
